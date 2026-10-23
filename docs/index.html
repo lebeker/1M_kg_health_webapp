@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sciense-kg · two cases — a drug overview and a field survey, built by an agent</title>
+<meta name="description" content="Two documents built with the kg skill: an approved-drug overview and a survey of where longevity research is thin. The brief, the document, the map it renders.">
+<style>
+:root{
+  --bg:#14161a; --fg:#e6e8ec; --muted:#8b93a1; --line:#2a2e36;
+  --surface-2:#1d2127; --text-2:#c7ccd6; --text-3:#93a0b4; --accent:#9dc0ff;
+  --good:#6fbf73; --warn:#f5a623; --bad:#b4544f;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);
+  font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:1080px;margin:0 auto;padding:40px 24px 72px}
+.kicker{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:34px;line-height:1.15;margin:10px 0 8px;letter-spacing:-.01em}
+h2{font-size:15px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+  margin:44px 0 14px;font-weight:600}
+.lede{color:var(--text-2);max-width:64ch;margin:0 0 8px}
+.ask{border-left:2px solid var(--line);padding:2px 0 2px 16px;color:var(--text-2);
+  font-style:italic;max-width:66ch;margin:18px 0 0}
+.prompt{margin:12px 0 10px;padding:14px 16px;background:#1b1e24;border:1px solid var(--line);
+  border-radius:10px;color:var(--text-2);font-size:13.5px;white-space:pre-wrap;max-width:78ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.stat b{display:block;font-size:24px;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat span{color:var(--muted);font-size:12px}
+.frame{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#0d0f13}
+.frame iframe{display:block;width:100%;height:640px;border:0;background:var(--bg)}
+.bar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
+.btn{display:inline-block;border:1px solid var(--line);border-radius:8px;padding:8px 12px;
+  background:var(--surface-2);color:var(--fg);font-size:13px}
+.btn:hover{border-color:#46536c;text-decoration:none}
+.btn.primary{border-color:#3a5a8f;background:#1b2942;color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;
+  background:#1b1e24;border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+.muted{color:var(--muted)}
+.note{border-top:1px solid var(--line);margin-top:56px;padding-top:18px;
+  color:var(--muted);font-size:13px}
+.ok{color:var(--good)} .gap{color:var(--warn)}
+hr.sep{border:0;border-top:1px solid var(--line);margin:64px 0 44px}
+img.shot{display:block;width:100%;border:0}
+.note b{color:var(--fg)}
+ul.tight{margin:6px 0 0;padding-left:18px;color:var(--text-2)}
+ul.tight li{margin:4px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="kicker">sciense-kg · case 1 · approved drugs</div>
+  <h1>Lynkuet and the neurokinin antagonist class</h1>
+  <p class="lede">One article, built by an agent with the published <code>kg</code> skill and drawn
+  by the <code>viewer</code> app. The article is the prop; the map is what the skill made of it;
+  the <code>kg.json</code> is the document both came from. Nothing on this page was placed by hand.</p>
+
+  <h2>The ask</h2>
+  <blockquote class="prompt">I'm Lilly, a new intern at Bayer
+need to write an overview article for "Lynkuet"
+
+• Approval Date: October 24, 2025
+• Therapeutic Class / Mechanism: Dual neurokinin-1 and 3 (NK1,3) receptor antagonist.
+• It is a newly introduced non-hormonal treatment for moderate-to-severe vasomotor symptoms (hot flashes) due to menopause. It enters a rapidly evolving class alongside Fezolinetant (Veozah, approved mid-2023). A unified class overview explicitly comparing these specific neurokinin antagonists has very little published material yet.
+• You should  test on whether it can co-cluster Elinzanetant and Fezolinetant together into a "Neurokinin Antagonist" class map, even though Elinzanetant itself has a very short paper trail.</blockquote>
+  <p class="muted" style="font-size:13.5px">Sent with two attachments: the working folder, and a
+  40-line method note — <a href="lynkuet/brief.md">brief.md</a> — naming the OASIS trials to seed
+  from, three prongs to traverse (parallel class, upstream science, post-market), and three
+  outputs: a timeline, a clustered map, a gap report. <a href="lynkuet/prompt.md">prompt.md</a>
+  keeps both pieces of text together.</p>
+  <p class="muted" style="font-size:13.5px">Made by <b>Hermes Agent</b> (desktop) on
+  <code>deepseek-v4.1-flash:cloud</code>, one session on 20 October 2026, 28 minutes — 24 OpenAlex
+  calls, about $0.012 at list price.</p>
+
+  <h2>The result</h2>
+  <div class="grid">
+    <div class="stat"><b>35</b><span>nodes</span></div>
+    <div class="stat"><b>73</b><span>edges</span></div>
+    <div class="stat"><b>12</b><span>publications</span></div>
+    <div class="stat"><b>2</b><span>drugs</span></div>
+    <div class="stat"><b>7</b><span>researchers</span></div>
+    <div class="stat"><b>4</b><span>institutions</span></div>
+    <div class="stat"><b>15</b><span>relation words</span></div>
+  </div>
+
+  <h2>The map</h2>
+  <div class="frame">
+    <iframe src="lynkuet/index.html" title="Lynkuet and the neurokinin antagonist class — interactive map"></iframe>
+  </div>
+  <div class="bar">
+    <a class="btn primary" href="lynkuet/index.html">open full screen</a>
+    <a class="btn" href="lynkuet/timeline.html">the same case as a timeline</a>
+    <a class="btn" href="lynkuet/overview.md">read the article (.md)</a>
+    <a class="btn" href="lynkuet/graph.json" download>download kg.json</a>
+    <a class="btn" href="how-to/">what every button does</a>
+  </div>
+  <p class="muted" style="font-size:13px;margin-top:10px">In the map: <b>notes</b> shows the
+  article inside the page, <b>x/y · force</b> chooses between the coordinates the document carries
+  and a layout computed from the edges, and the legend folds relations off one by one. New here?
+  <a href="how-to/">What every button does</a> walks through the page control by control, with a
+  live map to try it on.</p>
+
+  <h2>What the document carries</h2>
+  <table>
+    <thead><tr><th>kind</th><th class="num">nodes</th><th>what a node means here</th></tr></thead>
+    <tbody>
+      <tr><td><code>drug</code></td><td class="num">2</td><td>an approved product, with its FDA label and approval date</td></tr>
+      <tr><td><code>subject</code></td><td class="num">8</td><td>the indication, the receptor, the mechanism, the side-effect of concern</td></tr>
+      <tr><td><code>publication</code></td><td class="num">12</td><td>a trial report or a review, with its DOI and total citation count</td></tr>
+      <tr><td><code>researcher</code></td><td class="num">7</td><td>an author or a trial investigator</td></tr>
+      <tr><td><code>institution</code></td><td class="num">4</td><td>a university, a trial site, a funder</td></tr>
+      <tr><td><code>company</code></td><td class="num">2</td><td>the sponsor of each drug</td></tr>
+    </tbody>
+  </table>
+  <p class="muted" style="font-size:13px">Relations, declared by the graph rather than the app:
+  <code>cites</code> 19, <code>about</code> 13, <code>reports on</code> 10, <code>authored</code> 8,
+  <code>works at</code> 5, <code>treats</code> 3, plus nine single-purpose words the author added
+  (<code>acts by</code>, <code>developed</code>, <code>requires monitoring</code>, …).</p>
+
+  <h2>What was checked, not trusted</h2>
+  <ul class="tight">
+    <li><span class="ok">verified</span> — OpenAlex counts, re-run by hand: elinzanetant 178 works,
+        fezolinetant 297, both 47.</li>
+    <li><span class="ok">verified</span> — all four pivotal reports resolve to a DOI and a venue:
+        JAMA 2024, JAMA Internal Medicine 2025, NEJM 2025, eClinicalMedicine 2026.</li>
+    <li><span class="ok">verified</span> — both drugs carry a US approval date and a label link;
+        the article states the hepatotoxicity difference between the two labels.</li>
+    <li><span class="ok">verified</span> — 24 OpenAlex calls, about $0.012 at list price. The
+        installed skill was not modified during the run.</li>
+  </ul>
+
+  <h2>What it exposed</h2>
+  <ul class="tight">
+    <li><span class="gap">fixed</span> — 437 commits for one article, 221 of them moving dots:
+        commits are now a batch per reply.</li>
+    <li><span class="gap">fixed</span> — the map arrived with 19 citation lines crossing it: the
+        viewer now offers <code>x/y · force</code> and the same switch governs 3D.</li>
+    <li><span class="gap">fixed</span> — <code>validate</code> warned about relations the app
+        itself had seeded; seeded vocabulary is now a suggestion, not a defect.</li>
+    <li><span class="gap">open</span> — <code>check</code> names four task skills and cannot install
+        them; the app's own vocabulary (a <code>drug</code> kind, <code>treats</code>) has to be
+        declared by hand on a fresh graph.</li>
+  </ul>
+
+
+  <hr class="sep">
+
+  <div class="kicker">sciense-kg · case 2 · a field survey</div>
+  <h1>Longevity research — where the work sits, and where the money doesn't</h1>
+  <p class="lede">The same skill, asked a different question: not "who is this drug", but "which
+  parts of this field are structurally thin, and does the money sit where the work is". The answer
+  is a category map of 110 shelves over 1,563 works — and a report whose every claim links to a
+  node you can open.</p>
+
+  <div class="grid" style="margin-top:20px">
+    <div class="stat"><b>1,817</b><span>nodes</span></div>
+    <div class="stat"><b>3,979</b><span>edges</span></div>
+    <div class="stat"><b>110</b><span>categories</span></div>
+    <div class="stat"><b>1,563</b><span>works</span></div>
+    <div class="stat"><b>71</b><span>researchers</span></div>
+    <div class="stat"><b>17</b><span>companies</span></div>
+    <div class="stat"><b>9</b><span>documents</span></div>
+  </div>
+
+  <h2>The map</h2>
+  <div class="frame"><img class="shot" src="catmap/shot-map.jpg"
+    alt="The longevity category map: 1,817 nodes arranged by ring, categories on the outer ring, publications inside, 3,979 relations"></div>
+  <div class="bar">
+    <a class="btn primary" href="catmap/index.html">open the map</a>
+    <a class="btn" href="catmap/report.md">read the report (.md)</a>
+    <a class="btn" href="catmap/prompt.md">the brief and its queries</a>
+    <a class="btn" href="catmap/graph.json" download>download kg.json</a>
+  </div>
+
+  <h2>The report, on the page</h2>
+  <div class="frame"><img class="shot" src="catmap/shot.jpg"
+    alt="The report open inside the page: the folder of nine documents on the left, the report beside it, the map on the right"></div>
+  <p class="muted" style="font-size:13px">Nine documents travel inside the file: the report, how to
+  read the map, the method, every source and its cost, what was rejected, the outside frame the
+  shelves were measured against, and the coverage diff. The report is the <code>.md</code> above;
+  the page renders it with a node id in every paragraph — click one and the map selects it.</p>
+
+  <h2>What it found</h2>
+  <table>
+    <thead><tr><th>finding</th><th class="num">number</th></tr></thead>
+    <tbody>
+      <tr><td>the field is intervention-shaped, and lifestyle is the intervention</td>
+          <td class="num">56% of attention · diet + sleep + exercise = 48%</td></tr>
+      <tr><td>the molecular geroprotectors are a rounding error beside it</td>
+          <td class="num">rapamycin 900 + NAD⁺ 1,500 = 0.9%</td></tr>
+      <tr><td>mechanisms are the most cited and the least renewed</td>
+          <td class="num">median 210 cites · 7% since 2024</td></tr>
+      <tr><td>money and companies sit on different shelves</td>
+          <td class="num">translation: 1.4% of awards, 7 of 17 companies</td></tr>
+      <tr><td>the tail is where nobody publishes</td>
+          <td class="num">31 of 78 shelves under 500 works, 10 at zero</td></tr>
+    </tbody>
+  </table>
+
+  <h2>What is checked, and what is priced</h2>
+  <ul class="tight">
+    <li><span class="ok">checked</span> — every paragraph of the report carries a node id: 52
+        references, all of them resolving to a node that opens when clicked.</li>
+    <li><span class="ok">checked</span> — the shelves were measured against an outside frame (the
+        twelve hallmarks of aging): <b>0 of 12</b> at shelf level, <b>7</b> buried as classes,
+        <b>5</b> absent. That is a finding about the shelving, stated as one.</li>
+    <li><span class="gap">priced</span> — four places the evidence is thinner than the claims, each
+        with the source that closes it, its cost and what it would move: the money is apportioned
+        rather than read from awards, eleven of seventeen companies have no paper here, attention
+        counts title vocabulary, and each shelf was searched once. Three of the four fixes are
+        free.</li>
+  </ul>
+
+  <div class="note">
+    Case 1 built by an agent in one session, 20–21 October 2026; case 2 in one session on
+    21–23 October 2026 · rendered with
+    <code>viewer-v0.0.54</code> · skill <code>6a27d11</code> ·
+    <a href="https://github.com/lebeker/1M_kg_sciense-kg_webapp">the app</a> ·
+    <a href="https://github.com/lebeker/1M_kg_skill">the skill</a>
+    <br>The page is self-contained: the whole document is inlined, so it opens over
+    <code>file://</code> with no server.
+  </div>
+
+</div>
+</body>
+</html>

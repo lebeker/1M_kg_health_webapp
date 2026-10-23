@@ -1,0 +1,1000 @@
+:root {
+  --bg: #14161a;
+  --fg: #e6e8ec;
+  --muted: #8b93a1;
+  --line: #2a2e36;
+  --panel: #1b1e24;
+  /* Surfaces and text, named once so a second theme is a palette swap and not a second stylesheet. */
+  --surface-2: #1d2127;
+  --surface-3: #242833;
+  --hover: #2c3444;
+  --hover-line: #46536c;
+  --rule: #23272e;
+  --border-soft: #2b3038;
+  --text-2: #c7ccd6;
+  --text-3: #93a0b4;
+  --accent: #9dc0ff;
+  --accent-soft: #cfe0ff;
+  --danger: #b4544f;
+  --canvas: #14161a;
+  --node-dim: #333842;
+  color-scheme: dark;
+}
+
+/* Daylight. Not an inversion: the canvas stays quieter than the page, and the accents keep their
+   meaning — a link is still a link, a warning is still warm. */
+:root[data-theme='light'] {
+  --bg: #f7f8fa;
+  --fg: #1b1f27;
+  --muted: #5c6675;
+  --line: #d7dce3;
+  --panel: #ffffff;
+  --surface-2: #f0f2f6;
+  --surface-3: #e8ebf1;
+  --hover: #dde5f5;
+  --hover-line: #a8b6cf;
+  --rule: #e6e9ef;
+  --border-soft: #d7dce3;
+  --text-2: #333a45;
+  --text-3: #5c6675;
+  --accent: #1f6feb;
+  --accent-soft: #0b4ea2;
+  --danger: #b42318;
+  --canvas: #f7f8fa;
+  --node-dim: #cdd3dc;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+.app {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Two rows: the title names the document, the controls do the work. Everything below the bar
+   starts at --bar-h, so the height lives in one place. */
+:root {
+  --bar-h: 80px;
+}
+
+.bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--bar-h);
+  display: flex;
+  /* Two columns: a rail on the left for the documents, then the title and the controls. */
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  border-bottom: 1px solid var(--line);
+  z-index: 3;
+}
+
+.bar .rail {
+  flex: 0 0 58px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 8px;
+  border-right: 1px solid var(--line);
+}
+.bar .headcol {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* The one control in the rail: the folder of documents. It reads as a tab on the artifact, not
+   as an icon among icons, so it carries its own label and the count. */
+.rail-notes {
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 7px;
+  border-radius: 7px;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+.rail-notes[aria-pressed='true'] {
+  color: var(--accent);
+  background: var(--surface-2);
+}
+.rail-notes .n {
+  font-style: normal;
+  font-size: 9.5px;
+  color: var(--muted);
+}
+
+.titlerow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 2px 12px 0;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 8px;
+  min-width: 0;
+}
+
+.notes {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.title {
+  font-weight: 600;
+  font-size: 14.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.count,
+.hits i,
+.legend i {
+  color: var(--muted);
+}
+
+.spacer {
+  /* A breather between the left group and the switches — not the thing that takes the slack:
+     the search field is. With both growing they split the room evenly and the field stays
+     half-width while a hole opens in the middle of the bar. */
+  flex: 0 0 40px;
+}
+
+.search {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--fg);
+  border-radius: 6px;
+  padding: 5px 8px;
+  /* The one elastic thing in the row: everything else is a fixed control. */
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 110px;
+}
+
+button {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--fg);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.switch {
+  display: flex;
+  gap: 2px;
+}
+
+.switch button.on {
+  background: var(--hover);
+  border-color: var(--hover-line);
+}
+
+/* the renderers fill whatever is left; the panel and legend float above them */
+.view {
+  position: absolute;
+  top: var(--bar-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.canvas canvas {
+  display: block;
+}
+
+.empty {
+  color: var(--muted);
+  padding: 16px;
+}
+
+.hits {
+  position: absolute;
+  top: 48px;
+  left: 320px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-width: 280px;
+  z-index: 4;
+}
+
+.hits li {
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.hits li:hover {
+  background: var(--surface-3);
+}
+
+.legend {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  margin: 0;
+  padding: 8px 10px;
+  list-style: none;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  /* Above the sigma canvases, and able to take a click: this is a control panel, not a caption.
+     (It was `pointer-events: none` — the rows looked like switches and passed every click
+     straight through to the canvas.) */
+  z-index: 6;
+  pointer-events: auto;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.panel {
+  position: absolute;
+  top: var(--bar-h);
+  right: 0;
+  bottom: 0;
+  width: 340px;
+  padding: 16px;
+  overflow-y: auto;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  z-index: 5;
+}
+
+.panel h2 {
+  margin: 0 24px 12px 0;
+  font-size: 15px;
+}
+
+.panel dl {
+  display: grid;
+  /* A property name is whatever the graph says it is: it may be one word or a sentence, so
+     the name column takes what it needs up to a share of the panel and wraps rather than
+     running into the value. */
+  grid-template-columns: minmax(64px, 45%) minmax(0, 1fr);
+  gap: 2px 8px;
+  margin: 0 0 12px;
+}
+
+.panel dt {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.panel dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.panel a {
+  color: var(--accent);
+  word-break: break-all;
+}
+
+/* Where a document property's value comes from, in words — "by relevant papers" is part of the
+   reading, not a footnote. */
+/* The document set: one button per role, because "the report" and "the method" are different
+   documents to a reader, not tabs of one note. */
+.doc .doc-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 6px 10px 0;
+  border-bottom: 1px solid var(--line, #2a2f39);
+}
+.doc .doc-tabs button {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  padding: 4px 8px;
+  border-radius: 6px 6px 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: none;
+  color: var(--muted);
+}
+.doc .doc-tabs button.on {
+  color: var(--fg);
+  border-color: var(--line, #2a2f39);
+  background: var(--card, #1a1d23);
+}
+/* A node named in a document is a link into the map: click it and the map selects it. */
+.doc .doc-body code.node-ref {
+  cursor: pointer;
+  border-bottom: 1px dotted var(--muted);
+}
+.doc .doc-body code.node-ref:hover {
+  color: var(--accent, #9dc0ff);
+}
+
+.panel .from {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.panel h3 {
+  margin: 16px 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.panel h3 i {
+  font-style: normal;
+  font-weight: 400;
+}
+
+/* The graph as a list. Each row is a way to get somewhere: clicking follows the relation. */
+.conns {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.conn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.conn:hover {
+  background: var(--surface-3);
+  border-color: var(--border-soft);
+}
+
+.conn .head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.conn .head .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  align-self: center;
+}
+
+.conn .rel {
+  flex: 1;
+}
+
+.conn .power {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.conn .other {
+  display: block;
+  margin-top: 2px;
+  color: var(--fg);
+}
+
+.conn .props {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.tags {
+  color: var(--muted);
+}
+
+.id {
+  display: block;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  padding: 0 8px;
+  font-size: 18px;
+  line-height: 1.4;
+}
+
+
+/* The 2D overlay: dashes, rings and the relation under the cursor. Above the WebGL layers,
+   below the panel, and it never takes a click — every interaction belongs to sigma. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* The loading screen is the measurement, so it says what it is doing. */
+.measuring {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(20, 22, 26, 0.86);
+  color: var(--text-2);
+}
+.measuring b { font-size: 13px; letter-spacing: 0.02em; }
+.measuring span { font-variant-numeric: tabular-nums; color: var(--text-3); }
+.measuring i { font-style: normal; font-size: 11px; opacity: 0.6; }
+
+/* Over budget: said out loud, with the way past it. */
+.banners {
+  position: absolute;
+  top: var(--bar-h);
+  left: 0;
+  right: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+.banners > * { pointer-events: auto; }
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  margin: 0 12px 6px;
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--text-3);
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12px;
+}
+.banner span { color: var(--text-3); }
+.panel dd .unit { color: var(--text-2); }
+.banner button { margin-left: auto; }
+
+/* One relation word per block, foldable, with the nodes it reaches collapsible. */
+.group { margin: 6px 0 2px; }
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 12px;
+  color: var(--text-3);
+}
+.group-head i { font-style: normal; opacity: 0.7; }
+.group-head .tiny { margin-left: auto; }
+
+button.link {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  /* The chevron sits on the text's baseline: inline-flex keeps it from hanging off the line. */
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+button.tiny {
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 11px;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+button.tiny:hover, button.link:hover { color: var(--accent-soft); }
+
+.collapsed { font-size: 12px; color: var(--text-3); }
+
+.doc-open {
+  display: block;
+  width: 100%;
+  margin: 8px 0;
+  padding: 5px;
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+/* The notes panel: a second panel, beside the first, for the long form of a description. */
+.doc {
+  position: absolute;
+  top: var(--bar-h);
+  left: 0;
+  bottom: 0;
+  /* Left-docked and never wider than the room the node panel leaves: with the documents on the
+     left, selecting a node opens its panel on the right and both stay readable. */
+  width: min(820px, calc(100vw - 372px));
+  display: flex;
+  flex-direction: row;
+  border-right: 1px solid var(--border-soft);
+  background: var(--canvas);
+  z-index: 6;
+}
+/* The folder, as a folder: rows on the left, the open document beside them. */
+.doc-tree {
+  flex: 0 0 210px;
+  overflow: auto;
+  padding: 6px 0 24px;
+  border-right: 1px solid var(--rule);
+}
+.doc-tree .tree-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 4px 12px 8px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.doc-tree .tree-head:hover { color: var(--text-2); }
+/* Folded, the folder is a strip: the document gets the room back. */
+.doc-tree.closed { flex-basis: 26px; }
+.doc-tree.closed .tree-head { padding: 4px 6px 8px; }
+.doc-tree.closed .tree-head .lbl { display: none; }
+.doc-tree .row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 8px;
+  border: none;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.doc-tree .row:hover { background: var(--surface-2); }
+.doc-tree .row.on {
+  background: var(--surface-2);
+  color: var(--text-1);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.doc-tree .row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-tree .row .role { margin-left: auto; font-size: 9.5px; color: var(--text-3); }
+.doc-tree .row .chev { width: 9px; font-size: 9px; color: var(--text-3); }
+.doc-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.doc header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--rule);
+}
+.doc header .path { font-size: 11px; color: var(--text-3); }
+.doc header button.on { border-color: var(--text-3); color: var(--accent-soft); }
+.doc-body {
+  overflow: auto;
+  padding: 12px 18px 40px;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.doc-body h1 { font-size: 19px; }
+.doc-body h2 { font-size: 16px; margin-top: 22px; }
+.doc-body h3 { font-size: 14px; margin-top: 18px; }
+.doc-body a { color: var(--accent); }
+.doc-body code {
+  background: var(--surface-2);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+.doc-body pre {
+  background: var(--surface-2);
+  padding: 10px;
+  border-radius: 4px;
+  overflow: auto;
+}
+.doc-body blockquote {
+  margin: 10px 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--border-soft);
+  color: var(--text-3);
+}
+.doc-body ul { padding-left: 18px; }
+/* A coverage report is a grid: the table is the document, so it gets the room. */
+.doc-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0 16px;
+  font-size: 12px;
+}
+.doc-body th,
+.doc-body td {
+  text-align: left;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line, #2a2f39);
+  vertical-align: top;
+}
+.doc-body th {
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.doc-edit {
+  flex: 1;
+  margin: 10px;
+  padding: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  resize: none;
+}
+.doc footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--rule);
+}
+.doc footer .note { margin-right: auto; font-size: 11px; color: var(--text-3); }
+.doc footer button.agent { border-color: var(--text-3); color: var(--accent-soft); }
+
+/* A row inside a collapse: still the document's word, greyed so it reads as put away. */
+.conn.hidden-conn { opacity: 0.55; }
+.conn.hidden-conn .tag {
+  margin-left: 6px; padding: 0 4px; border: 1px solid var(--border); border-radius: 3px;
+  font-size: 10px; color: var(--muted-foreground); text-transform: lowercase;
+}
+.halo-kind { font-variant-numeric: tabular-nums; }
+
+/* The legend's relation switches: the kinds above, the relation words below, and a switch each.
+   A muted word is struck through, not removed — the reader needs to see what they switched off. */
+.legend h4 {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  margin: 7px 0 3px; padding-top: 6px; border-top: 1px solid var(--border);
+  font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.legend .rels { list-style: none; margin: 0; padding: 0; max-height: 34vh; overflow: auto; }
+.legend .rel {
+  display: flex; align-items: center; gap: 6px; width: 100%; padding: 1px 2px;
+  background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.legend .rel .word { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.legend .rel .mark {
+  width: 9px; height: 9px; border-radius: 2px; flex: none;
+  border: 1px solid var(--muted-foreground); background: var(--muted-foreground);
+}
+.legend .rel .eye { display: inline-flex; flex: none; color: var(--muted-foreground); }
+.legend .rel:hover .eye { color: var(--foreground); }
+.legend .rel.off .eye { color: var(--danger); }
+.legend .rel { padding: 2px 3px; border-radius: 4px; }
+.legend .rel:hover { background: color-mix(in srgb, var(--foreground) 7%, transparent); }
+.legend .rel.off { color: var(--muted-foreground); }
+.legend .rel.off .word { text-decoration: line-through; }
+.legend .rel.off .mark { background: none; }
+.legend .rel:hover .word { color: var(--foreground); }
+
+/* The fold control sits with the node, not in a menu: one word, and what it will do. */
+.panel .foldbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 2px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.panel .foldbar .tiny { padding: 2px 8px; font-size: 11px; }
+
+/* An icon button in the top bar: same height as the words beside it, no text. Off is dimmed, not
+   invisible — a switch you cannot find again is worse than one you left alone. */
+.bar .icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 7px;
+  color: var(--muted-foreground);
+}
+.bar .icon.off {
+  opacity: 0.45;
+}
+/* A link drawn as an icon: the same box as the buttons, without the underline a browser gives it. */
+a.bar .icon,
+.bar a.icon {
+  color: var(--muted-foreground);
+  text-decoration: none;
+}
+.bar a.icon:hover {
+  color: var(--accent-soft);
+}
+.bar .icon svg {
+  display: block;
+}
+
+/* The first frame: a page that computes its own layout has a moment where it has nothing to
+   show, and an empty rectangle is indistinguishable from a broken one. */
+.loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  z-index: 6;
+  pointer-events: none;
+  color: var(--foreground, #e8edf5);
+  background: radial-gradient(ellipse at center, rgba(20, 24, 32, 0.35), rgba(12, 14, 19, 0.85));
+}
+.loading b { font-size: 14px; font-weight: 600; letter-spacing: 0.01em; }
+.loading span { font-size: 12px; color: #8d99ab; }
+
+/* ---------------------------------------------------------------------------------------------
+   The legend, folded. Open, it is a control panel: every kind, every relation, and what a
+   relation looks like. Folded, it is one line — how much is in the map, and whether the names
+   are on it — because a reader who is looking at the map is not reading the legend.
+   ------------------------------------------------------------------------------------------- */
+.legend.collapsed {
+  padding: 5px 7px;
+}
+
+.legend-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.legend-head h4 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend-head .legend-labels {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.legend-head .fold,
+.legend-bar .expand {
+  /* A control that says "there is more here", drawn at the weight of every other icon button
+     in the page. As a 9px text glyph in the muted colour it was there and not visible. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--fg) 30%, transparent);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--fg);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.legend-head .fold:hover,
+.legend-bar .expand:hover {
+  color: var(--accent-soft);
+  border-color: var(--accent-soft);
+}
+
+.chev {
+  display: block;
+  flex: none;
+}
+
+/* In the panel the mark sits beside a small-caps label, so it takes the link's colour and a
+   little more room than the text would give it. */
+button.link .chev {
+  margin-right: 1px;
+}
+
+.legend-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.legend-bar b {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* Three positions, one control: on · hover · off. */
+.labels {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.labels button {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 10px;
+  padding: 1px 5px;
+  cursor: pointer;
+}
+
+.labels button + button {
+  border-left: 1px solid var(--line);
+}
+
+.labels button:hover {
+  color: var(--fg);
+}
+
+.labels button.on {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--fg);
+}
+
+/* What the relation looks like where it is drawn: colour, dash, head, width. */
+.legend .rel .sample {
+  flex: none;
+  overflow: visible;
+}
+
+/* A disclosure in the panel is a control, not a heading: "connections 12" is the one thing on
+   that line you can click, so it carries the accent and its chevron with it. */
+.panel h3 .link {
+  font: inherit;
+  color: var(--accent);
+  letter-spacing: inherit;
+  text-transform: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel h3 .link:hover {
+  color: var(--accent-soft);
+}
+
+.group-head .link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent);
+}
+
+.group-head .link:hover {
+  color: var(--accent-soft);
+}
+
+/* x/y or force: a two-position switch, the same shape as 2D/3D, because it is the same kind of
+   decision — how the picture is made, not what is in it. */
+.layout {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.layout button {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  padding: 3px 7px;
+  cursor: pointer;
+}
+
+.layout button + button {
+  border-left: 1px solid var(--line);
+}
+
+.layout button:hover {
+  color: var(--fg);
+}
+
+.layout button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.layout button.on {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--fg);
+}
