@@ -17,8 +17,9 @@ python3 -m http.server 8770 --bind 127.0.0.1
   hides it. Hidden layers drop out of the spread lineup.
 - **Organs** — 104 separate meshes, each with its own name and colour (liver brown, lungs pink,
   gut tan, kidneys red-brown). Click-through and per-organ nodes come next.
-- **Sex switch** — present in the bar, and wired to the `sex` app-prop, but only the male set
-  exists. See below.
+- **Sex switch** — wired to the `sex` app-prop; swaps the reproductive set (12 atlas meshes for
+  male, 8 modelled organs for female). Clicking a legend *row* pulls that layer out of the body
+  — the eye only hides it.
 
 ## The sex prop
 
@@ -37,7 +38,7 @@ The graph declares the props the app may render; the app reads them instead of h
 `{` or `[` are parsed). The view derives the switch from `props.sex`, so a graph that does not
 declare it gets no switch.
 
-## The female model — a real gap
+## The female model — modelled, because no atlas has one
 
 Z-Anatomy ships **male genitalia only**. Its female collections exist by name and are empty:
 
@@ -48,11 +49,13 @@ Z-Anatomy ships **male genitalia only**. Its female collections exist by name an
 | `Male genital system'` (for contrast, organs live in `8: Visceral systems`) | 12 meshes |
 
 BodyParts3D has no female organs either (zero rows for uterus/ovary/vagina in its parts list).
-So a woman cannot be switched on with data in hand — the switch toggles a layer that would be
-empty. Options, none of them free-and-perfect:
+So the female set is **modelled parametrically** in the atlas's own pelvis coordinates:
+`Uterus`, `Cervix`, `Vagina`, `Vulva`, `Ovary.l/.r`, `Uterine tube.l/.r` — 8 organs, 2,614
+triangles, 77KB (`../1M_kg_health_assets/build_female.py`). It is stylised, not scanned, and the
+body surface around it is still the male-pattern skin. To replace it with anatomy:
 
 1. **Slicer / OpenAnatomy "Female Pelvis" atlas** — CC BY, real scans, pelvis + pelvic organs.
-   Would give a correct female reproductive layer, not a whole female body.
+   Would replace the modelled set with a scanned one, but still not a whole female body.
 2. **Sketchfab CC BY** female anatomy models — usually whole-body, mixed quality, licence
    per-model, needs manual cleanup.
 3. **Commission or buy** a female surface (with breasts) and female pelvis, merge into the same
@@ -67,7 +70,8 @@ empty. Options, none of them free-and-perfect:
 | `models/muscles.glb`, `bones.glb` | merged per layer |
 | `models/cardio.glb`, `nervous.glb`, `lymphoid.glb` | vessels and nerves (mostly curves in the source) |
 | `models/organs.glb` | 104 organs, one mesh each, coloured |
-| `models/reproductive-male.glb` | 12 organs |
+| `models/reproductive-male.glb` | 12 organs, from the atlas |
+| `models/reproductive-female.glb` | 8 organs, modelled |
 | `lib/` | three.js r146 (UMD) |
 | `shots/` | the four states, 2× |
 

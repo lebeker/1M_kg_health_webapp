@@ -206,7 +206,7 @@ function buildLegend() {
     row.className = "row" + (state.hidden.has(l.id) ? " off" : "");
     row.dataset.layer = l.id;
     row.innerHTML = `<span class="dot" style="background:#${l.color.toString(16).padStart(6,"0")}"></span>` +
-      `<span class="nm">${l.name}</span><span class="cnt">${counts[l.id] || 0}</span>` +
+      `<span class="nm">${l.name}</span><span class="cnt">${l.id === "reproductive" ? variantCount(state.sex) : (counts[l.id] || 0)}</span>` +
       `<button class="eye" title="show / hide">${state.hidden.has(l.id) ? EYE_SHUT : EYE_OPEN}</button>`;
     row.onclick = e => {
       if (e.target.closest(".eye")) { toggle(l.id); return; }
@@ -216,6 +216,15 @@ function buildLegend() {
     };
     rows.appendChild(row);
   });
+}
+
+function variantCount(sex) {
+  const g = groups.reproductive;
+  const v = g && g.userData.variants[sex];
+  if (!v) return 0;
+  let n = 0;
+  v.traverse(o => { if (o.isMesh) n++; });
+  return n;
 }
 
 function toggle(id) {
