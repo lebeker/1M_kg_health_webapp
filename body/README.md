@@ -50,9 +50,12 @@ Z-Anatomy ships **male genitalia only**. Its female collections exist by name an
 
 BodyParts3D has no female organs either (zero rows for uterus/ovary/vagina in its parts list).
 So the female set is **modelled parametrically** in the atlas's own pelvis coordinates:
-`Uterus`, `Cervix`, `Vagina`, `Vulva`, `Ovary.l/.r`, `Uterine tube.l/.r` — 8 organs, 2,614
-triangles, 77KB (`../1M_kg_health_assets/build_female.py`). It is stylised, not scanned, and the
-body surface around it is still the male-pattern skin. To replace it with anatomy:
+`Uterus`, `Cervix`, `Vagina`, `Vulva`, `Ovary.l/.r`, `Uterine tube.l/.r` — 8 organs, ~2.8k
+triangles, 340KB with a mottled mucosa texture (`build_female3.py`). Each is a swept surface:
+an elliptical profile along a spine, so the tract is continuous rather than a pile of ellipsoids,
+and it is anchored to the bladder (which the atlas does have) instead of round numbers. It is
+stylised, not scanned, and the body surface around it is still the male-pattern skin. To replace
+it with anatomy:
 
 1. **Slicer / OpenAnatomy "Female Pelvis" atlas** — CC BY, real scans, pelvis + pelvic organs.
    Would replace the modelled set with a scanned one, but still not a whole female body.
