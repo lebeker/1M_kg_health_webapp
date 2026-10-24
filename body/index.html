@@ -288,6 +288,11 @@ function applySex() {
     if (!o.isMesh) return;
     if (/^(Urethra|Ejaculatory[ _]duct)/i.test(o.name)) o.visible = state.sex === "male";
   });
+  // the atlas bits are teeth, hair and nails of a MALE scan: on the female they float in front of
+  // the shell's face, which reads as a head three times too big
+  if (groups.skin) groups.skin.traverse(o => {
+    if (o.isMesh && /skinbits/i.test(o.name)) o.visible = state.sex === "male";
+  });
   document.querySelectorAll("#sex button").forEach(b => b.classList.toggle("on", b.dataset.sex === state.sex));
   document.querySelectorAll(".row").forEach(row => {
     const id = row.dataset.layer;

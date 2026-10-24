@@ -171,11 +171,20 @@ bpy.data.objects.remove(muscles, do_unlink=True)
 
 # --- the head sits 5 cm behind the atlas head (the base mesh's neck leans back) ---------------
 # without this the face pokes out of the shell and the shell reads as a helmet
-HEAD_SHIFT = 0.0   # measured against the muscle layer the head is already the male skin size; a shift only pulled it off the face
+HEAD_SHIFT = -0.055  # rigid head move: the base mesh's head sits 5.5 cm behind the atlas head
+HEAD_SCALE = 0.94     # and 6 % larger; scaled about the neck so the seam does not shear
 for name in KEEP:
     obj = bpy.data.objects[name]
     for v in obj.data.vertices:
-        v.co.y += HEAD_SHIFT * smoothstep((v.co.z - 1.400) / 0.120)
+        w = smoothstep((v.co.z - 1.430) / 0.080)
+        if w > 0:
+            # rigid: scale about the neck joint, then move; blend in over the neck
+            y0, z0 = 0.02, 1.47
+            sy = y0 + (v.co.y - y0) * (1 + (HEAD_SCALE - 1) * w)
+            sz = z0 + (v.co.z - z0) * (1 + (HEAD_SCALE - 1) * w)
+            v.co.x *= 1 + (HEAD_SCALE - 1) * w
+            v.co.y = sy + HEAD_SHIFT * w
+            v.co.z = sz
     obj.data.update()
 
 # --- skin allowance ---------------------------------------------------------------------------

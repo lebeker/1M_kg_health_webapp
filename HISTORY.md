@@ -151,11 +151,16 @@ through it. Three deformations remain:
   the muscles' at five heights (the base mesh stands 2-5 cm wider below the knee).
 - **skin allowance**: a 1.8 cm lateral push, because measured against the muscles the shell was
   0.5-2.6 cm INSIDE them at the arms, chest and hands.
+- **head**: a rigid 5.5 cm forward move and a 6 % shrink about the neck joint, because per-height
+  depth measurements put the base mesh's cranium 5.6-10 cm behind the atlas head — that offset, and
+  not the head's size, is what made it read as a helmet.
 
 Result: **167,596 verts / 83,798 triangles / 6.37 MB**. Leg centres are within 1.3 cm of the
 muscles', and the shell is within 2 cm of the muscle surface at every height — outside it at the
-chest, hips and shoulders, and 0.8 cm inside it at the elbows and hands. Head: 18.8 cm wide over a
+outside it at the chest, hips and shoulders, and 0.8 cm inside it at the elbows and hands. Head: 18.8 cm wide over a
 14.9 cm skull, against 19.6 cm for the male atlas skin — the same size, 2 cm of soft tissue a side.
+The male `skinbits` (teeth, hair, nails) are hidden on the female: left on, the hair cap floated in
+front of the shell's face and doubled the head.
 
 Assets are now versioned (`?v=` in the loader plus a fresh `skin-female2.glb`): GitHub Pages caches
 GLBs hard enough that a renamed file is the only reliable cache-bust. The skull sits inside the head with a
