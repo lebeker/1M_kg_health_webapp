@@ -1,82 +1,198 @@
-# Body view — the health webapp's first surface
+# Forma — a personal health map
 
-Static prototype of the 3D body the health case is built on. No build step: `index.html`
-plus eight GLB files in `models/`, loaded with three.js.
+A standalone, buildless three.js illustration and graph editor. The body is the map; a `kg/1`
+graph stores the connections. The React viewer in `src/` is independent and unchanged.
 
-Open it through any static server (GLTF cannot be fetched over `file://`):
+From the repository root:
 
-```bash
+```sh
 python3 -m http.server 8770 --bind 127.0.0.1
-# http://127.0.0.1:8770/body/
+# Open http://127.0.0.1:8770/body/
 ```
 
-## What it does
+This is a static site: any static host works. ES modules and GLBs require HTTP rather than
+`file://`. There is no application server, build step, CDN, remote font, or runtime API request.
 
-- **Three views** — one body (muscles translucent), one layer pulled out, all layers apart.
-- **Legend** — collapsible rail, one row per layer *type*, each with a count and an eye that
-  hides it. Hidden layers drop out of the spread lineup.
-- **Organs** — 104 separate meshes, each with its own name and colour (liver brown, lungs pink,
-  gut tan, kidneys red-brown). Click-through and per-organ nodes come next.
-- **Sex switch** — wired to the `sex` app-prop; swaps the reproductive set (12 atlas meshes for
-  male, 8 modelled organs for female). Clicking a legend *row* pulls that layer out of the body
-  — the eye only hides it.
+## Art direction
 
-## The sex prop
+Warm ivory, forest-green typography, a sage clay figure, terracotta cardiovascular structures,
+eucalyptus lungs, ochre digestive structures, and muted plum urinary/reproductive structures.
+Directional studio lights, a hemisphere fill, ACES tone mapping, and a painted contact shadow
+keep the scene soft. Serif headings and restrained controls frame the illustration.
 
-The graph declares the props the app may render; the app reads them instead of hard-coding:
+The surface is derived from the atlas, voxel-retopologised, relaxed, simplified and subdivided;
+fine surface details are reduced. Both sex variants use this same schematic surface. The sex
+prop swaps the underlying reproductive structures. This is an illustrative, androgynous map,
+not an individually fitted body or a clinical atlas.
 
-```json
-"meta": {
-  "app": "health",
-  "props": {
-    "sex": { "type": "enum", "values": ["female", "male"], "default": "male" }
-  }
+The runtime loads only `models/designed/`. The original GLBs in `models/` remain reference
+material and are never fetched by the new page. The designed models have been decimated,
+smoothed, regrouped, re-materialled, and stripped of atlas textures.
+
+There are **21 general organ meshes**, plus **12 male / 8 female reproductive structures**.
+Lungs retain their separate lobe surfaces and fissures. Kidney meshes include the renal pelvis
+and ureter. Liver, stomach, and coiled intestines retain their atlas silhouettes. The heart is
+assembled from the actual left/right ventricles, atria, ascending aorta and aortic arch.
+The constellation also loads separate ventricular/atrial geometry and a purpose-modelled
+three-leaflet valve. ECG and capsule objects are built as actual three.js geometry, not icons.
+
+The organ catalogue is intentionally curated from the 104-part reference export: overlapping
+mucosal shells, fine ducts, duplicate liver segments, and atlas annotation meshes are omitted.
+The nervous layer contains the atlas brain; the current independently selectable organ catalogue
+does not include a separate brain mesh.
+
+## Navigation
+
+- **Whole body:** a softly faded torso window reveals the organ map. Background systems are
+  subdued; surface, muscles, skeleton, vessels, nerves, lymphatics, organs and reproduction remain
+  independently toggleable.
+- **Layer focus:** click a layer row or choose mode 02. That layer moves beside the body.
+- **All apart:** all visible systems separate into a lineup. Hidden layers leave the lineup.
+- The eye buttons only toggle visibility. The layer rail also collapses. Keys **1 / 2 / 3**
+  select the modes; **Escape** leaves the constellation. Reset restores camera framing.
+- Drag the figure to rotate; scroll to zoom. Click an exposed organ, its label, or a search result
+  to open its constellation. Principal labels show live adjacent-node counts; other meshes show
+  the same badge on hover and in search results.
+- Constellations use a radial layout with a real 3D miniature per node. Each relation is labelled
+  with its graph kind. Click a miniature to open details, then follow its connected records or
+  explore that record's neighbourhood. Layout has no anatomical meaning.
+
+## Graph input and fixture
+
+Provide a graph before `app.js` runs:
+
+```html
+<script id="kg-graph" type="application/json">
+{
+  "schema": "kg/1",
+  "meta": {
+    "app": "health",
+    "props": {
+      "sex": { "type": "enum", "values": ["female", "male"], "default": "male" }
+    }
+  },
+  "nodes": [
+    { "id": "my-heart", "type": "organ", "label": "Heart", "level": 0,
+      "weight": 1, "props": { "mesh": "heart", "description": "Organ record" } },
+    { "id": "my-ecg", "type": "analysis", "label": "ECG", "level": 1,
+      "weight": 1, "props": { "mesh": "ecg", "description": "Investigation note" } }
+  ],
+  "edges": [
+    { "from": "my-heart", "to": "my-ecg", "kind": "measured-by", "power": 1 }
+  ]
 }
+</script>
 ```
 
-`kg set-meta --key props --value '{...}'` stores that as a JSON object (values that start with
-`{` or `[` are parsed). The view derives the switch from `props.sex`, so a graph that does not
-declare it gets no switch.
+`props.mesh` binds a graph record to an organ mesh. Graph IDs may differ from mesh IDs.
+As a fallback, exact node ID or organ label matches also bind an organ. The manifest
+`models/designed/organs.json` lists stable mesh IDs, labels, systems and sex restrictions.
+An embedded graph is authoritative: fixture records are not merged into it. Organs without
+matching graph records remain visual context. The sex switch only appears if declared in
+`meta.props.sex`.
 
-## The female model — modelled, because no atlas has one
+The integration also accepts `<script id="kg-docs" type="application/json">…</script>` with
+an array or object of documents. Documents with `node`, `nodeId`, or IDs listed in a node's
+`props.docs` appear in its details. Text is escaped before display. The unresolved template
+placeholders `__KG_GRAPH__` and `__KG_DOCS__` are treated as absent.
 
-Z-Anatomy ships **male genitalia only**. Its female collections exist by name and are empty:
+With no embedded graph, `fixture.js` supplies the heart, left ventricle, right atrium, aortic
+valve, hypertension, ECG, echocardiogram, beta-blocker and cardiologist. The heart initially has
+8 adjacent records. A retinopathy example links the eye to a condition shared with the heart's
+hypertension neighbourhood. Organ anchors are added from the manifest. Fixture records are
+explicitly demonstration data, not a patient's history or treatment recommendations.
 
-| collection | meshes |
-|---|---|
-| `Female genital system'` | **0** |
-| `Uterus'`, `Ovary'`, `Vagina'`, `Vulva'`, `Clitoris'` | **0** each |
-| `Male genital system'` (for contrast, organs live in `8: Visceral systems`) | 12 meshes |
+## Async store interface
 
-BodyParts3D has no female organs either (zero rows for uterus/ovary/vagina in its parts list).
-So the female set is **modelled parametrically** in the atlas's own pelvis coordinates:
-`Uterus`, `Cervix`, `Vagina`, `Vulva`, `Ovary.l/.r`, `Uterine tube.l/.r` — 8 organs, ~2.8k
-triangles, 340KB with a mottled mucosa texture (`build_female3.py`). Each is a swept surface:
-an elliptical profile along a spine, so the tract is continuous rather than a pile of ellipsoids,
-and it is anchored to the bladder (which the atlas does have) instead of round numbers. It is
-stylised, not scanned, and the body surface around it is still the male-pattern skin. To replace
-it with anatomy:
+All persistence lives behind `store.js`. Consumers receive copies, never internal mutable state.
+The module exposes:
 
-1. **Slicer / OpenAnatomy "Female Pelvis" atlas** — CC BY, real scans, pelvis + pelvic organs.
-   Would replace the modelled set with a scanned one, but still not a whole female body.
-2. **Sketchfab CC BY** female anatomy models — usually whole-body, mixed quality, licence
-   per-model, needs manual cleanup.
-3. **Commission or buy** a female surface (with breasts) and female pelvis, merge into the same
-   atlas — the only route to a *female body*, not just female organs.
-4. **Ship male-only** and keep the switch out until there is data.
+```js
+await initStore(organAnchors);       // Once, before reading
+await listNodes();                  // All node records
+await listEdges();                  // All edge records
+await getGraph();                   // Full kg/1 document including meta
+await addNode({ label, type, props, id?, level?, weight? });
+await addEdge({ from, to, kind, power? });
+await removeNode(id);               // Also removes every incident edge
+await removeEdge({ from, to, kind });
+await addConnectedNode(node, from, kind); // Atomic create + attach
+const unsubscribe = subscribe(() => { /* refresh derived views */ });
+```
 
-## Files
+Node labels must be nonempty and IDs unique. Edges require existing endpoints, reject
+self-links, and deduplicate identical `(from, to, kind)` triples. Writing storage happens before
+publishing the updated state. A full or unavailable store causes the edit to reject visibly;
+failed atomic creation never leaves an orphan node behind.
 
-| file | what |
-|---|---|
-| `models/skin.glb`, `skinbits.glb` | body surface; teeth, hair, nails |
-| `models/muscles.glb`, `bones.glb` | merged per layer |
-| `models/cardio.glb`, `nervous.glb`, `lymphoid.glb` | vessels and nerves (mostly curves in the source) |
-| `models/organs.glb` | 104 organs, one mesh each, coloured |
-| `models/reproductive-male.glb` | 12 organs, from the atlas |
-| `models/reproductive-female.glb` | 8 organs, modelled |
-| `lib/` | three.js r146 (UMD) |
-| `shots/` | the four states, 2× |
+Storage uses `health-map:kg1:v1:demo` for the fixture and a deterministic source-specific key
+for each embedded graph. It survives reloads on the same browser origin. No graph is uploaded.
+Reset demo edits by removing that one key from browser storage. Changes on another origin or
+another device are separate; there is no synchronisation or multi-user conflict handling yet.
 
-The mesh pipeline that produced these lives in `../1M_kg_health_assets/` (`export_v9.py` for the
-layers, `export_organs2.py` for the organs).
+**Add a connection** opens the editor. Choose a name, type, relation, target record, and note,
+then **Create & connect**. The same editor can connect an existing record to any other organ.
+Deleting a non-organ record removes all of its links. Badges and constellations refresh from the
+store after each successful edit.
+
+## Rebuild the art
+
+Blender 4.5 is used offline only. `tools/build_models.py` reads the reference GLBs and the
+original atlas `Startup.blend`; adjust its `ATLAS` path for another machine. `build_details.py`
+exports chamber miniatures independently and creates the valve mesh.
+
+```sh
+~/Applications/Blender.app/Contents/MacOS/Blender -b -t 4 --python body/tools/build_models.py
+~/Applications/Blender.app/Contents/MacOS/Blender -b -t 4 --python body/tools/build_details.py
+```
+
+The pipeline evaluates shared meshes into independent datablocks, then combines organs through
+bmesh rather than relying on selection-sensitive atlas joins. The clinical source and original
+reference exports are not modified.
+
+## Verification
+
+The three required **1280×800, 1×** screenshots are:
+
+- `shots/final-body.png`
+- `shots/final-layer.png`
+- `shots/final-heart.png`
+
+The first and second visual review
+passes are retained under `shots/review/`; they led to corrected color management, reduced
+lighting exposure, separated labels, softer surface topology and dedicated chamber miniatures.
+
+`shots/validation.json` records browser checks and measured performance. On this machine,
+headless Chrome using Metal at 1280×800 delivered approximately **60 fps** over 240 frames,
+with a 95th percentile frame interval of **16.8 ms** and all layer visibility toggles enabled.
+The loaded page was **6.44 MB uncompressed**, below the 8 MB budget. Performance is a local
+measurement, not a guarantee for every device. No console exceptions or error log entries were
+recorded during the tested flows.
+
+Tests cover form-based creation, attachment to multiple organs, reload persistence and badge
+increments, cascade deletion, layer toggles, sex variants, search, every mesh's graph binding,
+caller-supplied IDs, document notes, and embedded-graph isolation.
+
+```sh
+node body/tools/store.test.mjs
+# Start the static server first. Requires Python websocket-client and local Chrome.
+FORMA_QA_EXTRA=body/tools/integration_checks.py python3 body/tools/browser_qa.py review
+```
+
+## Attribution and share-alike
+
+Atlas-derived geometry, including the edited body surface, body systems, general organs,
+chamber miniatures and male reproductive structures, is derived from
+[Z-Anatomy — Models of human anatomy](https://github.com/Z-Anatomy/Models-of-human-anatomy),
+by the Z-Anatomy contributors, based in part on BodyParts3D by the Database Center for Life
+Science. The original atlas and **our edited atlas-derived GLBs remain licensed under
+[Creative Commons Attribution-ShareAlike 4.0 International](https://creativecommons.org/licenses/by-sa/4.0/)**.
+Retain attribution, describe modifications and distribute further adaptations of these models
+under the same licence. Our modifications are listed above and the reproducible source scripts
+are provided here. This geometry licence does not change the application's source-code licence.
+
+The modelled female reproductive structures derive from the project's earlier swept-surface
+models, smoothed and simplified here. The unused `models/skin-female.glb` reference is the
+CC0 Blender Studio / Wikimedia scan by Dan Ulrich, Paul Kotelevets, Tonatiuh de San Julián and
+Julien Kaspar; it is not loaded by this illustration. three.js r146 and its vendored loaders and
+controls retain their upstream MIT notices in `lib/`.

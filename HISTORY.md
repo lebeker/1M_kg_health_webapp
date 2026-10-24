@@ -58,3 +58,33 @@ it. Detailed models (3D4Medical and friends) are a different product with a diff
 Schematic and cartoonish beats detailed: an androgynous body, organs as simple shapes, click an
 organ to open its constellation of organ nodes with real organ silhouettes. The graph is the
 database; scans and documents are assets beside it.
+
+## Designed map — 2026-10-24
+
+`body/` now uses the **Forma** direction: ivory canvas, sage sculpted surface, restrained clay
+system colors, soft studio lighting, three layer views, and organ constellations containing real
+3D miniatures. The old atlas exports remain reference files; runtime loads only
+`body/models/designed/` (about 6.44 MB for the complete page and its loaded assets).
+
+- Surface: atlas reference → voxel retopology → relaxation → decimation → final subdivision.
+  One schematic androgynous surface is shared across the sex variants.
+- Organs: curated 21 general organs from the 104-part reference, grouped to avoid overlapping
+  membranes and duplicate liver segments, plus the existing 12 male / 8 female structures.
+- Heart: independently evaluated source ventricles and atria, ascending aorta and aortic arch.
+  Chamber miniatures export independently; the valve is a dedicated three-leaflet model.
+- Source object selection and collection visibility made the first chamber exports disappear.
+  Evaluate into independent mesh datablocks, combine with bmesh, and export new objects rather
+  than carrying hidden atlas collection state forward. Source curves must be converted too.
+- The first screenshots washed out because material color-space conversion and high light
+  exposure compounded. Runtime hex colors now convert from sRGB to linear and lighting is lower.
+- Three visual review passes corrected light, color, label collisions, silhouette smoothing,
+  chamber miniatures and separated-layer framing. Final screenshots are in `body/shots/`;
+  the first two passes are retained in `body/shots/review/`.
+- `body/store.js` provides async graph methods with local persistence; `fixture.js` supplies
+  the heart neighbourhood only when no graph is embedded. Create/connect, reload, multi-organ
+  attachment, cascade delete, graph IDs, docs and sex props were exercised in Chrome.
+- Local Metal/Chrome measurement at 1280×800: about 60 fps over 240 frames, 16.8 ms p95,
+  all layer visibility toggles enabled, no console errors during the checked flows.
+
+Rebuild scripts and tests are under `body/tools/`; art, API, fixture and attribution details are
+in `body/README.md`. The React app and source reference assets were not changed.

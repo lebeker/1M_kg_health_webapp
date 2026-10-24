@@ -1,0 +1,473 @@
+[
+  {
+    "id": "lung-right",
+    "type": "organ",
+    "label": "Right lung",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "lung-right",
+      "system": "respiratory"
+    }
+  },
+  {
+    "id": "lung-left",
+    "type": "organ",
+    "label": "Left lung",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "lung-left",
+      "system": "respiratory"
+    }
+  },
+  {
+    "id": "liver",
+    "type": "organ",
+    "label": "Liver",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "liver",
+      "system": "digestive"
+    }
+  },
+  {
+    "id": "stomach",
+    "type": "organ",
+    "label": "Stomach",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "stomach",
+      "system": "digestive"
+    }
+  },
+  {
+    "id": "intestine",
+    "type": "organ",
+    "label": "Small intestine",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "intestine",
+      "system": "digestive"
+    }
+  },
+  {
+    "id": "colon",
+    "type": "organ",
+    "label": "Large intestine",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "colon",
+      "system": "digestive"
+    }
+  },
+  {
+    "id": "kidney-left",
+    "type": "organ",
+    "label": "Left kidney",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "kidney-left",
+      "system": "urinary"
+    }
+  },
+  {
+    "id": "kidney-right",
+    "type": "organ",
+    "label": "Right kidney",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "kidney-right",
+      "system": "urinary"
+    }
+  },
+  {
+    "id": "bladder",
+    "type": "organ",
+    "label": "Bladder",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "bladder",
+      "system": "urinary"
+    }
+  },
+  {
+    "id": "pancreas",
+    "type": "organ",
+    "label": "Pancreas",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "pancreas",
+      "system": "digestive"
+    }
+  },
+  {
+    "id": "gallbladder",
+    "type": "organ",
+    "label": "Gallbladder",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "gallbladder",
+      "system": "digestive"
+    }
+  },
+  {
+    "id": "thyroid",
+    "type": "organ",
+    "label": "Thyroid",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "thyroid",
+      "system": "endocrine"
+    }
+  },
+  {
+    "id": "trachea",
+    "type": "organ",
+    "label": "Trachea",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "trachea",
+      "system": "respiratory"
+    }
+  },
+  {
+    "id": "oesophagus",
+    "type": "organ",
+    "label": "Oesophagus",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "oesophagus",
+      "system": "digestive"
+    }
+  },
+  {
+    "id": "adrenal-left",
+    "type": "organ",
+    "label": "Left adrenal gland",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "adrenal-left",
+      "system": "endocrine"
+    }
+  },
+  {
+    "id": "adrenal-right",
+    "type": "organ",
+    "label": "Right adrenal gland",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "adrenal-right",
+      "system": "endocrine"
+    }
+  },
+  {
+    "id": "tongue",
+    "type": "organ",
+    "label": "Tongue",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "tongue",
+      "system": "digestive"
+    }
+  },
+  {
+    "id": "heart",
+    "type": "organ",
+    "label": "Heart",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "heart",
+      "system": "cardiovascular"
+    }
+  },
+  {
+    "id": "spleen",
+    "type": "organ",
+    "label": "Spleen",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "spleen",
+      "system": "lymphatic"
+    }
+  },
+  {
+    "id": "eye-left",
+    "type": "organ",
+    "label": "Left eye",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "eye-left",
+      "system": "sensory"
+    }
+  },
+  {
+    "id": "eye-right",
+    "type": "organ",
+    "label": "Right eye",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "eye-right",
+      "system": "sensory"
+    }
+  },
+  {
+    "id": "reproductive-male-0",
+    "type": "organ",
+    "label": "Testis.r",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-male-0",
+      "system": "reproductive",
+      "sex": "male"
+    }
+  },
+  {
+    "id": "reproductive-male-1",
+    "type": "organ",
+    "label": "Testis.l",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-male-1",
+      "system": "reproductive",
+      "sex": "male"
+    }
+  },
+  {
+    "id": "reproductive-male-2",
+    "type": "organ",
+    "label": "Epididymis.r",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-male-2",
+      "system": "reproductive",
+      "sex": "male"
+    }
+  },
+  {
+    "id": "reproductive-male-3",
+    "type": "organ",
+    "label": "Epididymis.l",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-male-3",
+      "system": "reproductive",
+      "sex": "male"
+    }
+  },
+  {
+    "id": "reproductive-male-4",
+    "type": "organ",
+    "label": "Ductus deferens.l",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-male-4",
+      "system": "reproductive",
+      "sex": "male"
+    }
+  },
+  {
+    "id": "reproductive-male-5",
+    "type": "organ",
+    "label": "Ductus deferens.r",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-male-5",
+      "system": "reproductive",
+      "sex": "male"
+    }
+  },
+  {
+    "id": "reproductive-male-6",
+    "type": "organ",
+    "label": "Seminal gland.r",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-male-6",
+      "system": "reproductive",
+      "sex": "male"
+    }
+  },
+  {
+    "id": "reproductive-male-7",
+    "type": "organ",
+    "label": "Seminal gland.l",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-male-7",
+      "system": "reproductive",
+      "sex": "male"
+    }
+  },
+  {
+    "id": "reproductive-male-8",
+    "type": "organ",
+    "label": "Prostate",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-male-8",
+      "system": "reproductive",
+      "sex": "male"
+    }
+  },
+  {
+    "id": "reproductive-male-9",
+    "type": "organ",
+    "label": "Glans penis",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-male-9",
+      "system": "reproductive",
+      "sex": "male"
+    }
+  },
+  {
+    "id": "reproductive-male-10",
+    "type": "organ",
+    "label": "Corpus cavernosum of penis",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-male-10",
+      "system": "reproductive",
+      "sex": "male"
+    }
+  },
+  {
+    "id": "reproductive-male-11",
+    "type": "organ",
+    "label": "Corpus spongiosum of penis",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-male-11",
+      "system": "reproductive",
+      "sex": "male"
+    }
+  },
+  {
+    "id": "reproductive-female-0",
+    "type": "organ",
+    "label": "Uterus",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-female-0",
+      "system": "reproductive",
+      "sex": "female"
+    }
+  },
+  {
+    "id": "reproductive-female-1",
+    "type": "organ",
+    "label": "Cervix",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-female-1",
+      "system": "reproductive",
+      "sex": "female"
+    }
+  },
+  {
+    "id": "reproductive-female-2",
+    "type": "organ",
+    "label": "Vagina",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-female-2",
+      "system": "reproductive",
+      "sex": "female"
+    }
+  },
+  {
+    "id": "reproductive-female-3",
+    "type": "organ",
+    "label": "Uterine tube.l",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-female-3",
+      "system": "reproductive",
+      "sex": "female"
+    }
+  },
+  {
+    "id": "reproductive-female-4",
+    "type": "organ",
+    "label": "Ovary.l",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-female-4",
+      "system": "reproductive",
+      "sex": "female"
+    }
+  },
+  {
+    "id": "reproductive-female-5",
+    "type": "organ",
+    "label": "Uterine tube.r",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-female-5",
+      "system": "reproductive",
+      "sex": "female"
+    }
+  },
+  {
+    "id": "reproductive-female-6",
+    "type": "organ",
+    "label": "Ovary.r",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-female-6",
+      "system": "reproductive",
+      "sex": "female"
+    }
+  },
+  {
+    "id": "reproductive-female-7",
+    "type": "organ",
+    "label": "Vulva",
+    "level": 0,
+    "weight": 1,
+    "props": {
+      "mesh": "reproductive-female-7",
+      "system": "reproductive",
+      "sex": "female"
+    }
+  }
+]

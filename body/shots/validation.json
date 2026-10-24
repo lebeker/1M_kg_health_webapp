@@ -1,0 +1,26 @@
+{
+  "heart has 9 3D nodes and 8 labelled edges": true,
+  "node opens details": true,
+  "create and attach through editor": true,
+  "new node details show saved note": true,
+  "reload preserves graph and increments organ badge": true,
+  "same analysis can attach to another organ": true,
+  "delete cascades across organ links": true,
+  "female prop swaps reproductive count": true,
+  "layer eye hides organ labels": true,
+  "search opens a separate organ constellation": true,
+  "every mesh has a graph ID": true,
+  "performance": {
+    "fps": 60.003000150007495,
+    "p95FrameMs": 16.799999999999272,
+    "frames": 240,
+    "drawCalls": 57,
+    "triangles": 383526,
+    "averageFps": 60.25437437938683
+  },
+  "pageBytes": 6437821,
+  "page weight below 8 MB": true,
+  "embedded graph replaces fixture and supplies sex": true,
+  "embedded IDs and kg-docs open correctly": true,
+  "consoleErrors": []
+}
