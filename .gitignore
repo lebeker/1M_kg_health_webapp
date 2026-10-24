@@ -2,3 +2,8 @@ node_modules/
 dist/
 dist-multi/
 .DS_Store
+
+# Generated candidate/Blender backups; final model and editable source are tracked.
+body/models/repair/reproductive-female.glb
+body/models/repair/*.blend1
+body/tools/__pycache__/

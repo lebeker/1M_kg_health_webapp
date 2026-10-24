@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#f5f4ee">
+<title>Forma — Personal health map</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%232b5147'/%3E%3Cpath d='M12 29V11h17M12 20h13' stroke='%23fff' fill='none' stroke-width='3'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a class="brand" href="./" aria-label="Forma home"><span class="brand-mark">f</span>forma<span class="brand-sub">PERSONAL HEALTH MAP</span></a><div class="workspace"><span class="status-dot"></span> Personal workspace <span class="slash">/</span> <span>Demo profile</span></div><button class="avatar" id="profile" title="About this demo">JD</button></header>
+<aside class="rail" id="legend">
+<div class="rail-heading"><span class="eyebrow">EXPLORE YOUR HEALTH</span><button id="collapse" class="icon-btn" title="Collapse layers" aria-expanded="true">‹</button></div>
+<h1>Your body.<br>Your story.</h1><p class="intro">Find a system. Follow a connection.<br>See the bigger picture.</p>
+<div class="rail-label">BODY LAYERS <span id="layer-count">8</span></div><div id="rows"></div>
+<div class="organ-search"><label for="organ-search">FIND AN ORGAN</label><input id="organ-search" type="search" placeholder="Search organs…" autocomplete="off"><div id="search-results"></div></div>
+<div class="rail-bottom"><span class="local-dot"></span><div>Yours, by design.<small>Changes saved on this device</small></div></div>
+</aside>
+<main>
+<div class="viewbar"><div class="breadcrumbs"><button id="home">Body atlas</button><span id="crumb"></span></div><div id="sex" class="seg"></div></div>
+<div class="scene-heading"><div><span class="eyebrow" id="scene-kicker">ANATOMY, CONNECTED</span><h2 id="scene-title">The whole picture</h2></div><span class="view-index" id="view-index">01 / 03</span></div>
+<div id="stage" aria-label="Interactive 3D anatomy map"><div id="labels"></div><div id="loading"><span></span> Sculpting your map…</div></div>
+<div class="stage-note" id="stage-note"><span class="tiny-cross">+</span> A map of connections, made personal.</div>
+<div class="bottom-controls"><div class="seg modes"><button data-mode="body" class="on">01 <span>Whole body</span></button><button data-mode="out">02 <span>Layer focus</span></button><button data-mode="spread">03 <span>All apart</span></button></div><button id="reset" class="icon-btn" title="Reset camera">↺</button></div>
+<div class="orbit-hint" id="orbit-hint">Drag to rotate <span>·</span> Scroll to explore</div>
+</main>
+<aside class="detail" id="detail"><div id="detail-content"></div></aside>
+<footer><span>FORMA <i> / </i> BODY ATLAS</span><span id="foot">Illustrative anatomy · Demo graph</span><span id="save-status"><span class="local-dot"></span> Local workspace</span></footer>
+<div id="toast" role="status"></div>
+<dialog id="editor"><form id="node-form"><div class="dialog-head"><span class="eyebrow">BUILD A CONNECTION</span><button type="button" id="close-editor" class="icon-btn" aria-label="Close">×</button></div><h2>Add to the story</h2><p>Attach a finding, investigation or protocol to a node.</p><label>NAME<input id="node-label" name="label" required maxlength="100" placeholder="e.g. Lipid profile"></label><div class="form-grid"><label>NODE TYPE<select id="node-type"><option value="condition">Condition</option><option value="analysis">Analysis</option><option value="protocol">Protocol</option><option value="part">Anatomical part</option><option value="specialist">Specialist</option></select></label><label>RELATIONSHIP<select id="edge-kind"><option>sign-of</option><option>measured-by</option><option>treated-by</option><option>has-part</option><option>risk-from</option><option>reviewed-by</option></select></label></div><label>ATTACH TO<select id="attach-to"></select></label><label>NOTE<textarea id="node-note" rows="3" placeholder="What should the next specialist know?"></textarea></label><p class="form-error" id="form-error" role="alert"></p><button class="primary" type="submit">Create & connect <span>↗</span></button><div class="existing-divider">or connect an existing node</div><div class="form-grid"><select id="existing-node" aria-label="Existing node"></select><button type="button" id="connect-existing">Connect node ↗</button></div></form></dialog>
+<script src="lib/three.min.js"></script><script src="lib/GLTFLoader.js"></script><script src="lib/OrbitControls.js"></script><script type="module" src="app.js"></script>
+</body></html>

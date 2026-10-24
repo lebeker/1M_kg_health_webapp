@@ -88,3 +88,30 @@ system colors, soft studio lighting, three layer views, and organ constellations
 
 Rebuild scripts and tests are under `body/tools/`; art, API, fixture and attribution details are
 in `body/README.md`. The React app and source reference assets were not changed.
+
+## Correction after model review — 2026-10-24
+
+The Forma pass above was rejected: it degraded good atlas geometry and prioritised interface
+work while failing to replace the inadequate female tract. Its 6.44 MB / 60 fps measurements
+refer to that experiment, not to the current default viewer.
+
+- Restored the original `body/index.html` viewer and direct use of the original GLBs. The ten
+  preserved system/surface/organ/male files match `2bb386c` byte-for-byte. The earlier interface
+  is moved aside to `body/constellation.html`.
+- Populated the layer rail before loading, added explicit failed-file reporting, and exercised
+  the actual vendored GLTFLoader and original event handlers in a source-level regression test.
+  This is not a live browser render test; browser access was previously declined.
+- Replaced the female reproductive model with 19 independently named authored meshes,
+  117,456 triangles, including cervical/vaginal walls, inner rugae, tubal infundibula/fimbriae,
+  ovaries, ligaments, external anatomy and a short female urethra. Editable Blender source and
+  before/after renders are included. The old eight-part tract is retained for comparison.
+- Used pelvis landmarks and then BVH triangle crossing tests, rather than judging placement
+  only from the front. Initial placement intersected bone. Anteflexion and adnexal placement
+  were corrected without altering the skeleton. Final authored meshes are manifold and have
+  zero reported surface crossings with the unchanged atlas bones and bladder. The atlas
+  skeletal pelvis is still male; these checks do not establish clinical or patient-specific fit.
+- Female mode hides the shared atlas's male urethra and ejaculatory ducts; male mode retains
+  them. Female common-organ count is 101, male 104; reproductive variants are 19 / 12 meshes.
+
+See `body/MODEL_REPAIR.md`, `body/models/repair/` and `body/tools/build_female_repair.py`.
+The preview server is intentionally left running for the user's review.

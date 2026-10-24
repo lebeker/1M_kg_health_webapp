@@ -1,0 +1,52 @@
+{
+  "skin-female.glb": {
+    "baseline": "2bb386c",
+    "sha256": "43e90bac6ff2397fd2f7058febd826849346bbf9e1093b497ec9f8b3e0af820f",
+    "unchanged": true
+  },
+  "lymphoid.glb": {
+    "baseline": "2bb386c",
+    "sha256": "270434e189657b57ea004beced0d5d1d63225d38ceae4db357d6986cbe702b4b",
+    "unchanged": true
+  },
+  "skin.glb": {
+    "baseline": "2bb386c",
+    "sha256": "6926e065374efb029d774cdad0b7df0347c34c631b7d1c518681d40d5283cc60",
+    "unchanged": true
+  },
+  "bones.glb": {
+    "baseline": "2bb386c",
+    "sha256": "cc724cb4fac3cca2e17af19966d9e557af488b3c8205dfbdede61b0e07a65845",
+    "unchanged": true
+  },
+  "organs.glb": {
+    "baseline": "2bb386c",
+    "sha256": "c0f215d62377c3162819d9f3a00e6f38ec77b4df4422dd2f270f3ad6fbaf1fd8",
+    "unchanged": true
+  },
+  "reproductive-male.glb": {
+    "baseline": "2bb386c",
+    "sha256": "76caa48f1f167d1b2a078bb68bfabd971974eadc5c6a5ff6a12c12ae5063c8c4",
+    "unchanged": true
+  },
+  "muscles.glb": {
+    "baseline": "2bb386c",
+    "sha256": "7c4e2904b1d8af3200cbdd21272cb8691e8211a217ce2d638f700a9c0569c1b9",
+    "unchanged": true
+  },
+  "skinbits.glb": {
+    "baseline": "2bb386c",
+    "sha256": "e04094f61e91d87e6d3943e89ad3d9b87475f641b114d88d1209f6c1a5fda11f",
+    "unchanged": true
+  },
+  "cardio.glb": {
+    "baseline": "2bb386c",
+    "sha256": "fce1c404f6388b68287b141b15a04c04bab39b2251b9cc5bddcb0c513c3498f5",
+    "unchanged": true
+  },
+  "nervous.glb": {
+    "baseline": "2bb386c",
+    "sha256": "93a7b5eddb9d71b2b0a361bd39efc7a1b171ccaa41b59bc5c46d8651559a52d4",
+    "unchanged": true
+  }
+}

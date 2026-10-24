@@ -1,198 +1,88 @@
-# Forma — a personal health map
+# Body layers and model repair
 
-A standalone, buildless three.js illustration and graph editor. The body is the map; a `kg/1`
-graph stores the connections. The React viewer in `src/` is independent and unchanged.
-
-From the repository root:
+`index.html` is the original standalone three.js body viewer, restored from commit `2bb386c`.
+Its eight-layer rail, eye toggles, sex switch, skin control, collapse button and three view modes
+are retained. The React app is unchanged.
 
 ```sh
 python3 -m http.server 8770 --bind 127.0.0.1
-# Open http://127.0.0.1:8770/body/
+# http://127.0.0.1:8770/body/
 ```
 
-This is a static site: any static host works. ES modules and GLBs require HTTP rather than
-`file://`. There is no application server, build step, CDN, remote font, or runtime API request.
+The viewer loads the original files directly from `models/`. **Skin, skin bits, female surface,
+muscles, skeleton, cardiovascular, nervous, lymphatic, the 104 common organ meshes and the male
+reproductive set are preserved byte-for-byte.** It does not load `models/designed/`.
+`models/repair/original-integrity.json` records SHA-256 checks against the original commit.
 
-## Art direction
+The layer rail is populated before GLBs load, refreshed as each layer arrives, and loading
+failures are shown in the footer. `window.__ready()` requires successful loading;
+`window.__loadErrors()` returns missing/failed model names. A failed asset no longer leaves an
+empty rail with no explanation.
 
-Warm ivory, forest-green typography, a sage clay figure, terracotta cardiovascular structures,
-eucalyptus lungs, ochre digestive structures, and muted plum urinary/reproductive structures.
-Directional studio lights, a hemisphere fill, ACES tone mapping, and a painted contact shadow
-keep the scene soft. Serif headings and restrained controls frame the illustration.
+## Replacement female reproductive geometry
 
-The surface is derived from the atlas, voxel-retopologised, relaxed, simplified and subdivided;
-fine surface details are reduced. Both sex variants use this same schematic surface. The sex
-prop swaps the underlying reproductive structures. This is an illustrative, androgynous map,
-not an individually fitted body or a clinical atlas.
+`models/reproductive-female.glb` now contains **19 separately named meshes, 117,456 triangles**,
+authored in the atlas's metre-scale coordinates. It replaces the earlier eight-part, low-resolution
+swept model. The new source is `models/repair/female-repair.blend`.
 
-The runtime loads only `models/designed/`. The original GLBs in `models/` remain reference
-material and are never fetched by the new page. The designed models have been decimated,
-smoothed, regrouped, re-materialled, and stripped of atlas textures.
+- Uterus with a rounded fundus, broad corpus, tapering isthmus and anteflexion over the bladder.
+- A separate cervix with a cervical canal; vaginal walls with a superior vault and inner rugae.
+- Two curved uterine tubes with flared infundibula and individual fimbrial projections.
+- Two almond-shaped ovaries with subtle cortical relief and a medial hilum.
+- Paired ovarian and round ligaments.
+- Separate labia majora, labia minora, vestibular bulbs, and a clitoral body/glans/crura assembly.
+- A short female urethra.
 
-There are **21 general organ meshes**, plus **12 male / 8 female reproductive structures**.
-Lungs retain their separate lobe surfaces and fissures. Kidney meshes include the renal pelvis
-and ureter. Liver, stomach, and coiled intestines retain their atlas silhouettes. The heart is
-assembled from the actual left/right ventricles, atria, ascending aorta and aortic arch.
-The constellation also loads separate ventricular/atrial geometry and a purpose-modelled
-three-leaflet valve. ECG and capsule objects are built as actual three.js geometry, not icons.
+Female mode hides the male urethra and two ejaculatory ducts in the common atlas export and
+shows the new female urethra instead. Male mode retains those original parts. Counts reflect
+the active anatomy: 104 common meshes in male mode, 101 in female mode, and 12 / 19 meshes in
+the male / female reproductive variants.
 
-The organ catalogue is intentionally curated from the 104-part reference export: overlapping
-mucosal shells, fine ducts, duplicate liver segments, and atlas annotation meshes are omitted.
-The nervous layer contains the atlas brain; the current independently selectable organ catalogue
-does not include a separate brain mesh.
+The model is placed against the unchanged atlas bladder, symphysis, sacrum and hip bones.
+The final mesh passes the authored-model manifold checks and the triangle-surface crossing
+check against the atlas bones and bladder. These are geometric checks, not clinical validation:
+the atlas skeleton remains male, and the separate CC0 female surface is not retargeted to it.
 
-## Navigation
+See [MODEL_REPAIR.md](MODEL_REPAIR.md) for the build, fitting iterations, references and exact
+verification limits. Blender inspection renders are in `shots/model-review/`:
 
-- **Whole body:** a softly faded torso window reveals the organ map. Background systems are
-  subdued; surface, muscles, skeleton, vessels, nerves, lymphatics, organs and reproduction remain
-  independently toggleable.
-- **Layer focus:** click a layer row or choose mode 02. That layer moves beside the body.
-- **All apart:** all visible systems separate into a lineup. Hidden layers leave the lineup.
-- The eye buttons only toggle visibility. The layer rail also collapses. Keys **1 / 2 / 3**
-  select the modes; **Escape** leaves the constellation. Reset restores camera framing.
-- Drag the figure to rotate; scroll to zoom. Click an exposed organ, its label, or a search result
-  to open its constellation. Principal labels show live adjacent-node counts; other meshes show
-  the same badge on hover and in search results.
-- Constellations use a radial layout with a real 3D miniature per node. Each relation is labelled
-  with its graph kind. Click a miniature to open details, then follow its connected records or
-  explore that record's neighbourhood. Layout has no anatomical meaning.
+- `female-front-final.png`, `female-side-final.png`
+- `female-pelvis-front-final.png`, `female-pelvis-side-final.png`
+- `female-before-front.png` — the earlier model, at the same inspection scale
 
-## Graph input and fixture
-
-Provide a graph before `app.js` runs:
-
-```html
-<script id="kg-graph" type="application/json">
-{
-  "schema": "kg/1",
-  "meta": {
-    "app": "health",
-    "props": {
-      "sex": { "type": "enum", "values": ["female", "male"], "default": "male" }
-    }
-  },
-  "nodes": [
-    { "id": "my-heart", "type": "organ", "label": "Heart", "level": 0,
-      "weight": 1, "props": { "mesh": "heart", "description": "Organ record" } },
-    { "id": "my-ecg", "type": "analysis", "label": "ECG", "level": 1,
-      "weight": 1, "props": { "mesh": "ecg", "description": "Investigation note" } }
-  ],
-  "edges": [
-    { "from": "my-heart", "to": "my-ecg", "kind": "measured-by", "power": 1 }
-  ]
-}
-</script>
-```
-
-`props.mesh` binds a graph record to an organ mesh. Graph IDs may differ from mesh IDs.
-As a fallback, exact node ID or organ label matches also bind an organ. The manifest
-`models/designed/organs.json` lists stable mesh IDs, labels, systems and sex restrictions.
-An embedded graph is authoritative: fixture records are not merged into it. Organs without
-matching graph records remain visual context. The sex switch only appears if declared in
-`meta.props.sex`.
-
-The integration also accepts `<script id="kg-docs" type="application/json">…</script>` with
-an array or object of documents. Documents with `node`, `nodeId`, or IDs listed in a node's
-`props.docs` appear in its details. Text is escaped before display. The unresolved template
-placeholders `__KG_GRAPH__` and `__KG_DOCS__` are treated as absent.
-
-With no embedded graph, `fixture.js` supplies the heart, left ventricle, right atrium, aortic
-valve, hypertension, ECG, echocardiogram, beta-blocker and cardiologist. The heart initially has
-8 adjacent records. A retinopathy example links the eye to a condition shared with the heart's
-hypertension neighbourhood. Organ anchors are added from the manifest. Fixture records are
-explicitly demonstration data, not a patient's history or treatment recommendations.
-
-## Async store interface
-
-All persistence lives behind `store.js`. Consumers receive copies, never internal mutable state.
-The module exposes:
-
-```js
-await initStore(organAnchors);       // Once, before reading
-await listNodes();                  // All node records
-await listEdges();                  // All edge records
-await getGraph();                   // Full kg/1 document including meta
-await addNode({ label, type, props, id?, level?, weight? });
-await addEdge({ from, to, kind, power? });
-await removeNode(id);               // Also removes every incident edge
-await removeEdge({ from, to, kind });
-await addConnectedNode(node, from, kind); // Atomic create + attach
-const unsubscribe = subscribe(() => { /* refresh derived views */ });
-```
-
-Node labels must be nonempty and IDs unique. Edges require existing endpoints, reject
-self-links, and deduplicate identical `(from, to, kind)` triples. Writing storage happens before
-publishing the updated state. A full or unavailable store causes the edit to reject visibly;
-failed atomic creation never leaves an orphan node behind.
-
-Storage uses `health-map:kg1:v1:demo` for the fixture and a deterministic source-specific key
-for each embedded graph. It survives reloads on the same browser origin. No graph is uploaded.
-Reset demo edits by removing that one key from browser storage. Changes on another origin or
-another device are separate; there is no synchronisation or multi-user conflict handling yet.
-
-**Add a connection** opens the editor. Choose a name, type, relation, target record, and note,
-then **Create & connect**. The same editor can connect an existing record to any other organ.
-Deleting a non-organ record removes all of its links. Badges and constellations refresh from the
-store after each successful edit.
-
-## Rebuild the art
-
-Blender 4.5 is used offline only. `tools/build_models.py` reads the reference GLBs and the
-original atlas `Startup.blend`; adjust its `ATLAS` path for another machine. `build_details.py`
-exports chamber miniatures independently and creates the valve mesh.
+## Rebuilding and checking
 
 ```sh
-~/Applications/Blender.app/Contents/MacOS/Blender -b -t 4 --python body/tools/build_models.py
-~/Applications/Blender.app/Contents/MacOS/Blender -b -t 4 --python body/tools/build_details.py
+~/Applications/Blender.app/Contents/MacOS/Blender -b -t 4 --python body/tools/build_female_repair.py
+~/Applications/Blender.app/Contents/MacOS/Blender -b -t 4 --python body/tools/check_female_fit.py -- --install
+~/Applications/Blender.app/Contents/MacOS/Blender -b -t 6 --python body/tools/render_female_repair.py
+node body/tools/viewer-regression.test.mjs
 ```
 
-The pipeline evaluates shared meshes into independent datablocks, then combines organs through
-bmesh rather than relying on selection-sensitive atlas joins. The clinical source and original
-reference exports are not modified.
+The source-level regression test loads all GLBs through the actual vendored GLTFLoader and
+exercises the viewer's event handlers and scene state. It covers all eight layer rows, eye
+visibility, three modes, sex variants, sex-specific common parts, skin visibility and collapse.
+DOM, renderer and orbit controls are test adapters: **this is not a live browser/WebGL test**.
+Current geometry was rendered directly in Blender. Browser access was declined during the
+previous work and was not bypassed for this repair.
 
-## Verification
+## Earlier interface experiment
 
-The three required **1280×800, 1×** screenshots are:
+The Forma/constellation experiment has been moved to `constellation.html`; it is not the
+entry point. Its notes are in `CONSTELLATION_EXPERIMENT.md`. Its simplified system models and
+performance screenshots describe that experiment only, and should not be treated as verification
+of the restored high-resolution viewer. The graph/store work remains available there for later
+integration without replacing working atlas geometry.
 
-- `shots/final-body.png`
-- `shots/final-layer.png`
-- `shots/final-heart.png`
+## Attribution
 
-The first and second visual review
-passes are retained under `shots/review/`; they led to corrected color management, reduced
-lighting exposure, separated labels, softer surface topology and dedicated chamber miniatures.
+The unchanged atlas models are from [Z-Anatomy](https://github.com/Z-Anatomy/Models-of-human-anatomy),
+by its contributors, based in part on BodyParts3D by the Database Center for Life Science.
+These models and atlas-derived adaptations remain under
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+The separate female surface is the CC0 Blender Studio/Wikimedia scan by Dan Ulrich,
+Paul Kotelevets, Tonatiuh de San Julián and Julien Kaspar.
 
-`shots/validation.json` records browser checks and measured performance. On this machine,
-headless Chrome using Metal at 1280×800 delivered approximately **60 fps** over 240 frames,
-with a 95th percentile frame interval of **16.8 ms** and all layer visibility toggles enabled.
-The loaded page was **6.44 MB uncompressed**, below the 8 MB budget. Performance is a local
-measurement, not a guarantee for every device. No console exceptions or error log entries were
-recorded during the tested flows.
-
-Tests cover form-based creation, attachment to multiple organs, reload persistence and badge
-increments, cascade deletion, layer toggles, sex variants, search, every mesh's graph binding,
-caller-supplied IDs, document notes, and embedded-graph isolation.
-
-```sh
-node body/tools/store.test.mjs
-# Start the static server first. Requires Python websocket-client and local Chrome.
-FORMA_QA_EXTRA=body/tools/integration_checks.py python3 body/tools/browser_qa.py review
-```
-
-## Attribution and share-alike
-
-Atlas-derived geometry, including the edited body surface, body systems, general organs,
-chamber miniatures and male reproductive structures, is derived from
-[Z-Anatomy — Models of human anatomy](https://github.com/Z-Anatomy/Models-of-human-anatomy),
-by the Z-Anatomy contributors, based in part on BodyParts3D by the Database Center for Life
-Science. The original atlas and **our edited atlas-derived GLBs remain licensed under
-[Creative Commons Attribution-ShareAlike 4.0 International](https://creativecommons.org/licenses/by-sa/4.0/)**.
-Retain attribution, describe modifications and distribute further adaptations of these models
-under the same licence. Our modifications are listed above and the reproducible source scripts
-are provided here. This geometry licence does not change the application's source-code licence.
-
-The modelled female reproductive structures derive from the project's earlier swept-surface
-models, smoothed and simplified here. The unused `models/skin-female.glb` reference is the
-CC0 Blender Studio / Wikimedia scan by Dan Ulrich, Paul Kotelevets, Tonatiuh de San Julián and
-Julien Kaspar; it is not loaded by this illustration. three.js r146 and its vendored loaders and
-controls retain their upstream MIT notices in `lib/`.
+The new female reproductive surfaces are original procedural model geometry, authored here
+rather than copied from atlas female collections (which are empty). three.js r146 and the
+vendored controls/loaders retain their MIT notices in `lib/`.
