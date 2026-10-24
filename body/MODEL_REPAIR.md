@@ -137,10 +137,11 @@ Meshes v1.2.0** bundle (CC0):
 5. relax the hand blockout with four smoothing passes so the shell reads as a hand;
 6. drop the eye spheres (they glow through the 22 %-opacity shell) and export at multires level 1.
 
-No arm rotation: the base mesh's A-pose already covers the arm bones, and the three rotations
-tried (|x| gate, height gate, arm-cylinder weight) each tore the armpit or sheared the hands. A
-gate on |x| also caught the outer thighs and folded the legs into a skirt — select arm vertices by
-distance to the arm bones, never by |x|.
+No arm rotation. Rotations about the shoulder (|x| gate, height gate, arm-cylinder weight) tore
+the armpit or sheared the splayed hand into a paddle, and an |x| gate on the forearm stage caught
+the outer thighs and folded the legs into a skirt — select arm vertices by distance to the arm
+bones, never by |x|. The arms are instead squeezed 12 % towards the midline inside that cylinder,
+which keeps the hand's shape.
 
 Result: **167,596 verts / 83,798 triangles / 6.37 MB**. Fit test: 51,216 of 51,778 skeleton
 vertices lie inside the shell; the 562 outside are the kneecaps. Reports and renders: `shots/skin-base/`, `shots/skin-audit/` (the old scan).

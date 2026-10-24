@@ -16,7 +16,7 @@ MODELS = BASE / "models"
 BUNDLE = "/Users/denistatarenko/Work/other/1M_kg_health_assets/human-base/human_base_meshes_bundle.blend"
 # the bundle uses a non-ASCII hyphen in these names: match on the ASCII suffix instead
 TARGET_HEIGHT = 1.743
-ARM_DEGREES = 0.0   # the base mesh's A-pose is already close; rotating it creases the armpit
+ARM_SQUEEZE = 0.12  # the base mesh's arms hang ~5 cm wider than the atlas muscles
 
 
 bpy.ops.wm.open_mainfile(filepath=BUNDLE)
@@ -115,9 +115,9 @@ def arm_weight(P, side):
     L = np.linalg.norm(AB)
     u = (P - A) @ AB / (L * L)
     perp = np.linalg.norm(P - (A + u[:, None] * AB), axis=1)
-    axial = np.clip(u * L / 0.10, 0.0, 1.0)
+    axial = np.clip(u * L / 0.08, 0.0, 1.0)
     axial = axial * axial * (3 - 2 * axial)
-    radial = 1.0 - np.clip((perp - 0.055) / 0.045, 0.0, 1.0)
+    radial = 1.0 - np.clip((perp - 0.085) / 0.045, 0.0, 1.0)
     w = axial * radial
     w[u < 0] = 0.0
     return w
@@ -126,19 +126,15 @@ def arm_weight(P, side):
 for name in KEEP:
     obj = bpy.data.objects[name]
     P = np.array([v.co[:] for v in obj.data.vertices])
-    for side, sign in ((0, 1.0), (1, -1.0)):
-        Q = P.copy()
-        Q[:, 0] *= sign
-        w = arm_weight(Q, 1.0)
-        for i, v in enumerate(obj.data.vertices):
-            if w[i] <= 0.0:
-                continue
-            sidev = 1.0 if v.co.x >= 0 else -1.0
-            sx, sz = shoulder[0] * sidev, shoulder[2]
-            dx, dz = v.co.x - sx, v.co.z - sz
-            a = np.radians(-ARM_DEGREES * sidev) * w[i]
-            v.co.x = sx + dx * np.cos(a) - dz * np.sin(a)
-            v.co.z = sz + dx * np.sin(a) + dz * np.cos(a)
+    Q = P.copy()
+    Q[:, 0] = np.abs(Q[:, 0])
+    w = arm_weight(Q, 1.0)
+    for i, v in enumerate(obj.data.vertices):
+        if w[i] <= 0.0:
+            continue
+        # squeeze the arm's lateral extent towards the midline instead of rotating it: a rigid
+        # rotation shears the splayed hand into a paddle, a linear squeeze keeps its shape
+        v.co.x *= 1.0 - ARM_SQUEEZE * w[i]
     obj.data.update()
 
 # the male pelvis is wider than this base mesh's hips: widen the iliac band so the crests sit inside
@@ -156,8 +152,8 @@ for name in KEEP:
     bm.from_mesh(obj.data)
     hand = [v for v in bm.verts if abs(v.co.x) > 0.195 and v.co.z < 0.985]
     if hand:
-        for _ in range(4):
-            bmesh.ops.smooth_vert(bm, verts=hand, factor=0.55, use_axis_x=True,
+        for _ in range(2):
+            bmesh.ops.smooth_vert(bm, verts=hand, factor=0.35, use_axis_x=True,
                                   use_axis_y=True, use_axis_z=True)
     bm.to_mesh(obj.data)
     bm.free()

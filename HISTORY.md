@@ -138,14 +138,17 @@ centre to the skeleton, widen the iliac band by 10.5 % (the atlas pelvis is wide
 mesh's hips), relax the hand blockout with four smoothing passes, drop the eye spheres (they glow
 through a 22 %-opacity shell), and export at multires level 1.
 
-Rotating the arms to match the skeleton was tried three ways — a |x| gate, a height gate, and a
-weight on the arm cylinder — and dropped each time: the base mesh's A-pose already covers the arm
-bones, and every rotation either tore the armpit, sheared the hands, or (with a raw distance mask)
-caught the head and folded the figure. A |x| gate on the forearm stage also caught the outer
-thighs and turned the legs into a skirt.
+Matching the arms to the atlas muscles took four tries. Rotating the arm about the shoulder — by
+an |x| gate, by a height gate, and by a weight on the arm cylinder — tore the armpit, sheared the
+splayed hand into a paddle, or (with a raw distance mask) caught the head and folded the figure. A
+gate on |x| applied to the forearm stage also caught the outer thighs and turned the legs into a
+skirt. What ships is a **lateral squeeze**: arm vertices within the arm cylinder are scaled 12 %
+towards the midline, which brings the hands from 45 cm to 40 cm of the midline without changing the
+hand's shape.
 
 Result: **167,596 verts / 83,798 triangles / 6.37 MB**. 562 of 51,778 skeleton vertices fall
-outside the shell, and all of them are the kneecaps. The skull sits inside the head with a
+outside the shell, and all of them are the kneecaps. At multires level 1 the fingers are a mitten —
+fine for a 22 %-opacity shell, and level 2 would have cost 26 MB. The skull sits inside the head with a
 plausible soft-tissue layer, the limbs wrap the bones, and the crotch is a female mound.
 
 `skinbits` (teeth, hair, nails) is loaded as the **male** variant, so the female view no longer
