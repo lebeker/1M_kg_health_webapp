@@ -119,12 +119,14 @@ for h in LEG_HEIGHTS:
         deltas.append(0.0)
 
 # above the hips the two legs merge into the pelvis: fade the shift out there
-LEG_TOP = 0.78
+LEG_TOP = 0.94
 for name in KEEP:
     obj = bpy.data.objects[name]
     for v in obj.data.vertices:
         d = float(np.interp(v.co.z, LEG_HEIGHTS, deltas))
-        fade = 1.0 - smoothstep((v.co.z - (LEG_TOP - 0.10)) / 0.10)
+        # a LONG fade that reaches into the pelvis: a short one folds the hip crease, and the fold
+        # shows up as a hole between the leg patches and the pelvic ones
+        fade = 1.0 - smoothstep((v.co.z - 0.60) / (LEG_TOP - 0.60))
         v.co.x += np.sign(v.co.x) * d * fade
     obj.data.update()
 
