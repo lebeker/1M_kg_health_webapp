@@ -18,7 +18,8 @@ it. Detailed models (3D4Medical and friends) are a different product with a diff
 |---|---|---|---|
 | **Z-Anatomy** (`Startup.blend`, 307MB, from the Z-Anatomy repo) | models **CC BY-SA 4.0**, code GPL-3 | 7,184 objects in nine system collections (skeletal, muscular, cardio, nervous, lymphoid, visceral, regions, teeth, hair, nails); 4.1M triangles; **male only** — its female genital collections exist by name and hold zero meshes | **in use**: every layer except the female tract and female surface |
 | **BodyParts3D** (`isa_BP3D_4.0_obj_99.zip`, 143MB) | CC BY-SA 2.1 JP | ~3,000 named parts, no layers, no materials; parts list has **zero** rows for uterus, ovary, vagina, vulva, clitoris, breast | rejected — no layers, no female organs |
-| **Blender Studio body scan** — "Body female realistic by Dan Ulrich" on Wikimedia Commons (Dan Ulrich, Paul Kotelevets, Tonatiuh de San Julián, Julien Kaspar) | **CC0** | a real female body, 5.4M triangles, watertight, A-pose, 1.64 m | **in use** as the female surface, decimated to 97k triangles |
+| **Blender Studio Human Base Meshes v1.2.0** (`human_base_meshes_bundle.blend`, 50MB, blender.org download) | **CC0** | a clean female base body (`GEO-body_female_realistic`, 10,582-vert cage, multires level 3, A-pose, 1.64 m) plus eyes; a stylized sibling at 12,502 verts | **in use** as the female surface: fitted to the atlas skeleton and exported at level 1 (167,596 verts / 83,798 tris / 6.37MB) |
+| **Blender Studio body scan** — "Body female realistic by Dan Ulrich" on Wikimedia Commons (Dan Ulrich, Paul Kotelevets, Tonatiuh de San Julián, Julien Kaspar) | **CC0** | a real female body, 5.4M triangles, watertight, A-pose, 1.64 m; **its head is a mannequin's — roughly 3× the skull, no face** | superseded: the pose fits the skeleton no better than the atlas and the head is unusable |
 | **MakeHuman / MPFB2** | output CC0, code AGPL | procedural humans with sliders for gender, age, height, head size, complexion, pose; needs the asset pack (GBs) plus the Blender addon | evaluated, not used — the CC0 scan was faster and looks better; revisit when proportions/pose must be dialled per user |
 | **Sketchfab — "Female reproductive system" by Ebers** (`445e5d3977d848419253a4058137555f`) | **Standard**, `isDownloadable: false`, store price **$149** | 238,542 faces, the best-looking tract we found | unusable — paid store model, no download even when logged in |
 | **AnatomyTOOL Open3DModel** | **non-commercial** | female pelvis and organ scans | blocked from this machine (connection returns 000, same as the user's VPN block); licence rules it out for a paid product anyway |
@@ -115,3 +116,33 @@ refer to that experiment, not to the current default viewer.
 
 See `body/MODEL_REPAIR.md`, `body/models/repair/` and `body/tools/build_female_repair.py`.
 The preview server is intentionally left running for the user's review.
+
+## Female surface — 2026-10-24
+
+The CC0 Dan Ulrich scan is gone from the runtime. Measured against the atlas skeleton it is a
+different person in a different pose: arms further out, hands 16 cm wide of the bones, and a head
+that is a mannequin's shell — no face, roughly three times the skull, exactly the "3 times bigger
+than the scull" the review called out. No scaling fixes that, because the head is not a head.
+
+Two attempts before the switch, both recorded as rejected:
+
+| second attempt | what it did | outcome |
+|---|---|---|
+| `build_female_skin_atlas.py` (deleted) | remap the **atlas male** skin into a female profile: height-banded taper, breast push, genital shrink | rejected — the atlas skin is 343 separate islands (hair clumps, finger parts); remapping leaves plates and torn seams |
+| same file, second pass | cut the genital faces out and cap the opening with an ellipsoid mound | rejected — the cut boundary is ragged, the patch floats; every variant reads as a hole with an egg in it |
+
+The surface now comes from `body/tools/build_female_skin_base.py`, which opens the Blender Studio
+bundle and does, in order: bake transforms, weld the seams (`remove_doubles` at 0.8 mm — the bundle
+is assembled from primitives that are not welded), scale to 1.743 m, centre on x, align the depth
+centre to the skeleton, adduct the arms 9 degrees, swing the forearms in 17 degrees about the
+elbow (the base mesh's forearms flare 16 cm wider than this skeleton's), widen the iliac band by
+10.5 % (the atlas pelvis is wider than the base mesh's hips), relax the hand blockout with four
+smoothing passes, drop the eye spheres (they glow through a 22 %-opacity shell), and export at
+multires level 1.
+
+Result: **167,596 verts / 83,798 triangles / 6.37 MB**. Every skeleton vertex but 1,179 of 51,778
+lies inside the shell; of those, 1,163 are the toe tips. The skull sits inside the head with a
+plausible soft-tissue layer, the limbs wrap the bones, and the crotch is a female mound.
+
+`skinbits` (teeth, hair, nails) is loaded as the **male** variant, so the female view no longer
+shows a male hair cap or a tuft of pubic hair at the crotch.

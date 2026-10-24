@@ -118,3 +118,34 @@ proximity mask on purpose — it runs beside the external iliac and would take i
 
 `models/cardio-female.glb` (50,343 verts) and `models/nervous-female.glb` (71,790 verts) are
 loaded beside the male files and swapped by the sex switch. Renders: `shots/layer-cut/`.
+
+## The female surface
+
+`skin-female.glb` is no longer the CC0 Dan Ulrich scan. That scan is a different person in a
+different pose, and its head is a mannequin shell — no face, about three times the skull, which is
+the "3 times bigger than the scull" the review flagged. Nothing about it can be scaled into shape.
+
+The surface is now built by `tools/build_female_skin_base.py` from the Blender Studio **Human Base
+Meshes v1.2.0** bundle (CC0):
+
+1. open the bundle, keep `GEO-body_female_realistic`, bake its transforms;
+2. weld the seams — the bundle is assembled from primitives that are not welded (0.8 mm
+   `remove_doubles`), otherwise every part boundary shows as a crack;
+3. scale the 1.641 m cage to the atlas height, 1.743 m; centre on x; move the depth centre onto
+   the skeleton's;
+4. adduct the arms 9° about the shoulder and swing the forearms 17° about the elbow — the base
+   mesh's forearms flare 16 cm wider than this skeleton's;
+5. widen the iliac band by 10.5 % (the atlas pelvis is wider than the base mesh's hips);
+6. relax the hand blockout with four smoothing passes so the shell reads as a hand;
+7. drop the eye spheres (they glow through the 22 %-opacity shell) and export at multires level 1.
+
+Result: **167,596 verts / 83,798 triangles / 6.37 MB**. Fit test: 50,599 of 51,778 skeleton
+vertices lie inside the shell; 1,163 of the 1,179 outside are the toe tips, the rest are a handful
+of knee vertices. Reports and renders: `shots/skin-base/`, `shots/skin-audit/` (the old scan).
+
+Rejected on the way here: remapping the atlas male skin into a female profile (the atlas skin is
+343 separate islands — the result is plates), and cutting its genital faces out to cap the hole
+with a mound (the cut rim is ragged and the patch floats). Both are recorded in `HISTORY.md`.
+
+The male `skinbits` mesh (teeth, hair, nails) is loaded as the male variant, so the female view
+does not show a male hair cap or a pubic tuft.

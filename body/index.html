@@ -193,7 +193,7 @@ async function boot() {
     if (l.filesBySex) return;
     (l.files || [l.id]).forEach(f => jobs.push(loadFile(l.id, f)));
   });
-  jobs.push(loadFile("skin", "skinbits"));
+  jobs.push(loadFile("skin", "skinbits", "male"));   // teeth/hair/nails are the male atlas bits
   jobs.push(loadFile("skin", "skin-female", "female"));
   jobs.push(loadFile("skin", "skin", "male"));
   jobs.push(loadFile("reproductive", "reproductive-female", "female"));
