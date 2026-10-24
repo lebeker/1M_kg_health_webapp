@@ -151,7 +151,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261024h";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261024j";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -197,7 +197,8 @@ async function boot() {
   jobs.push(loadFile("skin", "skinbits2"));   // teeth + nails only: the hair cap is fitted to the
                                               // male head and fits neither sex any more
   jobs.push(loadFile("skin", "skin-female2", "female"));   // v2: Blender Studio base mesh, fitted to the bones
-  jobs.push(loadFile("skin", "skin2", "male"));   // skin.glb with the hair island stripped
+  jobs.push(loadFile("skin", "skin", "male"));   // the hair island IS the male head shell: stripping it
+                                                 // left half a head, so the male keeps skin.glb whole
   jobs.push(loadFile("reproductive", "reproductive-female", "female"));
   jobs.push(loadFile("reproductive", "reproductive-male", "male"));
   jobs.push(loadFile("cardio", "cardio", "male"));

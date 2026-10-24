@@ -156,11 +156,20 @@ through it. Three deformations remain:
   in the viewer, by up to 9 cm. Measured on the exported file the shell's face now sits within
   7 mm of the muscle layer's face at every slice from 1.52 to 1.70 m. The blend starts at the top
   of the neck (1.48 m): moving the neck itself read as a tilt, and a longer blend stretched the jaw.
-- **hair**: removed on both sexes. The atlas carries it twice — an 8,085-vertex cap in `skinbits`
-  and a 3,789-vertex island inside the male `skin` — and both are fitted to the male head, so on
-  the CC0 female shell the cap floated inside the skull as a dark dome. `tools/strip_hair.py`
-  writes `skinbits2.glb` (teeth and nails kept, cap and pubic tufts dropped) and `skin2.glb` (the
-  same male body, bald).
+- **hair**: the male keeps his. The 3,789-vertex "hair island" in `skin.glb` is the top of his
+  head shell, not a wig: stripping it left half a head, so `skin.glb` is used whole again.
+  `tools/strip_hair.py` still writes `skinbits2.glb` (teeth and nails kept, scalp cap and pubic
+  tufts dropped) — that cap is a separate 8,085-vertex mesh and on the female it floated inside
+  the skull as a dark dome.
+- **the female's hair** is a hairline step, not a mesh: there is no female hair to wear, and the
+  atlas cap is a pile of separate strands that explodes when scaled onto a differently shaped
+  cranium (tried; the strands detach and sheet over the face). Everything above a hairline —
+  higher over the brow, lower at the nape — is pushed out 16 %, and the rim reads as the hair's
+  edge.
+- **the female's throat**: the CC0 mesh still carries the blockout's larynx bump, and the low cage
+  folds the neck. The throat is pulled back to the neck's surface and the whole neck band is
+  relaxed with a *feathered* weight — smoothing a hard-edged band leaves a crease at its border,
+  which is what read as a broken neck.
 
 Result: **167,596 verts / 83,798 triangles / 6.37 MB**. Leg centres are within 1.3 cm of the
 muscles', and the shell is within 2 cm of the muscle surface at every height — outside it at the

@@ -16,7 +16,10 @@ This script fits it to the atlas skeleton:
 
 Run: Blender -b --python body/tools/build_female_skin_base.py
 """
-import bpy, bmesh, numpy as np
+import bpy
+import bmesh
+import numpy as np
+from mathutils import Vector
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parents[1]
@@ -221,6 +224,104 @@ for name in KEEP:
     bm.to_mesh(obj.data)
     bm.free()
     obj.data.update()
+
+# --- neck: no Adam's apple, no creases ---------------------------------------------------------
+# The CC0 base mesh is modelled off a female figure, but the throat still carries a larynx bump of
+# the male blockout, and the low cage folds the neck. Flatten the throat by pushing it back onto
+# the neck's cylinder, then relax a WIDE band with a feathered weight — smoothing a narrow band
+# leaves a crease at the edge of the smoothed set, which is what reads as a broken neck.
+def smooth_feathered(bm, sel, weights, rounds, factor):
+    for _ in range(rounds):
+        moves = []
+        for v, w in zip(sel, weights):
+            if w <= 0.0:
+                continue
+            nb = [e.other_vert(v).co for e in v.link_edges]
+            if not nb:
+                continue
+            avg = sum(nb, Vector((0, 0, 0))) / len(nb)
+            moves.append((v, v.co.lerp(avg, factor * w)))
+        for v, co in moves:
+            v.co = co
+
+
+for name in KEEP:
+    obj = bpy.data.objects[name]
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+
+    # 1. the Adam's apple: bring the front of the larynx back to the neck's surface
+    throat = []
+    for v in bm.verts:
+        if 1.360 < v.co.z < 1.485 and v.co.y < -0.020 and abs(v.co.x) < 0.055:
+            w = smoothstep((v.co.z - 1.360) / 0.030) * smoothstep((1.485 - v.co.z) / 0.030)
+            w *= smoothstep((-0.020 - v.co.y) / 0.020) * smoothstep((0.055 - abs(v.co.x)) / 0.020)
+            if w > 0 and v.co.y < -0.055:
+                v.co.y = -0.055 + (v.co.y + 0.055) * (1.0 - 0.75 * w)
+                throat.append(w)
+    # 2. a wide, feathered relax over the whole neck so no crease survives
+    neck, nw = [], []
+    for v in bm.verts:
+        if 1.270 < v.co.z < 1.520 and abs(v.co.x) < 0.115 and -0.120 < v.co.y < 0.120:
+            f = (min(smoothstep((v.co.z - 1.270) / 0.060),
+                     smoothstep((1.520 - v.co.z) / 0.060)) *
+                 smoothstep((0.115 - abs(v.co.x)) / 0.045) *
+                 smoothstep((0.120 - abs(v.co.y)) / 0.045))
+            if f > 0:
+                neck.append(v)
+                nw.append(f)
+    smooth_feathered(bm, neck, nw, 8, 0.45)
+    print("REGION throat %d neck %d" % (len(throat), len(neck)), flush=True)
+
+    # 3. the back of the skull as "hair": one soft mass, swollen 10 % and smoothed
+    HEAD_C = Vector((0.0, 0.015, 1.600))
+    back, bw = [], []
+    for v in bm.verts:
+        if v.co.z > 1.500:
+            w = (smoothstep((v.co.y - 0.010) / 0.070) *
+                 smoothstep((v.co.z - 1.500) / 0.060) *
+                 smoothstep((0.125 - abs(v.co.x)) / 0.050))
+            if w > 0:
+                d = v.co - HEAD_C
+                v.co = HEAD_C + d * (1.0 + 0.105 * w)
+                back.append(v)
+                bw.append(w)
+    smooth_feathered(bm, back, bw, 6, 0.5)
+    print("REGION back %d" % len(back), flush=True)
+
+    bm.to_mesh(obj.data)
+    bm.free()
+    obj.data.update()
+
+# --- hair: a hairline step ---------------------------------------------------------------------
+# There is no female hair mesh to wear, and the atlas cap is a pile of separate strands that
+# explodes when scaled onto a differently-shaped cranium. Instead push everything above a hairline
+# out by ~1.1 cm: the rim where the push starts reads as the hair's edge and the silhouette above
+# it reads as a short bob.
+HAIR_C = Vector((0.0, 0.020, 1.600))
+for name in KEEP[:1]:
+    obj = bpy.data.objects[name]
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    moved = []
+    for v in bm.verts:
+        if v.co.z < 1.500:
+            continue
+        # the hairline runs lower at the back (a nape) and higher over the forehead
+        hz = 1.648 - 0.55 * (v.co.y + 0.050)
+        w = smoothstep((v.co.z - hz) / 0.008)
+        if w <= 0.0:
+            continue
+        d = v.co - HAIR_C
+        v.co = HAIR_C + d * (1.0 + 0.165 * w)
+        moved.append(v)
+    for _ in range(2):
+        bmesh.ops.smooth_vert(bm, verts=moved, factor=0.35, use_axis_x=True,
+                              use_axis_y=True, use_axis_z=True)
+    bm.to_mesh(obj.data)
+    bm.free()
+    obj.data.update()
+    print("HAIRLINE %d verts" % len(moved), flush=True)
 
 # the bundle carries a multires at level 3: exporting that is 100 MB of mesh, one level is plenty
 for name in KEEP:
