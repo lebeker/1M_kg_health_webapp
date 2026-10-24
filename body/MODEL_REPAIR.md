@@ -86,3 +86,23 @@ the DOM, renderer and orbit controls. Blender renders verify model shape and pla
 No new live browser or frame-rate claim is made for this restored viewer: earlier browser
 access was declined, and that restriction was respected. The old 6.44 MB / 60 fps report belongs
 to the removed default experiment, not this restored full-resolution model set.
+
+## Second pass — the tract rebuilt for connection
+
+The first replacement was connected in name only: the tube ended on the ovarian pole with the
+fimbriae sprouting upward, the round ligaments hung in mid-air, and the vaginal vault showed a
+capped ring under the cervix. `build_female_repair2.py` rebuilds it:
+
+- one curved pear for uterus, cervix and vault instead of stacked rings;
+- the tube leaves the uterine cornu, arches over the ovary and ends in an infundibulum aimed at
+  the ovarian cap;
+- 18 fimbriae sweep onto that cap and stop 0.8 mm above the cortex — no tips through the ovary;
+- the round ligaments are dropped (as free tubes they read as wires); the ovarian ligament runs
+  into both the uterus and the ovary;
+- the urethra hugs the anterior vaginal wall, the clitoris sits under the pubis;
+- 18 meshes, 122k triangles, 0 non-manifold edges, 0 surface crossings against the atlas bones
+  and bladder. The adnexa still need the same medial/anterior fit compromise as the first build:
+  the reference pelvis is male and its iliac fossa crowds them.
+
+Reports: `models/repair/geometry-report-v3.json`, `fit-report-v3.json`; renders in
+`shots/model-review-v3/`. Editable source: `models/repair/female-repair-v3.blend`.

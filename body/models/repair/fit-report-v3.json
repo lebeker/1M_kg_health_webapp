@@ -1,0 +1,92 @@
+{
+  "Uterus": {
+    "bone_surface_crossings": 0,
+    "nonmanifold_edges": 0,
+    "bladder_surface_crossings": 0
+  },
+  "Cervix": {
+    "bone_surface_crossings": 0,
+    "nonmanifold_edges": 0,
+    "bladder_surface_crossings": 0
+  },
+  "Vagina": {
+    "bone_surface_crossings": 0,
+    "nonmanifold_edges": 0,
+    "bladder_surface_crossings": 0
+  },
+  "Ovary.l": {
+    "bone_surface_crossings": 0,
+    "nonmanifold_edges": 0,
+    "bladder_surface_crossings": 0
+  },
+  "Uterine tube.l": {
+    "bone_surface_crossings": 0,
+    "nonmanifold_edges": 0,
+    "bladder_surface_crossings": 0
+  },
+  "Ovarian ligament.l": {
+    "bone_surface_crossings": 0,
+    "nonmanifold_edges": 0,
+    "bladder_surface_crossings": 0
+  },
+  "Ovary.r": {
+    "bone_surface_crossings": 0,
+    "nonmanifold_edges": 0,
+    "bladder_surface_crossings": 0
+  },
+  "Uterine tube.r": {
+    "bone_surface_crossings": 0,
+    "nonmanifold_edges": 0,
+    "bladder_surface_crossings": 0
+  },
+  "Ovarian ligament.r": {
+    "bone_surface_crossings": 0,
+    "nonmanifold_edges": 0,
+    "bladder_surface_crossings": 0
+  },
+  "Mons pubis": {
+    "bone_surface_crossings": 0,
+    "nonmanifold_edges": 0,
+    "bladder_surface_crossings": 0
+  },
+  "Labium majus.l": {
+    "bone_surface_crossings": 0,
+    "nonmanifold_edges": 0,
+    "bladder_surface_crossings": 0
+  },
+  "Labium minus.l": {
+    "bone_surface_crossings": 0,
+    "nonmanifold_edges": 0,
+    "bladder_surface_crossings": 0
+  },
+  "Vestibular bulb.l": {
+    "bone_surface_crossings": 0,
+    "nonmanifold_edges": 0,
+    "bladder_surface_crossings": 0
+  },
+  "Labium majus.r": {
+    "bone_surface_crossings": 0,
+    "nonmanifold_edges": 0,
+    "bladder_surface_crossings": 0
+  },
+  "Labium minus.r": {
+    "bone_surface_crossings": 0,
+    "nonmanifold_edges": 0,
+    "bladder_surface_crossings": 0
+  },
+  "Vestibular bulb.r": {
+    "bone_surface_crossings": 0,
+    "nonmanifold_edges": 0,
+    "bladder_surface_crossings": 0
+  },
+  "Clitoris": {
+    "bone_surface_crossings": 0,
+    "nonmanifold_edges": 0,
+    "bladder_surface_crossings": 0
+  },
+  "Female urethra": {
+    "bone_surface_crossings": 0,
+    "nonmanifold_edges": 0,
+    "bladder_surface_crossings": 0
+  }
+}
