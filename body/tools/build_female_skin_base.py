@@ -16,8 +16,8 @@ MODELS = BASE / "models"
 BUNDLE = "/Users/denistatarenko/Work/other/1M_kg_health_assets/human-base/human_base_meshes_bundle.blend"
 # the bundle uses a non-ASCII hyphen in these names: match on the ASCII suffix instead
 TARGET_HEIGHT = 1.743
-ARM_DEGREES = 9.0
-FOREARM_DEGREES = 17.0
+ARM_DEGREES = 0.0   # the base mesh's A-pose is already close; rotating it creases the armpit
+
 
 bpy.ops.wm.open_mainfile(filepath=BUNDLE)
 _bodies = [o for o in bpy.data.objects if o.type == "MESH" and o.name.endswith("body_female_realistic")]
@@ -78,39 +78,67 @@ for name in KEEP:
     obj.data.update()
 bpy.data.objects.remove(bones, do_unlink=True)
 
-# adduct the arms to the skeleton's A-pose
-pivot = Vector((0.185, 0.0, 1.400))
-for name in KEEP:
-    obj = bpy.data.objects[name]
+# adduct the arms to the skeleton's A-pose — select by distance to the arm bones, never by |x|:
+# the hips and calves also reach past |x| = 0.15, and rotating them turns the legs into a skirt
+def seg_dist(P, A, B):
+    AB = B - A
+    t = np.clip(((P - A) @ AB) / (AB @ AB), 0.0, 1.0)
+    return np.linalg.norm(P - (A + t[:, None] * AB), axis=1)
+
+
+shoulder = np.array([0.190, 0.0, 1.400])
+elbow = np.array([0.250, 0.0, 1.105])
+wrist = np.array([0.286, 0.0, 0.905])
+
+
+def rotate_about(obj, mask, pivot, degrees):
     for v in obj.data.vertices:
-        side = 1.0 if v.co.x >= 0 else -1.0
-        ax = abs(v.co.x)
-        if ax < 0.16 or v.co.z < 0.95:
+        if not mask(v.co):
             continue
-        t = min(1.0, max(0.0, (ax - 0.16) / 0.10))
-        w = t * t * (3 - 2 * t)
-        px = pivot.x * side
-        dx, dz = v.co.x - px, v.co.z - pivot.z
-        a = np.radians(-ARM_DEGREES * side) * w
+        side = 1.0 if v.co.x >= 0 else -1.0
+        px = pivot[0] * side
+        dx, dz = v.co.x - px, v.co.z - pivot[2]
+        a = np.radians(-degrees * side)
         v.co.x = px + dx * np.cos(a) - dz * np.sin(a)
-        v.co.z = pivot.z + dx * np.sin(a) + dz * np.cos(a)
+        v.co.z = pivot[2] + dx * np.sin(a) + dz * np.cos(a)
     obj.data.update()
 
-# the forearm: the base mesh's hands splay out about 25 degrees wider than the skeleton's
-elbow = Vector((0.250, 0.0, 1.105))
+
+# rotate the arm about the shoulder, weighted by where the vertex sits on the arm cylinder:
+# axially it fades in over the first 10 cm (so the shoulder cap does not tear), radially it fades
+# out at the arm's surface (so the armpit blends). Selecting by |x| or by raw distance instead
+# catches the head and the hips and folds the whole figure.
+def arm_weight(P, side):
+    A = np.array([shoulder[0] * side, 0.0, shoulder[2]])
+    B = np.array([wrist[0] * side, 0.0, wrist[2]])
+    AB = B - A
+    L = np.linalg.norm(AB)
+    u = (P - A) @ AB / (L * L)
+    perp = np.linalg.norm(P - (A + u[:, None] * AB), axis=1)
+    axial = np.clip(u * L / 0.10, 0.0, 1.0)
+    axial = axial * axial * (3 - 2 * axial)
+    radial = 1.0 - np.clip((perp - 0.055) / 0.045, 0.0, 1.0)
+    w = axial * radial
+    w[u < 0] = 0.0
+    return w
+
+
 for name in KEEP:
     obj = bpy.data.objects[name]
-    for v in obj.data.vertices:
-        if v.co.z > 1.135:
-            continue
-        side = 1.0 if v.co.x >= 0 else -1.0
-        w = min(1.0, max(0.0, (1.150 - v.co.z) / 0.13))
-        w = w * w * (3 - 2 * w)
-        px = elbow.x * side
-        dx, dz = v.co.x - px, v.co.z - elbow.z
-        a = np.radians(-FOREARM_DEGREES * side) * w
-        v.co.x = px + dx * np.cos(a) - dz * np.sin(a)
-        v.co.z = elbow.z + dx * np.sin(a) + dz * np.cos(a)
+    P = np.array([v.co[:] for v in obj.data.vertices])
+    for side, sign in ((0, 1.0), (1, -1.0)):
+        Q = P.copy()
+        Q[:, 0] *= sign
+        w = arm_weight(Q, 1.0)
+        for i, v in enumerate(obj.data.vertices):
+            if w[i] <= 0.0:
+                continue
+            sidev = 1.0 if v.co.x >= 0 else -1.0
+            sx, sz = shoulder[0] * sidev, shoulder[2]
+            dx, dz = v.co.x - sx, v.co.z - sz
+            a = np.radians(-ARM_DEGREES * sidev) * w[i]
+            v.co.x = sx + dx * np.cos(a) - dz * np.sin(a)
+            v.co.z = sz + dx * np.sin(a) + dz * np.cos(a)
     obj.data.update()
 
 # the male pelvis is wider than this base mesh's hips: widen the iliac band so the crests sit inside
