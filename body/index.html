@@ -94,6 +94,9 @@ let bodyBox = null, pending = 0;
 
 const stage = document.getElementById("stage");
 const renderer = new THREE.WebGLRenderer({ antialias:true });
+// NOTE: the scene is authored in the r146 default (linear output). Switching to sRGBEncoding
+// brightens the shell but washes the atlas anatomy out, and the anatomy is what has to stay
+// legible, so the shell gets its own lift in paint() instead.
 renderer.setPixelRatio(Math.min(2, devicePixelRatio));
 renderer.setSize(innerWidth, innerHeight);
 stage.appendChild(renderer.domElement);
@@ -142,16 +145,22 @@ function paint(l, root, tag) {
       : (o.material && o.material.color ? o.material.color.clone().lerp(c, 0.5) : c);
     const m = new THREE.MeshStandardMaterial({
       color: base, roughness: keep ? 0.6 : 0.72, metalness: 0.02,
-      transparent: l.id === "skin", opacity: l.id === "skin" ? 0.22 : 1,
+      transparent: l.id === "skin", opacity: l.id === "skin" ? 0.45 : 1,
       depthWrite: l.id !== "skin", side: l.id === "skin" ? THREE.FrontSide : THREE.DoubleSide
     });
     if (l.id === "lymphoid" || l.id === "nervous") m.emissive = c.clone().multiplyScalar(0.16);
+    // the shell has to stay readable against a black page: a faint self-lit term keeps its
+    // silhouette off pure black without hiding what is inside
+    if (l.id === "skin") {
+      m.emissive = base.clone().multiplyScalar(0.14);
+      m.roughness = 0.45;
+    }
     o.material = m;
   });
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261024k";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261024n";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
