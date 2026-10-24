@@ -151,7 +151,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261024c";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261024f";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -288,8 +288,8 @@ function applySex() {
     if (!o.isMesh) return;
     if (/^(Urethra|Ejaculatory[ _]duct)/i.test(o.name)) o.visible = state.sex === "male";
   });
-  // the atlas bits are teeth, hair and nails of a MALE scan: on the female they float in front of
-  // the shell's face, which reads as a head three times too big
+  // teeth, hair and nails come from the male scan and are fitted to the MALE head: on the female
+  // shell the cap floats inside the head and reads as a dark dome, so the female stays bald
   if (groups.skin) groups.skin.traverse(o => {
     if (o.isMesh && /skinbits/i.test(o.name)) o.visible = state.sex === "male";
   });

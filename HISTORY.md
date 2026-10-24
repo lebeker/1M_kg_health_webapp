@@ -151,16 +151,22 @@ through it. Three deformations remain:
   the muscles' at five heights (the base mesh stands 2-5 cm wider below the knee).
 - **skin allowance**: a 1.8 cm lateral push, because measured against the muscles the shell was
   0.5-2.6 cm INSIDE them at the arms, chest and hands.
-- **head**: a rigid 5.5 cm forward move and a 6 % shrink about the neck joint, because per-height
-  depth measurements put the base mesh's cranium 5.6-10 cm behind the atlas head — that offset, and
-  not the head's size, is what made it read as a helmet.
+- **head**: a rigid 5.5 cm forward move, 8 mm down and a 6 % shrink about the neck joint, because
+  per-height depth measurements put the base mesh's cranium 5.6-10 cm behind the atlas head — that
+  offset, and not the head's size, is what made it read as a helmet. The blend starts at the top of
+  the neck (1.48 m): moving the neck itself read as a tilt, and a longer blend stretched the jaw.
 
 Result: **167,596 verts / 83,798 triangles / 6.37 MB**. Leg centres are within 1.3 cm of the
 muscles', and the shell is within 2 cm of the muscle surface at every height — outside it at the
 outside it at the chest, hips and shoulders, and 0.8 cm inside it at the elbows and hands. Head: 18.8 cm wide over a
 14.9 cm skull, against 19.6 cm for the male atlas skin — the same size, 2 cm of soft tissue a side.
-The male `skinbits` (teeth, hair, nails) are hidden on the female: left on, the hair cap floated in
-front of the shell's face and doubled the head.
+The male `skinbits` (teeth, hair, nails) are hidden on the female: they are fitted to the male head,
+so on the CC0 shell the hair cap floats inside the skull and reads as a dark dome.
+
+The hands keep the pose they were modelled in — palm to the thigh. Twisting them toward the atlas'
+palm-forward pose tears the low-poly hand apart: it is a set of separate prisms, and any per-vertex
+ramp shears them (a ramp split the fingers off, a rigid twist opened the web between thumb and
+palm). A palm-forward hand needs a re-modelled hand, not a deformation.
 
 Assets are now versioned (`?v=` in the loader plus a fresh `skin-female2.glb`): GitHub Pages caches
 GLBs hard enough that a renamed file is the only reliable cache-bust. The skull sits inside the head with a

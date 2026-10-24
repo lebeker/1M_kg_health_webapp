@@ -146,12 +146,15 @@ for name in KEEP:
     A = SHOULDER
     B = np.array([hand_c[0], 0.0, hand_c[2]])
     u, perp = seg_perp(Q, A, B)
-    axial = smoothstep(u * np.linalg.norm(B - A) / 0.04)
-    radial = 1.0 - smoothstep((perp - 0.070) / 0.025)
-    # the base cage's hand is a set of separate prisms: take the whole lateral block, or the
-    # palm rotates while the fingers stay behind and the hand stretches into spikes
-    hand = (Q[:, 0] > 0.300) & (Q[:, 2] < 1.000)
-    w = axial * np.maximum(radial, hand.astype(float))
+    axial = smoothstep(u * np.linalg.norm(B - A) / 0.05)
+    # one smooth capsule around the MESH's own arm axis: wide enough for the hand (it lies along
+    # that axis), so the whole arm turns as one piece — a separate hand test left a step at the
+    # wrist that read as a twisted forearm
+    radial = 1.0 - smoothstep((perp - 0.085) / 0.035)
+    # the hand lies PAST the end of the axis, where the distance-to-segment grows with the
+    # fingers: without forcing it the palm turns and the fingers stay behind (a claw)
+    hand = (Q[:, 0] > 0.190) & (Q[:, 2] < 0.965) & (Q[:, 2] > 0.700)
+    w = np.maximum(axial * radial, hand.astype(float))
     # never touch the thigh — but the fingers hang below 0.80 too, so keep anything well
     # lateral: zeroing by height alone left the fingers behind and stretched the hand
     w[(Q[:, 2] < 0.80) & (Q[:, 0] < 0.260)] = 0.0
@@ -166,17 +169,24 @@ for name in KEEP:
         v.co.z = sz + dx * np.sin(a) + dz * np.cos(a)
     obj.data.update()
 
+# --- hands ------------------------------------------------------------------------------------
+# The base mesh's hand is a low-poly mitten made of SEPARATE prisms hanging palm-to-thigh. Twisting
+# it towards the atlas' palm-forward pose tears it into blades (a ramp shears the prisms apart, a
+# rigid twist opens the web between thumb and palm), so the hand keeps the pose it was modelled in.
+
 bpy.data.objects.remove(bones, do_unlink=True)
 bpy.data.objects.remove(muscles, do_unlink=True)
 
 # --- the head sits 5 cm behind the atlas head (the base mesh's neck leans back) ---------------
 # without this the face pokes out of the shell and the shell reads as a helmet
-HEAD_SHIFT = -0.055  # rigid head move: the base mesh's head sits 5.5 cm behind the atlas head
-HEAD_SCALE = 0.94     # and 6 % larger; scaled about the neck so the seam does not shear
+HEAD_SHIFT = -0.055  # the shell's face has to clear the atlas face; 2.7 cm left it behind
+HEAD_DROP = -0.008
+HEAD_SCALE = 0.94    # the base mesh's cranium is ~6 % larger than the atlas head
 for name in KEEP:
     obj = bpy.data.objects[name]
     for v in obj.data.vertices:
-        w = smoothstep((v.co.z - 1.430) / 0.080)
+        # a SHORT blend at the top of the neck: a long one pulled the jaw and stretched the head
+        w = smoothstep((v.co.z - 1.480) / 0.055)   # above the neck: moving the neck itself read as a tilt
         if w > 0:
             # rigid: scale about the neck joint, then move; blend in over the neck
             y0, z0 = 0.02, 1.47
@@ -184,7 +194,7 @@ for name in KEEP:
             sz = z0 + (v.co.z - z0) * (1 + (HEAD_SCALE - 1) * w)
             v.co.x *= 1 + (HEAD_SCALE - 1) * w
             v.co.y = sy + HEAD_SHIFT * w
-            v.co.z = sz
+            v.co.z = sz + HEAD_DROP * w
     obj.data.update()
 
 # --- skin allowance ---------------------------------------------------------------------------
