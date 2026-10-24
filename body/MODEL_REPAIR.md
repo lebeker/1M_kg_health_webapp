@@ -137,14 +137,17 @@ Meshes v1.2.0** bundle (CC0):
 5. relax the hand blockout with four smoothing passes so the shell reads as a hand;
 6. drop the eye spheres (they glow through the 22 %-opacity shell) and export at multires level 1.
 
-No arm rotation. Rotations about the shoulder (|x| gate, height gate, arm-cylinder weight) tore
-the armpit or sheared the splayed hand into a paddle, and an |x| gate on the forearm stage caught
-the outer thighs and folded the legs into a skirt — select arm vertices by distance to the arm
-bones, never by |x|. The arms are instead squeezed 12 % towards the midline inside that cylinder,
-which keeps the hand's shape.
+The arms are rotated 10° about the shoulder, rigidly, inside the arm cylinder. The selection must
+be by distance to the arm bones, never by |x| — an |x| gate catches the outer thighs and folds the
+legs into a skirt — and the hand needs its own test (|x| > 0.235 below the wrist): it is wider than
+the cylinder, and cutting it slices the fingers off. A smooth axial fade over the first 10 cm
+keeps the deltoid attached. Earlier attempts that rotated by an |x| gate, a height gate, a raw
+distance mask, or a second rotation at the elbow each tore the armpit, sheared the hand or folded
+the figure.
 
-Result: **167,596 verts / 83,798 triangles / 6.37 MB**. Fit test: 51,216 of 51,778 skeleton
-vertices lie inside the shell; the 562 outside are the kneecaps. Reports and renders: `shots/skin-base/`, `shots/skin-audit/` (the old scan).
+Result: **167,596 verts / 83,798 triangles / 6.37 MB**. Fit test: 51,772 of 51,778 skeleton
+vertices lie inside the shell; the skin's widest point (33.6 cm) and the skeleton's (33.5 cm)
+coincide. Reports and renders: `shots/skin-base/`, `shots/skin-audit/` (the old scan).
 
 Rejected on the way here: remapping the atlas male skin into a female profile (the atlas skin is
 343 separate islands — the result is plates), and cutting its genital faces out to cap the hole

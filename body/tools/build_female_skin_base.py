@@ -16,7 +16,7 @@ MODELS = BASE / "models"
 BUNDLE = "/Users/denistatarenko/Work/other/1M_kg_health_assets/human-base/human_base_meshes_bundle.blend"
 # the bundle uses a non-ASCII hyphen in these names: match on the ASCII suffix instead
 TARGET_HEIGHT = 1.743
-ARM_SQUEEZE = 0.12  # the base mesh's arms hang ~5 cm wider than the atlas muscles
+ARM_DEGREES = 10.0  # the base mesh's arms hang 16 degrees wider than the atlas skeleton's
 
 
 bpy.ops.wm.open_mainfile(filepath=BUNDLE)
@@ -115,9 +115,11 @@ def arm_weight(P, side):
     L = np.linalg.norm(AB)
     u = (P - A) @ AB / (L * L)
     perp = np.linalg.norm(P - (A + u[:, None] * AB), axis=1)
-    axial = np.clip(u * L / 0.08, 0.0, 1.0)
+    axial = np.clip((u * L - 0.020) / 0.080, 0.0, 1.0)
     axial = axial * axial * (3 - 2 * axial)
-    radial = 1.0 - np.clip((perp - 0.085) / 0.045, 0.0, 1.0)
+    # the hand is wider than the arm cylinder: include it whole by its own test, or the cut
+    # slices the fingers off. |x| keeps the thigh (which is nearer the axis down there) out.
+    radial = ((perp < 0.105) | ((u > 0.45) & (Q[:, 0] > 0.235))).astype(float)
     w = axial * radial
     w[u < 0] = 0.0
     return w
@@ -132,9 +134,12 @@ for name in KEEP:
     for i, v in enumerate(obj.data.vertices):
         if w[i] <= 0.0:
             continue
-        # squeeze the arm's lateral extent towards the midline instead of rotating it: a rigid
-        # rotation shears the splayed hand into a paddle, a linear squeeze keeps its shape
-        v.co.x *= 1.0 - ARM_SQUEEZE * w[i]
+        sidev = 1.0 if v.co.x >= 0 else -1.0
+        sx, sz = shoulder[0] * sidev, shoulder[2]
+        dx, dz = v.co.x - sx, v.co.z - sz
+        a = np.radians(-ARM_DEGREES * sidev) * w[i]
+        v.co.x = sx + dx * np.cos(a) - dz * np.sin(a)
+        v.co.z = sz + dx * np.sin(a) + dz * np.cos(a)
     obj.data.update()
 
 # the male pelvis is wider than this base mesh's hips: widen the iliac band so the crests sit inside
