@@ -78,7 +78,7 @@
 <script src="lib/OrbitControls.js"></script>
 <script>
 const LAYERS = [
-  { id:"skin",     name:"skin · teeth · hair · nails", color:0xe8c9a0, filesBySex:true },
+  { id:"skin",     name:"skin · teeth · nails", color:0xe8c9a0, filesBySex:true },
   { id:"muscles",  name:"muscles",                     color:0xc0554f },
   { id:"bones",    name:"bones",                       color:0xd9d2bd },
   { id:"cardio",   name:"cardio-vascular",             color:0xb33a3a, filesBySex:true },
@@ -151,7 +151,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261024f";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261024h";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -194,9 +194,10 @@ async function boot() {
     if (l.filesBySex) return;
     (l.files || [l.id]).forEach(f => jobs.push(loadFile(l.id, f)));
   });
-  jobs.push(loadFile("skin", "skinbits", "male"));   // teeth/hair/nails are the male atlas bits
+  jobs.push(loadFile("skin", "skinbits2"));   // teeth + nails only: the hair cap is fitted to the
+                                              // male head and fits neither sex any more
   jobs.push(loadFile("skin", "skin-female2", "female"));   // v2: Blender Studio base mesh, fitted to the bones
-  jobs.push(loadFile("skin", "skin", "male"));
+  jobs.push(loadFile("skin", "skin2", "male"));   // skin.glb with the hair island stripped
   jobs.push(loadFile("reproductive", "reproductive-female", "female"));
   jobs.push(loadFile("reproductive", "reproductive-male", "male"));
   jobs.push(loadFile("cardio", "cardio", "male"));
@@ -288,11 +289,7 @@ function applySex() {
     if (!o.isMesh) return;
     if (/^(Urethra|Ejaculatory[ _]duct)/i.test(o.name)) o.visible = state.sex === "male";
   });
-  // teeth, hair and nails come from the male scan and are fitted to the MALE head: on the female
-  // shell the cap floats inside the head and reads as a dark dome, so the female stays bald
-  if (groups.skin) groups.skin.traverse(o => {
-    if (o.isMesh && /skinbits/i.test(o.name)) o.visible = state.sex === "male";
-  });
+  // teeth and nails show on both sexes; the hair cap was stripped from the model (strip_hair.py)
   document.querySelectorAll("#sex button").forEach(b => b.classList.toggle("on", b.dataset.sex === state.sex));
   document.querySelectorAll(".row").forEach(row => {
     const id = row.dataset.layer;

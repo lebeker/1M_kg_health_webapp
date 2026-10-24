@@ -179,7 +179,8 @@ bpy.data.objects.remove(muscles, do_unlink=True)
 
 # --- the head sits 5 cm behind the atlas head (the base mesh's neck leans back) ---------------
 # without this the face pokes out of the shell and the shell reads as a helmet
-HEAD_SHIFT = -0.055  # the shell's face has to clear the atlas face; 2.7 cm left it behind
+HEAD_SHIFT = +0.040  # Blender +y is glTF -z (the viewer's front): the sign was inverted, which
+                     # is why every "forward" move pushed the head BACK in the app
 HEAD_DROP = -0.008
 HEAD_SCALE = 0.94    # the base mesh's cranium is ~6 % larger than the atlas head
 for name in KEEP:
