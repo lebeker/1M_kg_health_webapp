@@ -323,12 +323,28 @@ for name in KEEP[:1]:
     obj.data.update()
     print("HAIRLINE %d verts" % len(moved), flush=True)
 
-# the bundle carries a multires at level 3: exporting that is 100 MB of mesh, one level is plenty
+# The bundle carries a multires at level 3: exporting that is 100 MB of mesh, one level is plenty.
+# Apply the level and WELD what is left: the modifier's output is unwelded (4 verts per quad), so
+# every quad exports with its own normal — flat shading, which is what looked like inverted normals
+# and made the shell read as dark, faceted planes in the app.
 for name in KEEP:
-    for m in bpy.data.objects[name].modifiers:
+    obj = bpy.data.objects[name]
+    bpy.context.view_layer.objects.active = obj
+    for m in list(obj.modifiers):
         if m.type == "MULTIRES":
             m.levels = 1
             m.render_levels = 1
+            bpy.ops.object.modifier_apply(modifier=m.name)
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(obj.data)
+    bm.free()
+    for poly in obj.data.polygons:
+        poly.use_smooth = True
+    obj.data.update()
+    print("WELDED %s %d verts %d polys" % (name, len(obj.data.vertices), len(obj.data.polygons)), flush=True)
 
 bpy.ops.object.select_all(action="DESELECT")
 for name in KEEP:
