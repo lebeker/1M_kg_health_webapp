@@ -1,0 +1,9 @@
+{
+  "vertices": 715590,
+  "triangles": 1431128,
+  "watertight": true,
+  "consistent_winding": true,
+  "volume_litres": 87.78028443125984,
+  "pitch_mm": 2.0,
+  "construction": "female scan form in atlas pose; solid filled envelope plus reference anatomy clearance"
+}

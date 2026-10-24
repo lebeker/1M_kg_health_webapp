@@ -7,3 +7,7 @@ dist-multi/
 body/models/repair/reproductive-female.glb
 body/models/repair/*.blend1
 body/tools/__pycache__/
+
+# Derived volume caches (regenerable from the .blend sources)
+body/models/repair/*.npz
+body/models/repair/volume-cache/

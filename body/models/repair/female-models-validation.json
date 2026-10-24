@@ -1,0 +1,309 @@
+{
+  "organs": {
+    "Uterus": {
+      "self_crossings": 0,
+      "components": 1,
+      "nonmanifold_edges": 0,
+      "bone_crossings": 0,
+      "bladder_crossings": 0,
+      "unexpected_bladder_crossings": 0
+    },
+    "Cervix": {
+      "self_crossings": 0,
+      "components": 1,
+      "nonmanifold_edges": 0,
+      "bone_crossings": 0,
+      "bladder_crossings": 0,
+      "unexpected_bladder_crossings": 0
+    },
+    "Vagina": {
+      "self_crossings": 1,
+      "components": 1,
+      "nonmanifold_edges": 12,
+      "bone_crossings": 0,
+      "bladder_crossings": 0,
+      "unexpected_bladder_crossings": 0
+    },
+    "Ovary.l": {
+      "self_crossings": 0,
+      "components": 1,
+      "nonmanifold_edges": 0,
+      "bone_crossings": 0,
+      "bladder_crossings": 0,
+      "unexpected_bladder_crossings": 0
+    },
+    "Uterine tube.l": {
+      "self_crossings": 0,
+      "components": 1,
+      "nonmanifold_edges": 0,
+      "bone_crossings": 0,
+      "bladder_crossings": 0,
+      "unexpected_bladder_crossings": 0
+    },
+    "Ovarian ligament.l": {
+      "self_crossings": 0,
+      "components": 1,
+      "nonmanifold_edges": 0,
+      "bone_crossings": 0,
+      "bladder_crossings": 0,
+      "unexpected_bladder_crossings": 0
+    },
+    "Round ligament.l": {
+      "self_crossings": 0,
+      "components": 1,
+      "nonmanifold_edges": 0,
+      "bone_crossings": 0,
+      "bladder_crossings": 0,
+      "unexpected_bladder_crossings": 0
+    },
+    "Ovary.r": {
+      "self_crossings": 0,
+      "components": 1,
+      "nonmanifold_edges": 0,
+      "bone_crossings": 0,
+      "bladder_crossings": 0,
+      "unexpected_bladder_crossings": 0
+    },
+    "Uterine tube.r": {
+      "self_crossings": 0,
+      "components": 1,
+      "nonmanifold_edges": 0,
+      "bone_crossings": 0,
+      "bladder_crossings": 0,
+      "unexpected_bladder_crossings": 0
+    },
+    "Ovarian ligament.r": {
+      "self_crossings": 0,
+      "components": 1,
+      "nonmanifold_edges": 0,
+      "bone_crossings": 0,
+      "bladder_crossings": 0,
+      "unexpected_bladder_crossings": 0
+    },
+    "Round ligament.r": {
+      "self_crossings": 0,
+      "components": 1,
+      "nonmanifold_edges": 0,
+      "bone_crossings": 0,
+      "bladder_crossings": 0,
+      "unexpected_bladder_crossings": 0
+    },
+    "Vulva": {
+      "self_crossings": 0,
+      "components": 1,
+      "nonmanifold_edges": 0,
+      "bone_crossings": 0,
+      "bladder_crossings": 0,
+      "unexpected_bladder_crossings": 0
+    },
+    "Vestibular bulb.l": {
+      "self_crossings": 0,
+      "components": 1,
+      "nonmanifold_edges": 0,
+      "bone_crossings": 0,
+      "bladder_crossings": 0,
+      "unexpected_bladder_crossings": 0
+    },
+    "Vestibular bulb.r": {
+      "self_crossings": 0,
+      "components": 1,
+      "nonmanifold_edges": 0,
+      "bone_crossings": 0,
+      "bladder_crossings": 0,
+      "unexpected_bladder_crossings": 0
+    },
+    "Clitoris": {
+      "self_crossings": 0,
+      "components": 1,
+      "nonmanifold_edges": 0,
+      "bone_crossings": 0,
+      "bladder_crossings": 0,
+      "unexpected_bladder_crossings": 0
+    },
+    "Female urethra": {
+      "self_crossings": 0,
+      "components": 1,
+      "nonmanifold_edges": 0,
+      "bone_crossings": 0,
+      "bladder_crossings": 102,
+      "unexpected_bladder_crossings": 0
+    }
+  },
+  "interfaces": [
+    {
+      "a": "Uterus",
+      "b": "Cervix",
+      "surface_contacts": 751,
+      "outside_attachment_patches": 0
+    },
+    {
+      "a": "Uterus",
+      "b": "Uterine tube.l",
+      "surface_contacts": 582,
+      "outside_attachment_patches": 0
+    },
+    {
+      "a": "Uterus",
+      "b": "Ovarian ligament.l",
+      "surface_contacts": 62,
+      "outside_attachment_patches": 0
+    },
+    {
+      "a": "Uterus",
+      "b": "Round ligament.l",
+      "surface_contacts": 66,
+      "outside_attachment_patches": 0
+    },
+    {
+      "a": "Uterus",
+      "b": "Uterine tube.r",
+      "surface_contacts": 580,
+      "outside_attachment_patches": 0
+    },
+    {
+      "a": "Uterus",
+      "b": "Ovarian ligament.r",
+      "surface_contacts": 66,
+      "outside_attachment_patches": 0
+    },
+    {
+      "a": "Uterus",
+      "b": "Round ligament.r",
+      "surface_contacts": 70,
+      "outside_attachment_patches": 0
+    },
+    {
+      "a": "Vagina",
+      "b": "Vulva",
+      "surface_contacts": 615,
+      "outside_attachment_patches": 0
+    },
+    {
+      "a": "Ovary.l",
+      "b": "Ovarian ligament.l",
+      "surface_contacts": 77,
+      "outside_attachment_patches": 0
+    },
+    {
+      "a": "Ovary.r",
+      "b": "Ovarian ligament.r",
+      "surface_contacts": 77,
+      "outside_attachment_patches": 0
+    },
+    {
+      "a": "Vulva",
+      "b": "Clitoris",
+      "surface_contacts": 191,
+      "outside_attachment_patches": 0
+    },
+    {
+      "a": "Vulva",
+      "b": "Female urethra",
+      "surface_contacts": 136,
+      "outside_attachment_patches": 0
+    }
+  ],
+  "forbidden_contacts": [],
+  "tube_endings": {
+    "l": {
+      "opening_center": [
+        0.04399999976158142,
+        -0.006916654761880636,
+        0.9236883521080017
+      ],
+      "ovarian_pole": [
+        0.04399999976158142,
+        -0.006916654761880636,
+        0.9146883487701416
+      ],
+      "terminal_axis": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "axis_toward_ovary_dot": 1.0,
+      "ovary_clearance_mm": 6.946594920009375
+    },
+    "r": {
+      "opening_center": [
+        -0.04399999976158142,
+        -0.006916654761880636,
+        0.9236883521080017
+      ],
+      "ovarian_pole": [
+        -0.04399999976158142,
+        -0.006916654761880636,
+        0.9146883487701416
+      ],
+      "terminal_axis": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "axis_toward_ovary_dot": 1.0,
+      "ovary_clearance_mm": 6.947305519133806
+    }
+  },
+  "skin": {
+    "vertices": 130025,
+    "faces": 259979,
+    "nonmanifold_edges": 57,
+    "bones_contacts": [],
+    "muscles_contacts": [],
+    "organs_contacts": [
+      {
+        "mesh": "Pharynx.j.001",
+        "triangle_contacts": 2,
+        "bounds": [
+          [
+            0.08875896781682968,
+            -0.021044837310910225,
+            1.5579938888549805
+          ],
+          [
+            0.08917365968227386,
+            -0.010345926508307457,
+            1.5601487159729004
+          ]
+        ]
+      }
+    ],
+    "cardio_contacts": [
+      {
+        "mesh": "cardio",
+        "triangle_contacts": 115,
+        "bounds": [
+          [
+            -0.026759007945656776,
+            -0.059507012367248535,
+            0.8156417012214661
+          ],
+          [
+            0.025806771591305733,
+            -0.053302034735679626,
+            0.8299391269683838
+          ]
+        ]
+      }
+    ],
+    "nervous_contacts": [
+      {
+        "mesh": "nervous",
+        "triangle_contacts": 7,
+        "bounds": [
+          [
+            0.016883568838238716,
+            -0.04790578410029411,
+            0.7523482441902161
+          ],
+          [
+            0.020591184496879578,
+            -0.04404762014746666,
+            0.7618880867958069
+          ]
+        ]
+      }
+    ],
+    "lymphoid_contacts": []
+  }
+}

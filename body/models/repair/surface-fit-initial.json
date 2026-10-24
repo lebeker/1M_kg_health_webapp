@@ -1,0 +1,9 @@
+{
+  "vertices": 48777,
+  "triangles": 97550,
+  "watertight": false,
+  "consistent_winding": true,
+  "median_target_distance_mm": 1.469509299846275,
+  "p95_target_distance_mm": 3.3273804855594817,
+  "max_displacement_mm": 141.34561056710214
+}

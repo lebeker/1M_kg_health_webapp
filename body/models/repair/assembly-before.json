@@ -1,0 +1,130 @@
+{
+  "self": {
+    "Uterus": {
+      "crossings": 0,
+      "components": 1
+    },
+    "Cervix": {
+      "crossings": 0,
+      "components": 1
+    },
+    "Vagina": {
+      "crossings": 0,
+      "components": 1
+    },
+    "Ovary.l": {
+      "crossings": 0,
+      "components": 1
+    },
+    "Uterine tube.l": {
+      "crossings": 0,
+      "components": 1
+    },
+    "Ovarian ligament.l": {
+      "crossings": 0,
+      "components": 1
+    },
+    "Round ligament.l": {
+      "crossings": 0,
+      "components": 1
+    },
+    "Ovary.r": {
+      "crossings": 0,
+      "components": 1
+    },
+    "Uterine tube.r": {
+      "crossings": 0,
+      "components": 1
+    },
+    "Ovarian ligament.r": {
+      "crossings": 0,
+      "components": 1
+    },
+    "Round ligament.r": {
+      "crossings": 0,
+      "components": 1
+    },
+    "Vulva": {
+      "crossings": 0,
+      "components": 1
+    },
+    "Vestibular bulb.l": {
+      "crossings": 0,
+      "components": 1
+    },
+    "Vestibular bulb.r": {
+      "crossings": 0,
+      "components": 1
+    },
+    "Clitoris": {
+      "crossings": 0,
+      "components": 1
+    },
+    "Female urethra": {
+      "crossings": 0,
+      "components": 1
+    }
+  },
+  "pairs": [
+    {
+      "a": "Uterus",
+      "b": "Cervix",
+      "crossings": 583
+    },
+    {
+      "a": "Uterus",
+      "b": "Uterine tube.l",
+      "crossings": 290
+    },
+    {
+      "a": "Uterus",
+      "b": "Ovarian ligament.l",
+      "crossings": 42
+    },
+    {
+      "a": "Uterus",
+      "b": "Round ligament.l",
+      "crossings": 36
+    },
+    {
+      "a": "Uterus",
+      "b": "Uterine tube.r",
+      "crossings": 290
+    },
+    {
+      "a": "Uterus",
+      "b": "Ovarian ligament.r",
+      "crossings": 42
+    },
+    {
+      "a": "Uterus",
+      "b": "Round ligament.r",
+      "crossings": 36
+    },
+    {
+      "a": "Vagina",
+      "b": "Vulva",
+      "crossings": 356
+    },
+    {
+      "a": "Ovary.l",
+      "b": "Ovarian ligament.l",
+      "crossings": 46
+    },
+    {
+      "a": "Ovary.r",
+      "b": "Ovarian ligament.r",
+      "crossings": 46
+    },
+    {
+      "a": "Vulva",
+      "b": "Clitoris",
+      "crossings": 44
+    },
+    {
+      "a": "Vulva",
+      "b": "Female urethra",
+      "crossings": 54
+    }
+  ]
+}
