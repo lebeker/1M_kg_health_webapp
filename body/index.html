@@ -81,8 +81,8 @@ const LAYERS = [
   { id:"skin",     name:"skin · teeth · hair · nails", color:0xe8c9a0, filesBySex:true },
   { id:"muscles",  name:"muscles",                     color:0xc0554f },
   { id:"bones",    name:"bones",                       color:0xd9d2bd },
-  { id:"cardio",   name:"cardio-vascular",             color:0xb33a3a },
-  { id:"nervous",  name:"nervous system",              color:0xe0b93f },
+  { id:"cardio",   name:"cardio-vascular",             color:0xb33a3a, filesBySex:true },
+  { id:"nervous",  name:"nervous system",              color:0xe0b93f, filesBySex:true },
   { id:"lymphoid", name:"lymphoid system",             color:0x9fe07a },
   { id:"organs",   name:"organs",                      color:0xc78fb0 },
   { id:"reproductive", name:"reproductive",            color:0xd98fa4, filesBySex:true }
@@ -198,6 +198,10 @@ async function boot() {
   jobs.push(loadFile("skin", "skin", "male"));
   jobs.push(loadFile("reproductive", "reproductive-female", "female"));
   jobs.push(loadFile("reproductive", "reproductive-male", "male"));
+  jobs.push(loadFile("cardio", "cardio", "male"));
+  jobs.push(loadFile("cardio", "cardio-female", "female"));
+  jobs.push(loadFile("nervous", "nervous", "male"));
+  jobs.push(loadFile("nervous", "nervous-female", "female"));
   await Promise.all(jobs);
   normalise();
   buildLegend();

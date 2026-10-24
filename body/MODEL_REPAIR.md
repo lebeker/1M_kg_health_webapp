@@ -106,3 +106,15 @@ capped ring under the cervix. `build_female_repair2.py` rebuilds it:
 
 Reports: `models/repair/geometry-report-v3.json`, `fit-report-v3.json`; renders in
 `shots/model-review-v3/`. Editable source: `models/repair/female-repair-v3.blend`.
+
+## Female variants of the vascular and nervous layers
+
+The atlas is male, so the female body was still carrying the testicular vessels, the prostatic
+and penile branches and the penile nerves. Both layers are single merged meshes, so
+`cut_male_variants.py` cuts them spatially: anything within 4 mm of the external male organs,
+plus anything inside a narrow midline box below the pelvic brim (|x| < 34 mm, anterior half,
+z < 0.845), which takes the spermatic cord vessels. The ductus deferens is left out of the
+proximity mask on purpose — it runs beside the external iliac and would take it with it.
+
+`models/cardio-female.glb` (50,343 verts) and `models/nervous-female.glb` (71,790 verts) are
+loaded beside the male files and swapped by the sex switch. Renders: `shots/layer-cut/`.
