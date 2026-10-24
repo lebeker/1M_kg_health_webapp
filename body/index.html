@@ -151,6 +151,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
+const ASSET_VERSION = "20261024c";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -162,7 +163,7 @@ function loadFile(id, file, variant) {
   loadedFiles.add(key);
   return new Promise(res => {
     pending++;
-    loader.load(`models/${file}.glb`, gltf => {
+    loader.load(`models/${file}.glb?v=${ASSET_VERSION}`, gltf => {
       const g = makeGroup(id);
       paint(LAYERS.find(l => l.id === id), gltf.scene, variant);
       if (variant) {
@@ -194,7 +195,7 @@ async function boot() {
     (l.files || [l.id]).forEach(f => jobs.push(loadFile(l.id, f)));
   });
   jobs.push(loadFile("skin", "skinbits", "male"));   // teeth/hair/nails are the male atlas bits
-  jobs.push(loadFile("skin", "skin-female", "female"));
+  jobs.push(loadFile("skin", "skin-female2", "female"));   // v2: Blender Studio base mesh, fitted to the bones
   jobs.push(loadFile("skin", "skin", "male"));
   jobs.push(loadFile("reproductive", "reproductive-female", "female"));
   jobs.push(loadFile("reproductive", "reproductive-male", "male"));

@@ -137,17 +137,26 @@ Meshes v1.2.0** bundle (CC0):
 5. relax the hand blockout with four smoothing passes so the shell reads as a hand;
 6. drop the eye spheres (they glow through the 22 %-opacity shell) and export at multires level 1.
 
-The arms are rotated 10° about the shoulder, rigidly, inside the arm cylinder. The selection must
-be by distance to the arm bones, never by |x| — an |x| gate catches the outer thighs and folds the
-legs into a skirt — and the hand needs its own test (|x| > 0.235 below the wrist): it is wider than
-the cylinder, and cutting it slices the fingers off. A smooth axial fade over the first 10 cm
-keeps the deltoid attached. Earlier attempts that rotated by an |x| gate, a height gate, a raw
-distance mask, or a second rotation at the elbow each tore the armpit, sheared the hand or folded
-the figure.
+The fit is aimed at the **muscle layer** (`muscles.glb`), not at the bones: the shell has to wrap
+the muscles, and aiming at the bones left it narrower than the muscle mass.
 
-Result: **167,596 verts / 83,798 triangles / 6.37 MB**. Fit test: 51,772 of 51,778 skeleton
-vertices lie inside the shell; the skin's widest point (33.6 cm) and the skeleton's (33.5 cm)
-coincide. Reports and renders: `shots/skin-base/`, `shots/skin-audit/` (the old scan).
+- Arms: one rigid rotation of −12° about the shoulder. The membership comes from the **mesh's own
+  arm axis** (shoulder → the mesh's hand centroid), because at the hand the mesh is 15 cm from the
+  bone and a capsule around the bone misses it. The hand is taken as a whole lateral block
+  (|x| > 0.30, z < 1.00): it is a set of separate prisms, and cutting it leaves the palm rotating
+  while the fingers stay behind — the hand stretches into a squid.
+- Legs: each leg is shifted inward by the measured offset between the mesh's leg centres and the
+  muscles' at five heights (0.08 … 0.62 m), faded out above the hips. The base mesh stands 2-5 cm
+  wider below the knee.
+- Skin allowance: 1.8 cm lateral push, because measured against the muscles the shell was
+  0.5-2.6 cm *inside* them at the arms, chest and hands.
+- Never gate an arm vertex by height alone: the fingers hang below 0.80 m, so a height gate zeroes
+  them while the palm rotates, and the hand tears.
+
+Result: **167,596 verts / 83,798 triangles / 6.37 MB**, loaded as `skin-female2.glb`. Leg centres
+are within 1.3 cm of the muscles', the shell is within 2 cm of the muscle surface at every height
+(outside at chest, hips, shoulders; 0.8 cm inside at elbows and hands), and the head is 18.8 cm
+wide over a 14.9 cm skull — 19.6 cm for the male atlas skin, i.e. the same size. Reports and renders: `shots/skin-base/`, `shots/skin-audit/` (the old scan).
 
 Rejected on the way here: remapping the atlas male skin into a female profile (the atlas skin is
 343 separate islands — the result is plates), and cutting its genital faces out to cap the hole

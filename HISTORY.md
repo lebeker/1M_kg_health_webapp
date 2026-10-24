@@ -138,18 +138,27 @@ centre to the skeleton, widen the iliac band by 10.5 % (the atlas pelvis is wide
 mesh's hips), relax the hand blockout with four smoothing passes, drop the eye spheres (they glow
 through a 22 %-opacity shell), and export at multires level 1.
 
-Matching the arms to the skeleton took five tries. Rotating about the shoulder by an |x| gate tore
-the armpit; by a height gate it sheared the splayed hand into a paddle; by a raw distance mask it
-caught the head and folded the figure; and an |x| gate on the forearm stage caught the outer thighs
-and turned the legs into a skirt. What works is a **rigid rotation of the arm cylinder by 10°**
-about the shoulder, with a hard radial cut at the arm's surface *plus* an explicit test for the
-hand (which is wider than the cylinder — cut it and the fingers shear off) and a smooth axial fade
-over the first 10 cm so the deltoid does not tear.
+The fit is measured against the **muscle layer**, not the bare bones: the shell has to wrap the
+muscles, and aiming at the bones left it narrower than the muscle mass, so the muscles pushed
+through it. Three deformations remain:
 
-Result: **167,596 verts / 83,798 triangles / 6.37 MB**. Only **6 of 51,778** skeleton vertices fall
-outside the shell, and the widest point of the skin (33.6 cm) matches the widest point of the
-skeleton (33.5 cm). At multires level 1 the fingers are a mitten — fine for a 22 %-opacity shell,
-and level 2 would have cost 26 MB. The skull sits inside the head with a
+- **arms**: one rigid rotation about the shoulder (−12°) so the base mesh's arm lies on the
+  muscle arm. The selection has to come from the MESH's own arm axis — at the hand the mesh is
+  15 cm from the bone, so a capsule around the bone misses it — and the hand is taken as a whole
+  lateral block, because it is a set of separate prisms: cut it and the palm rotates while the
+  fingers stay behind, stretching the hand into a squid.
+- **legs**: each leg is shifted inward by the measured offset between the mesh's leg centres and
+  the muscles' at five heights (the base mesh stands 2-5 cm wider below the knee).
+- **skin allowance**: a 1.8 cm lateral push, because measured against the muscles the shell was
+  0.5-2.6 cm INSIDE them at the arms, chest and hands.
+
+Result: **167,596 verts / 83,798 triangles / 6.37 MB**. Leg centres are within 1.3 cm of the
+muscles', and the shell is within 2 cm of the muscle surface at every height — outside it at the
+chest, hips and shoulders, and 0.8 cm inside it at the elbows and hands. Head: 18.8 cm wide over a
+14.9 cm skull, against 19.6 cm for the male atlas skin — the same size, 2 cm of soft tissue a side.
+
+Assets are now versioned (`?v=` in the loader plus a fresh `skin-female2.glb`): GitHub Pages caches
+GLBs hard enough that a renamed file is the only reliable cache-bust. The skull sits inside the head with a
 plausible soft-tissue layer, the limbs wrap the bones, and the crotch is a female mound.
 
 `skinbits` (teeth, hair, nails) is loaded as the **male** variant, so the female view no longer

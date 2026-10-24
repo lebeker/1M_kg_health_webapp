@@ -71,7 +71,7 @@ def shot(name, pos, target, scale):
 
 
 clear()
-skin = load("skin-female", (.82, .72, .66))
+skin = load("skin-female2", (.82, .72, .66))
 shot("base-front", (0, -3, 0.88), (0, 0, 0.88), 1.95)
 shot("base-side", (3, 0, 0.88), (0, 0, 0.88), 1.95)
 shot("base-head", (0, -3, 1.55), (0, 0, 1.55), 0.34)
@@ -80,11 +80,11 @@ shot("base-hand", (0.30, -3, 0.92), (0.30, 0, 0.92), 0.30)
 
 clear()
 load("bones", (.92, .90, .86))
-load("skin-female", (.82, .72, .66), alpha=.30)
+load("skin-female2", (.82, .72, .66), alpha=.30)
 shot("base-both-front", (0, -3, 0.88), (0, 0, 0.88), 1.95)
 shot("base-both-head", (0, -3, 1.56), (0, 0, 1.56), 0.30)
 
 clear()
-load("skin-female", (.82, .72, .66), alpha=.25)
+load("skin-female2", (.82, .72, .66), alpha=.25)
 load("muscles", (.70, .32, .30), alpha=.55)
 shot("base-both-muscles", (0, -3, 1.15), (0, 0, 1.15), 1.10)
