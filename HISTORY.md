@@ -134,14 +134,18 @@ Two attempts before the switch, both recorded as rejected:
 The surface now comes from `body/tools/build_female_skin_base.py`, which opens the Blender Studio
 bundle and does, in order: bake transforms, weld the seams (`remove_doubles` at 0.8 mm — the bundle
 is assembled from primitives that are not welded), scale to 1.743 m, centre on x, align the depth
-centre to the skeleton, adduct the arms 9 degrees, swing the forearms in 17 degrees about the
-elbow (the base mesh's forearms flare 16 cm wider than this skeleton's), widen the iliac band by
-10.5 % (the atlas pelvis is wider than the base mesh's hips), relax the hand blockout with four
-smoothing passes, drop the eye spheres (they glow through a 22 %-opacity shell), and export at
-multires level 1.
+centre to the skeleton, widen the iliac band by 10.5 % (the atlas pelvis is wider than the base
+mesh's hips), relax the hand blockout with four smoothing passes, drop the eye spheres (they glow
+through a 22 %-opacity shell), and export at multires level 1.
 
-Result: **167,596 verts / 83,798 triangles / 6.37 MB**. Every skeleton vertex but 1,179 of 51,778
-lies inside the shell; of those, 1,163 are the toe tips. The skull sits inside the head with a
+Rotating the arms to match the skeleton was tried three ways — a |x| gate, a height gate, and a
+weight on the arm cylinder — and dropped each time: the base mesh's A-pose already covers the arm
+bones, and every rotation either tore the armpit, sheared the hands, or (with a raw distance mask)
+caught the head and folded the figure. A |x| gate on the forearm stage also caught the outer
+thighs and turned the legs into a skirt.
+
+Result: **167,596 verts / 83,798 triangles / 6.37 MB**. 562 of 51,778 skeleton vertices fall
+outside the shell, and all of them are the kneecaps. The skull sits inside the head with a
 plausible soft-tissue layer, the limbs wrap the bones, and the crotch is a female mound.
 
 `skinbits` (teeth, hair, nails) is loaded as the **male** variant, so the female view no longer

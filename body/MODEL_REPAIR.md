@@ -133,15 +133,17 @@ Meshes v1.2.0** bundle (CC0):
    `remove_doubles`), otherwise every part boundary shows as a crack;
 3. scale the 1.641 m cage to the atlas height, 1.743 m; centre on x; move the depth centre onto
    the skeleton's;
-4. adduct the arms 9° about the shoulder and swing the forearms 17° about the elbow — the base
-   mesh's forearms flare 16 cm wider than this skeleton's;
-5. widen the iliac band by 10.5 % (the atlas pelvis is wider than the base mesh's hips);
-6. relax the hand blockout with four smoothing passes so the shell reads as a hand;
-7. drop the eye spheres (they glow through the 22 %-opacity shell) and export at multires level 1.
+4. widen the iliac band by 10.5 % (the atlas pelvis is wider than the base mesh's hips);
+5. relax the hand blockout with four smoothing passes so the shell reads as a hand;
+6. drop the eye spheres (they glow through the 22 %-opacity shell) and export at multires level 1.
 
-Result: **167,596 verts / 83,798 triangles / 6.37 MB**. Fit test: 50,599 of 51,778 skeleton
-vertices lie inside the shell; 1,163 of the 1,179 outside are the toe tips, the rest are a handful
-of knee vertices. Reports and renders: `shots/skin-base/`, `shots/skin-audit/` (the old scan).
+No arm rotation: the base mesh's A-pose already covers the arm bones, and the three rotations
+tried (|x| gate, height gate, arm-cylinder weight) each tore the armpit or sheared the hands. A
+gate on |x| also caught the outer thighs and folded the legs into a skirt — select arm vertices by
+distance to the arm bones, never by |x|.
+
+Result: **167,596 verts / 83,798 triangles / 6.37 MB**. Fit test: 51,216 of 51,778 skeleton
+vertices lie inside the shell; the 562 outside are the kneecaps. Reports and renders: `shots/skin-base/`, `shots/skin-audit/` (the old scan).
 
 Rejected on the way here: remapping the atlas male skin into a female profile (the atlas skin is
 343 separate islands — the result is plates), and cutting its genital faces out to cap the hole
