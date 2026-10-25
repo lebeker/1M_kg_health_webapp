@@ -311,14 +311,15 @@ for name in KEEP[:1]:
             continue
         # the hairline runs lower at the back (a nape) and higher over the forehead
         hz = 1.648 - 0.55 * (v.co.y + 0.050)
-        w = smoothstep((v.co.z - hz) / 0.008)
+        # a 30 mm fade, not an 8 mm step: the hard rim read as eyelashes floating off her brow
+        w = smoothstep((v.co.z - hz) / 0.030)
         if w <= 0.0:
             continue
         d = v.co - HAIR_C
-        v.co = HAIR_C + d * (1.0 + 0.165 * w)
+        v.co = HAIR_C + d * (1.0 + 0.105 * w)
         moved.append(v)
-    for _ in range(2):
-        bmesh.ops.smooth_vert(bm, verts=moved, factor=0.35, use_axis_x=True,
+    for _ in range(4):
+        bmesh.ops.smooth_vert(bm, verts=moved, factor=0.45, use_axis_x=True,
                               use_axis_y=True, use_axis_z=True)
     bm.to_mesh(obj.data)
     bm.free()

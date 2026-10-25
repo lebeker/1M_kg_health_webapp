@@ -168,6 +168,8 @@ let edges = null;           // LineSegments organ -> heart
 
 const stage = document.getElementById("stage");
 const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.localClippingEnabled = true;
+const headPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0.585);  // keeps what is below her jaw
 // NOTE: the scene is authored in the r146 default (linear output). Switching to sRGBEncoding
 // brightens the shell but washes the atlas anatomy out, and the anatomy is what has to stay
 // legible, so the shell gets its own lift in paint() instead.
@@ -188,6 +190,7 @@ function bodyShrink() {
   return Math.min(0.75, Math.max(0.2, h / 1.8));
 }
 let camAnim = false;
+let camUntil = 0;           // a fly-to never owns the camera for longer than this
 let camKey = "";        // true only while a layout change is being flown to; after that the
                             // user's own orbit and zoom must not be fought by the animation
 controls.enableDamping = true; controls.dampingFactor = 0.08;
@@ -236,11 +239,15 @@ function paint(l, root, tag) {
       : keep ? o.material.color.clone()
       : l.id === "muscles" ? new THREE.Color(0x9e3b38)
       : (o.material && o.material.color ? o.material.color.clone().lerp(c, 0.5) : c);
+    const isHead = l.id === "skin" && /-head$/.test(o.name);
     const m = new THREE.MeshStandardMaterial({
       color: base, roughness: keep ? 0.6 : 0.72, metalness: 0.02,
-      transparent: l.id === "skin", opacity: l.id === "skin" ? SHELL_OPACITY : 1,
-      depthWrite: l.id !== "skin", side: l.id === "skin" ? THREE.FrontSide : THREE.DoubleSide
+      transparent: l.id === "skin" && !isHead,
+      opacity: l.id === "skin" ? (isHead ? 1 : SHELL_OPACITY) : 1,
+      depthWrite: l.id !== "skin" || isHead,
+      side: l.id === "skin" ? THREE.FrontSide : THREE.DoubleSide
     });
+    if (isHead) m.userData.solidHead = true;
     if (l.id === "lymphoid" || l.id === "nervous") m.emissive = c.clone().multiplyScalar(0.16);
     // the shell has to stay readable against a black page: a faint self-lit term keeps its
     // silhouette off pure black without hiding what is inside
@@ -253,7 +260,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261025m";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261025q";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -301,10 +308,19 @@ function loadFile(id, file, variant) {
       const g = makeGroup(id);
       paint(LAYERS.find(l => l.id === id), gltf.scene, variant);
       if (variant) {
+        // a sex variant can be several files (a shell, teeth, nails): they share one group
+        let vg = g.userData.variants[variant];
+        if (!vg) {
+          vg = new THREE.Group();
+          vg.userData.variant = variant;
+          g.userData.variants[variant] = vg;
+          g.userData.inner.add(vg);
+        }
+        vg.add(gltf.scene);
         gltf.scene.userData.variant = variant;   // every part can tell which sex it belongs to
-        g.userData.variants[variant] = gltf.scene;
-        gltf.scene.visible = false;
-        g.userData.inner.add(gltf.scene);
+        const on = variant === state.sex;        // a file that lands late must obey the switch already made
+        vg.visible = on;
+        vg.traverse(o => { o.visible = on; });
       } else {
         g.userData.inner.add(gltf.scene);
       }
@@ -333,8 +349,9 @@ async function boot() {
     if (l.filesBySex) return;
     (l.files || [l.id]).forEach(f => jobs.push(loadFile(l.id, f)));
   });
-  jobs.push(loadFile("skin", "skinbits2"));   // teeth + nails only: the hair cap is fitted to the
-                                              // male head and fits neither sex any more
+  jobs.push(loadFile("skin", "skinbits2", "male"));        // atlas teeth + nails: his head
+  jobs.push(loadFile("skin", "skinbits-female", "female")); // her nails only — the atlas teeth are
+                                                            // cut for another skull and pierced her lips
   jobs.push(loadFile("skin", "skin-female2", "female"));   // v2: Blender Studio base mesh, fitted to the bones
   jobs.push(loadFile("skin", "skin", "male"));   // the hair island IS the male head shell: stripping it
                                                  // left half a head, so the male keeps skin.glb whole
@@ -568,6 +585,7 @@ renderer.domElement.addEventListener("dblclick", e => {
   camWant.target.copy(c);
   camWant.pos.copy(c).add(new THREE.Vector3(0, r * 0.35, r * 4.6));   // a frame, not a close-up
   camAnim = true;
+  camUntil = performance.now() + 1400;
 });
 
 function toggleLayer(id) {
@@ -623,6 +641,7 @@ function applySex() {
   });
   // the organs set carries both tracts as variants; every part knows which sex it belongs to
   organParts.forEach(p => { p.mesh.visible = partShown(p); });
+  bodyHeadCut();
   if (organGhost) { organGhost.removeFromParent(); organGhost = null; }   // rebuild for the new sex
   if (state.organsOut) makeGhost().visible = true;
   const anyBodyOut = LAYERS.some(l => l.id !== "organs" && state.out.has(l.id));
@@ -926,6 +945,44 @@ function makeGhost() {
   return organGhost;
 }
 
+/* Her head is a different skull from the atlas one. The atlas muscles (the eyelids and lips
+   especially), the teeth and the eyeballs sit for a male head, and at 45 % skin they read as four
+   eyes, floating lashes and teeth through the lips. Inside her body those layers lose the head;
+   taken out as nodes they keep all of it. */
+let headCutMats = [];
+let headCutMeshes = [];
+
+/* Her head is a different skull from the atlas one: his muscles, teeth and eyeballs are bigger and
+   stick out of her face. Cut the atlas layers at her jaw while they sit in the body; taken out as
+   nodes they keep everything. The shell's head is drawn opaque (see paint()), so the gap never shows. */
+function bodyHeadCut() {
+  headCutMats.forEach(m => { m.clippingPlanes = null; m.needsUpdate = true; });
+  headCutMats = [];
+  headCutMeshes.forEach(o => { o.visible = true; });
+  headCutMeshes = [];
+  // only while her own shell is the head on screen: with the shell off, the atlas head is all there is
+  if (state.sex !== "female" || !state.skin || state.out.has("skin")) return;
+  ["muscles", "bones", "cardio", "nervous", "lymphoid"].forEach(id => {
+    const g = groups[id];
+    if (!g || state.out.has(id)) return;
+    g.traverse(o => {
+      if (!o.isMesh || !o.material) return;
+      if (headCutMats.includes(o.material)) return;
+      o.material.clippingPlanes = [headPlane];
+      o.material.needsUpdate = true;
+      headCutMats.push(o.material);
+    });
+  });
+  organParts.forEach(p => {
+    if (p.inNode) return;
+    const b = new THREE.Box3().setFromObject(p.mesh);
+    if (!b.isEmpty() && b.getCenter(new THREE.Vector3()).y > 0.585) {
+      p.mesh.visible = false;
+      headCutMeshes.push(p.mesh);
+    }
+  });
+}
+
 function layout() {
   if (!bodyBox) return;
   const width = bodyBox.getSize(new THREE.Vector3()).x;
@@ -989,11 +1046,12 @@ function layout() {
     g.visible = skinOk;
   });
   organParts.forEach(p => { p.mesh.visible = partShown(p); });
+  bodyHeadCut();
 
   const skinG = groups.skin;
   const skinOut = state.out.has("skin");
   if (skinG) skinG.traverse(o => {
-    if (!o.isMesh || !o.material) return;
+    if (!o.isMesh || !o.material || o.material.userData.solidHead) return;
     o.material.transparent = !skinOut;
     o.material.opacity = skinOut ? 1 : SHELL_OPACITY;
     o.material.depthWrite = skinOut;
@@ -1040,6 +1098,7 @@ function layout() {
     camWant.pos.set(cx - dx, d * elev, d);
     camWant.target.set(cx - dx, 0, 0);
     camAnim = true;
+    camUntil = performance.now() + 1400;
   }
 }
 
@@ -1080,7 +1139,11 @@ renderer.domElement.addEventListener("pointermove", e => {
   tip.style.left = (e.clientX + 16) + "px";
   tip.style.top = (e.clientY + 14) + "px";
 });
-renderer.domElement.addEventListener("pointerdown", e => { downAt = { x: e.clientX, y: e.clientY }; });
+renderer.domElement.addEventListener("pointerdown", e => {
+  downAt = { x: e.clientX, y: e.clientY };
+  camAnim = false;                       // the user takes the camera the moment they touch it
+});
+renderer.domElement.addEventListener("wheel", () => { camAnim = false; }, { passive: true });
 renderer.domElement.addEventListener("pointerup", e => {
   if (!downAt) return;
   const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y);
@@ -1150,7 +1213,7 @@ function tick() {
   if (camAnim) {
     camera.position.lerp(camWant.pos, a);
     controls.target.lerp(camWant.target, a);
-    if (camera.position.distanceTo(camWant.pos) < 0.004) camAnim = false;
+    if (camera.position.distanceTo(camWant.pos) < 0.004 || performance.now() > camUntil) camAnim = false;
   }
   controls.update();
   renderer.render(scene, camera);
