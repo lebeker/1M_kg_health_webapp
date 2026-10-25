@@ -158,10 +158,10 @@ const LAYERS = [
 ];
 
 const state = {
-  sex:"male", collapsed:false, hidden:new Set(), sel:null, partOut:new Set(),
+  sex:"male", collapsed:false, hidden:new Set(), sel:null,
   out:new Set(),            // layers taken out of the body; at the start every layer is collapsed
   organsOut:false,          // the organs set split into organ nodes
-  groupOut:new Set(),       // organ groups currently out of the set
+  nodeOut:new Set(),        // anything that left its parent: a group id, or "m:<mesh>"
   treeOpen:false, openGroups:new Set()
 };
 const EYE_OUT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
@@ -265,7 +265,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261026a";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261026e";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -446,74 +446,71 @@ function buildLegend() {
   });
 }
 
-/* organs: one row per organ (group), each with its own eye — out of the set, or back inside it */
+/* organs: the tree, any depth. An eye takes a node out of its parent; a chevron opens what is
+   inside, so the next level down can be reached. */
+function countUnder(n) {
+  let c = organParts.filter(p => sexOn(p.sex) && p.node === n).length;
+  n.kids.forEach(k => { c += countUnder(k); });
+  return c;
+}
+
 function organRows(rows) {
-  const byGroup = {};
-  organParts.filter(p => sexOn(p.sex)).forEach(p => {
-    (byGroup[p.gid] = byGroup[p.gid] || { meta: p.gmeta, parts: [] }).parts.push(p);
-  });
-  Object.values(byGroup)
-    .sort((a, b) => a.meta.label.localeCompare(b.meta.label))
-    .forEach(g => {
-      const isOut = state.groupOut.has(g.meta.id);
+  const render = (list, depth) => {
+    list.forEach(n => {
+      if (!countUnder(n)) return;                     // nothing under it for this sex
+      const out = state.nodeOut.has(n.id);
+      const open = state.openGroups.has(n.id);
+      // a leaf group still has meshes inside: the chevron has to open those, not just subgroups
+      const own = organParts.filter(p => p.node === n && sexOn(p.sex)).length;
+      const hasInside = own > 0 || n.kids.some(k => countUnder(k) > 0);
       const row = document.createElement("div");
-      row.className = "row kids group" + (isOut ? " out" : "");
-      row.dataset.organ = g.meta.id;
-      row.innerHTML = `<button class="chev" title="show the parts">${state.openGroups.has(g.meta.id) ? "\u25be" : "\u25b8"}</button>` +
-        `<span class="dot" style="background:#${g.meta.color.toString(16).padStart(6,"0")}"></span>` +
-        `<span class="nm" title="${g.meta.label}">${g.meta.label}</span>` +
-        `<span class="cnt">${g.parts.length}</span>` +
-        `<button class="eye" title="${isOut ? "put back into the organs set" : "take out of the organs set"}">${isOut ? EYE_OPEN : EYE_SHUT}</button>`;
+      row.className = "row kids group" + (out ? " out" : "");
+      row.dataset.organ = n.id;
+      row.style.paddingLeft = (8 + (depth - 1) * 11) + "px";
+      row.innerHTML =
+        `<button class="chev${hasInside ? "" : " blank"}" title="show what is inside">${hasInside ? (open ? "\u25be" : "\u25b8") : ""}</button>` +
+        `<span class="dot" style="background:#${n.color.toString(16).padStart(6, "0")}"></span>` +
+        `<span class="nm" title="${n.label}">${n.label}</span>` +
+        `<span class="cnt">${countUnder(n)}</span>` +
+        `<button class="eye" title="${out ? "put it back" : "take it out"}">${out ? EYE_OPEN : EYE_SHUT}</button>`;
       row.onclick = e => {
         if (e.target.closest(".chev")) {
-          if (state.openGroups.has(g.meta.id)) state.openGroups.delete(g.meta.id); else state.openGroups.add(g.meta.id);
+          if (!hasInside) return;
+          if (open) state.openGroups.delete(n.id); else state.openGroups.add(n.id);
           buildLegend();
           return;
         }
-        toggleGroup(g.meta.id);
+        toggleKey(n.id);
       };
       rows.appendChild(row);
-      if (state.openGroups.has(g.meta.id)) {
-        g.parts.slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(p => rows.appendChild(partRow(p)));
+      if (open) {
+        if (n.kids.length) render(n.kids, depth + 1);
+        organParts.filter(p => p.node === n && sexOn(p.sex))
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .forEach(p => rows.appendChild(meshRow(p)));
       }
     });
+  };
+  render(ORGAN_TREE, 1);
 }
 
-/* a part is a node too: its own name, the organ it belongs to, and one action — put it back */
-function selectPart(name) {
-  const p = organParts.find(x => x.name === name);
-  const panel = document.getElementById("node");
-  if (!p) { panel.hidden = true; return; }
-  panel.hidden = false;
-  document.getElementById("npTitle").textContent = partLabel(name);
-  document.getElementById("npSub").textContent = `part of ${p.gmeta.label} · 1 mesh`;
-  document.getElementById("npDesc").textContent =
-    `One structure of ${p.gmeta.label}, out of its organ as a node of its own. It goes back into the organ with the eye in the list, or with the button below.`;
-  const acts = document.getElementById("npActs");
-  acts.innerHTML = "";
-  const b = document.createElement("button");
-  b.textContent = "put it back into the organ";
-  b.classList.add("on");
-  b.onclick = () => { togglePart(name); select(null); };
-  acts.appendChild(b);
-}
-
-function partLabel(name) {
-  return name.replace(/\.?001$/, "").replace(/_/g, " ");
-}
-
-function partRow(p) {
+function meshRow(p) {
+  const key = meshKey(p.name);
+  const isOut = state.nodeOut.has(key);
   const row = document.createElement("div");
-  const isOut = state.partOut.has(p.name);
   row.className = "row kids part" + (isOut ? " out" : "");
   row.dataset.organ = p.name;
   const col = p.mesh.material && p.mesh.material.color ? p.mesh.material.color.getHex() : 0xc78fb0;
   row.innerHTML = `<span class="chev blank"></span>` +
-    `<span class="dot" style="background:#${col.toString(16).padStart(6,"0")}"></span>` +
-    `<span class="nm" title="${p.name}">${p.name.replace(/\.?001$/, "").replace(/_/g, " ")}</span>` +
-    `<button class="eye" title="${isOut ? "put it back into the organ" : "take it out of the organ"}">${isOut ? EYE_OPEN : EYE_SHUT}</button>`;
-  row.onclick = () => togglePart(p.name);
+    `<span class="dot" style="background:#${col.toString(16).padStart(6, "0")}"></span>` +
+    `<span class="nm" title="${p.name}">${partLabel(p.name)}</span>` +
+    `<button class="eye" title="${isOut ? "put it back into its group" : "take it out as a node"}">${isOut ? EYE_OPEN : EYE_SHUT}</button>`;
+  row.onclick = () => toggleKey(key);
   return row;
+}
+
+function partLabel(name) {
+  return name.replace(/\.?001$/, "").replace(/_/g, " ");
 }
 
 /* ---------- the node panel: what the node under the cursor actually is ---------- */
@@ -549,16 +546,36 @@ function select(id) {
   const panel = document.getElementById("node");
   if (!state.sel) { panel.hidden = true; clearHighlight(); layout(); return; }
 
-  if (typeof id === "string" && id.startsWith("part:")) { selectPart(id.slice(5)); return; }
+  /* a single mesh that left its group */
+  if (typeof id === "string" && isMeshKey(id)) {
+    const p = partByKey(id);
+    if (!p) { panel.hidden = true; return; }
+    panel.hidden = false;
+    document.getElementById("npTitle").textContent = partLabel(p.name);
+    document.getElementById("npSub").textContent = `part of ${p.node.label} · 1 mesh`;
+    document.getElementById("npDesc").textContent =
+      `One structure of ${p.node.label}, standing on its own with an edge back to it. The eye in the list puts it inside again.`;
+    const acts = document.getElementById("npActs");
+    acts.innerHTML = "";
+    const b = document.createElement("button");
+    b.textContent = "put it back into " + p.node.label;
+    b.classList.add("on");
+    b.onclick = () => { toggleKey(id); select(null); };
+    acts.appendChild(b);
+    const obj = selectedObject();
+    if (obj) highlight(obj); else clearHighlight();
+    layout();
+    return;
+  }
 
-  const org = ORGAN_GROUPS.find(g => g.id === id);
+  const org = NODE_BY_ID[id] || null;
   const lay = LAYERS.find(l => l.id === id);
   const meta = org || lay;
   if (!meta) { panel.hidden = true; clearHighlight(); return; }
 
-  const parts = org ? organParts.filter(p => p.gid === id && sexOn(p.sex)).length : 0;
-  const sub = org ? `organ · ${parts} ${parts === 1 ? "mesh" : "meshes"}`
-            : id === "organs" ? `set · ${new Set(organParts.filter(p => sexOn(p.sex)).map(p => p.gid)).size} organs`
+  const parts = org ? countUnder(org) : 0;
+  const sub = org ? `${org.depth === 1 ? "system" : org.depth === 2 ? "organ" : "part of the tree"} · ${parts} ${parts === 1 ? "mesh" : "meshes"}`
+            : id === "organs" ? `set · ${new Set(organParts.filter(p => sexOn(p.sex)).map(p => p.gid)).size} groups`
             : `layer · ${layerCount(meta)} ${layerCount(meta) === 1 ? "mesh" : "meshes"}`;
 
   document.getElementById("npTitle").textContent = org ? org.label : meta.name;
@@ -575,16 +592,17 @@ function select(id) {
     acts.appendChild(b);
   };
   if (org) {
-    const isOut = state.groupOut.has(id);
-    add(isOut ? "put back into the set" : "take it out of the set", () => {
-      if (isOut) state.groupOut.delete(id); else state.groupOut.add(id);
-      layout(); buildLegend();
-    }, isOut);
+    const isOut = state.nodeOut.has(id);
+    const where = org.parent ? org.parent.label : "the set";
+    add(isOut ? `put it back into ${where}` : `take it out of ${where}`, () => toggleKey(id), isOut);
+    if (org.kids.length) {
+      add("take everything inside out", () => setOutDeep(id, true));
+      add("put everything inside back", () => setOutDeep(id, false));
+    }
   } else if (id === "organs") {
-    add(state.organsOut ? "merge into one node" : "split into organs", () => {
-      if (state.organsOut) state.groupOut.clear();      // merging means every organ goes back in
-      else fillGroupOut();                              // splitting means every organ comes out
-      syncOrgans();
+    add(state.organsOut ? "merge into one node" : "split into systems", () => {
+      if (state.organsOut) { state.nodeOut.clear(); syncTree(); }
+      else openAll();
       layout(); buildLegend();
     }, true);
     add(state.out.has("organs") ? "put the set back into the body" : "take the set out of the body", () => toggleLayer("organs"));
@@ -619,65 +637,29 @@ renderer.domElement.addEventListener("dblclick", e => {
   camUntil = performance.now() + 1400;
 });
 
-/* One rule for the set: it is split when the layer is out of the body and at least one organ has
-   left it. Every row and every eye changes this state, nothing else sets organsOut by hand. */
-/* an organ that goes back takes its parts with it: an eye left open on a part that is inside its
-   organ again would be lying */
-function prunePartOut() {
-  if (!state.partOut.size) return;
-  [...state.partOut].forEach(name => {
-    const p = organParts.find(x => x.name === name);
-    if (!p || !state.groupOut.has(p.gid) || !sexOn(p.sex)) state.partOut.delete(name);
-  });
-}
-
-function syncOrgans() {
-  prunePartOut();
-  if (!state.out.has("organs")) state.groupOut.clear();
-  state.organsOut = state.out.has("organs") && state.groupOut.size > 0;
-}
-
+/* a body layer in or out of the body; the organs layer also opens and closes its tree */
 function toggleLayer(id) {
   if (state.out.has(id)) state.out.delete(id); else state.out.add(id);
   if (id === "organs") {
-    state.treeOpen = state.out.has("organs");   // show the rows at once — but do not open anything
-    if (!state.out.has("organs")) state.groupOut.clear();
+    state.treeOpen = state.out.has("organs");     // show the rows at once — but open nothing
+    if (!state.out.has("organs")) state.nodeOut.clear();
   }
   syncOrgans();
   layout();
   buildLegend();
-  if (state.sel === id) select(id);        // keep the panel telling the truth
+  if (state.sel === id) select(id);
 }
 
-function fillGroupOut() {
-  state.groupOut.clear();
-  organParts.filter(p => sexOn(p.sex)).forEach(p => state.groupOut.add(p.gid));
+/* every eye in the legend goes through here: take it out of its parent, or put it back */
+function syncOrgans() { syncTree(); }
+
+function openAll() {
+  ORGAN_TREE.filter(n => countUnder(n) > 0).forEach(n => setOut(n.id, true));   // level one: the systems
+  layout(); buildLegend();
 }
 
-function toggleGroup(id) {
-  if (!state.out.has("organs")) state.out.add("organs");           // an organ cannot leave a set
-  if (state.groupOut.has(id)) state.groupOut.delete(id);           // that is still in the body
-  else state.groupOut.add(id);
-  syncOrgans();
-  layout();
-  buildLegend();
-}
-
-function togglePart(name) {
-  const p = organParts.find(x => x.name === name);
-  if (!p) return;
-  if (state.partOut.has(name)) state.partOut.delete(name);
-  else {
-    state.partOut.add(name);
-    // a part cannot leave an organ that is still in the body: take that out first, and the set too
-    if (!state.out.has("organs")) state.out.add("organs");
-    state.groupOut.add(p.gid);
-    state.treeOpen = true;
-  }
-  syncOrgans();
-  layout();
-  buildLegend();
-}
+function toggleGroup(id) { toggleKey(id); }
+function togglePart(name) { toggleKey(meshKey(name)); }
 
 /* The only place that decides what "female" means. A part without a sex is shared; a part with one
    is in the scene exactly when it matches state.sex. Everything else asks this, nothing else
@@ -753,39 +735,272 @@ const NODE_SIZE = 0.14;      // every organ node is scaled to roughly this (the 
 const PART_R = 0.42;         // how far a part sits from the organ it came from
 const PART_NODE_SIZE = 0.16; // a part reads a little larger than an organ node, so it is legible
 
-const ORGAN_GROUPS = [
-  { id:"lungs",       label:"lungs · bronchi · trachea", color:0xd08484, about:"Airway and gas exchange: trachea, bronchi down to the segmental branches, and both lungs. 34 meshes.", re:/lung|bronch|trachea/i },
-  { id:"liver",       label:"liver",                     color:0x8c4b32, about:"Metabolism, bile production, detoxification. The largest internal organ; 9 meshes including the segments.", re:/liver/i },
-  { id:"gallbladder", label:"gallbladder · bile ducts",  color:0x5f8a3a, about:"Stores and concentrates bile; the ducts carry it to the duodenum.", re:/gallbladder|bile duct/i },
-  { id:"pancreas",    label:"pancreas",                  color:0xd2a86a, about:"Exocrine digestion and the endocrine islets: insulin, glucagon.", re:/pancrea/i },
-  { id:"spleen",      label:"spleen",                    color:0x7a4f6d, about:"Filters blood and mounts immune responses. It sits in the atlas's lymphoid collection, not with the viscera.", re:/spleen/i },
-  { id:"gut",         label:"stomach · intestines · oesophagus", color:0xc98a5e, about:"The digestive tube: oesophagus, stomach, small and large intestine, appendix. 14 meshes.", re:/stomach|oesophag|duodenum|jejunum|colon|taenia|appendix|ileum/i },
-  { id:"kidneys",     label:"kidneys · ureters",         color:0x8c3a3e, about:"Filter the blood and make urine; the ureters carry it down to the bladder.", re:/kidney|renal pelvis|ureter/i },
-  { id:"bladder",     label:"bladder · urethra",         color:0xd6c48a, about:"Urine store, with the urethra as its outlet. The outlet changes with the sex toggle.", re:/bladder|urethra/i },
-  { id:"thyroid",     label:"thyroid · parathyroid",     color:0xa86868, about:"Metabolic rate, with the four parathyroids sitting on its back and controlling calcium.", re:/thyroid|parathyroid/i },
-  { id:"adrenal",     label:"adrenal glands",            color:0xd0a43c, about:"Two glands on top of the kidneys: cortisol, aldosterone, adrenaline.", re:/suprarenal|adrenal/i },
-  { id:"pituitary",   label:"pituitary",                 color:0xc8b8c8, about:"The master gland under the hypothalamus; it drives the other endocrine organs.", re:/hypophysis|pituitary/i },
-  { id:"pineal",      label:"pineal",                    color:0xb8a8c8, about:"Melatonin and circadian timing.", re:/pineal/i },
-  { id:"salivary",    label:"salivary glands",           color:0xc89a7a, about:"Parotid, submandibular and sublingual glands, 12 meshes in all.", re:/parotid|sublingual|submandibular/i },
-  { id:"mouth",       label:"mouth · tongue · palate",   color:0xc06070, about:"Entry: tongue, gums, palate and uvula.", re:/tongue|gingiva|uvula|soft palate/i },
-  { id:"throat",      label:"pharynx · airway",          color:0xb08a9a, about:"Pharynx, epiglottis and nasal cavity above the airway.", re:/pharynx|epiglottis|nasal cavity/i },
-  { id:"thymus",      label:"thymus",                    color:0xd8a8b8, about:"Where T cells mature; it shrinks with age.", re:/thymus/i },
-  { id:"tonsils",     label:"tonsils",                   color:0xd09090, about:"Lymphoid tissue at the back of the throat.", re:/tonsil/i },
-  { id:"reproductive", label:"reproductive system",      color:0xd98fa4, about:"Gonads, ducts and glands. The whole tract switches with the sex toggle, so the node holds 14 male parts or 18 female ones.", re:/uterus|ovar|vagina|vulva|cervix|fallopian|broad ligament|uterine|prostate|penis|testis|epididym|scrotum|seminal|deferens|bulbourethral|cavernosum|spongiosum|glans|ejaculatory|mons pubis|labium|labia|vestibular bulb|clitor/i }
-];
-const OTHER_GROUP = { id:"other", label:"other", color:0x9a9aa8, re:/$^/ };
+/* ---------- the organ tree: systems -> organs -> parts, as deep as the anatomy needs ----------
+   Every node in here can be a node in the graph: eye open means it left its parent and stands on
+   its own with an edge back, eye shut means it is inside it. Leaves are the atlas meshes. */
+const ORGAN_TREE = [
+  { id:"respiratory", label:"airway · lungs", color:0xd08484,
+    about:"Gas exchange and the pipes that reach it: trachea, bronchi down to the segmental branches, and both lungs lobe by lobe.",
+    children:[
+      { id:"lung-l", label:"left lung", color:0xd08484, about:"Two lobes: upper (with the lingula) and lower.",
+        children:[
+          { id:"ll-upper", label:"upper lobe", test:n => /superior lobe of left lung/i.test(n) },
+          { id:"ll-lower", label:"lower lobe", test:n => /inferior lobe of left lung/i.test(n) },
+        ] },
+      { id:"lung-r", label:"right lung", color:0xd08484, about:"Three lobes: upper, middle, lower.",
+        children:[
+          { id:"rl-upper", label:"upper lobe", test:n => /superior lobe of right lung/i.test(n) },
+          { id:"rl-middle", label:"middle lobe", test:n => /middle lobe of right lung/i.test(n) },
+          { id:"rl-lower", label:"lower lobe", test:n => /inferior lobe of right lung/i.test(n) },
+        ] },
+      { id:"airway", label:"bronchi · trachea", color:0xc89898,
+        about:"The airway, split by calibre: the trachea, the main and lobar bronchi, and the segmental branches at the bottom.",
+        children:[
+          { id:"trachea", label:"trachea", test:n => /trachea/i.test(n) },
+          { id:"bronchi", label:"bronchi", color:0xc89898,
+            about:"Every bronchus, from the two main stems down to the ten segmental branches each side.",
+            children:[
+              { id:"bronchi-main", label:"main bronchi", test:n => /main bronchus/i.test(n) },
+              { id:"bronchi-lobar", label:"lobar bronchi", test:n => /lobar bronchus|intermediate bronchus/i.test(n) },
+              { id:"bronchi-seg", label:"segmental bronchi", test:n => /segmental bronchus/i.test(n) },
+            ] },
+        ] },
+    ] },
 
-function groupOf(name) {
-  // the atlas spells names with underscores and a .001 suffix ("Bile_duct001"): normalise first,
-  // otherwise every multi-word group silently falls through to "other"
+  { id:"digestive", label:"digestive", color:0xc98a5e,
+    about:"From the mouth to the colon, with the glands that feed it.",
+    children:[
+      { id:"liver", label:"liver · gallbladder", color:0x8c4b32,
+        about:"Metabolism, bile and its store: the liver with its eight segments, the gallbladder and the bile ducts.",
+        children:[
+          { id:"liver-body", label:"liver", test:n => /liver/i.test(n) },
+          { id:"gallbladder", label:"gallbladder · bile duct", test:n => /gallbladder|bile duct/i.test(n) },
+        ] },
+      { id:"gut", label:"stomach · intestines", color:0xc98a5e,
+        about:"The digestive tube: oesophagus, stomach, small intestine and colon, with the appendix.",
+        children:[
+          { id:"oesophagus", label:"oesophagus", test:n => /oesophag/i.test(n) },
+          { id:"stomach", label:"stomach", test:n => /stomach/i.test(n) },
+          { id:"intestines", label:"intestines", test:n => /duodenum|jejunum|ileum|colon|taenia|appendix/i.test(n) },
+        ] },
+      { id:"pancreas", label:"pancreas", color:0xd2a86a, about:"Exocrine digestion and the endocrine islets: insulin, glucagon.",
+        test:n => /pancrea/i.test(n) },
+      { id:"mouth", label:"mouth · tongue · palate", color:0xc06070, about:"Entry: tongue, gums, palate and uvula.",
+        test:n => /tongue|gingiva|uvula|palate/i.test(n) },
+      { id:"salivary", label:"salivary glands", color:0xc89a7a, about:"Parotid, submandibular and sublingual glands with their ducts.",
+        test:n => /parotid|submandibular|sublingual/i.test(n) },
+    ] },
+
+  { id:"urinary", label:"urinary", color:0x8c3a3e,
+    about:"The whole urine path as one system: kidneys, the pelvis inside each of them, the ureters, the bladder and the outlet.",
+    children:[
+      { id:"kidneys", label:"kidneys", color:0x8c3a3e, about:"Filter the blood; the renal pelvis is the funnel that starts the ureter.",
+        children:[
+          { id:"kidney-body", label:"kidney", test:n => /kidney/i.test(n) && !/pelvis/i.test(n) },
+          { id:"renal-pelvis", label:"renal pelvis", test:n => /renal pelvis/i.test(n) },
+        ] },
+      { id:"ureters", label:"ureters", test:n => /ureter/i.test(n) },
+      { id:"bladder", label:"bladder · urethra", color:0xd6c48a, about:"The store and its outlet — his tube or her short one.",
+        children:[
+          { id:"bladder-body", label:"bladder", test:n => /bladder/i.test(n) },
+          { id:"urethra", label:"urethra", test:n => /urethra/i.test(n) },
+        ] },
+    ] },
+
+  { id:"endocrine", label:"endocrine", color:0xb8a8c8,
+    about:"The glands that run the body by hormone: pituitary, pineal, thyroid, parathyroids, adrenals.",
+    children:[
+      { id:"pituitary", label:"pituitary", test:n => /hypophysis|pituitary/i.test(n) },
+      { id:"pineal", label:"pineal", test:n => /pineal/i.test(n) },
+      { id:"thyroid", label:"thyroid", test:n => /^thyroid|thyroid gland/i.test(n) && !/parathyroid/i.test(n) },
+      { id:"parathyroids", label:"parathyroids", test:n => /parathyroid/i.test(n) },
+      { id:"adrenals", label:"adrenals", test:n => /suprarenal|adrenal/i.test(n) },
+    ] },
+
+  { id:"immune", label:"immune", color:0xd8a8b8,
+    about:"Lymphoid organs: the spleen, the thymus and the palatine tonsils.",
+    children:[
+      { id:"spleen", label:"spleen", test:n => /spleen/i.test(n) },
+      { id:"thymus", label:"thymus", test:n => /thymus/i.test(n) },
+      { id:"tonsils", label:"tonsils", test:n => /tonsil/i.test(n) },
+    ] },
+
+  { id:"reproductive", label:"reproductive", color:0xd98fa4,
+    about:"Gonads, ducts, glands and the external organs. The whole tree switches with the sex toggle.",
+    children:[
+      { id:"ovaries", label:"ovaries · tubes", test:n => /ovar|uterine tube/i.test(n) },
+      { id:"uterus", label:"uterus · cervix · vagina", test:n => /uterus|cervix|vagina/i.test(n) },
+      { id:"vulva", label:"vulva", test:n => /labium|mons pubis|clitoris|vestibular bulb/i.test(n) },
+      { id:"male-ducts", label:"testes · ducts · penis",
+        test:n => /testis|epididym|deferens|seminal|prostate|ejaculatory|penis|cavernosum|spongiosum|glans/i.test(n) },
+    ] },
+
+  { id:"ent", label:"nose · pharynx", color:0xb08a9a,
+    about:"The upper airway shared with the gut: nasal cavity, pharynx and epiglottis.",
+    children:[
+      { id:"nasal", label:"nasal cavity", test:n => /nasal/i.test(n) },
+      { id:"pharynx", label:"pharynx", test:n => /pharynx|epiglottis/i.test(n) },
+    ] },
+
+  { id:"other", label:"other", color:0x9a9aa8, about:"Anything the atlas names that no group above claims.",
+    test:() => true },
+];
+
+/* parents, depths and an index, so anything can find its way up the tree */
+const NODE_BY_ID = {};
+(function indexTree(list, parent, depth) {
+  list.forEach(n => {
+    n.parent = parent; n.depth = depth; n.kids = n.children || [];
+    if (n.color === undefined) n.color = parent ? parent.color : 0x9a9aa8;   // a child wears its parent's colour
+    if (n.about === undefined && parent) n.about = parent.about;
+    NODE_BY_ID[n.id] = n;
+    indexTree(n.kids, n, depth + 1);
+  });
+})(ORGAN_TREE, null, 1);
+
+/* the deepest node whose test takes the name: lungs beat "other", a lobe beats its lung */
+function classify(name) {
   const clean = name.replace(/\.?001$/, "").replace(/_/g, " ");
-  for (const g of ORGAN_GROUPS) if (g.re.test(clean)) return g;
-  return OTHER_GROUP;
+  let hit = null;
+  (function walk(list) {
+    for (const n of list) {
+      if (n.kids.length && walk(n.kids)) return true;
+      if (n.test && n.test(clean)) { hit = n; return true; }
+    }
+    return false;
+  })(ORGAN_TREE);
+  return hit;
 }
 
-let organRoot = null;        // one Group per expanded organ node
-let organNodes = [];         // [{ node, parts, meta }]
-let partNodes = [];          // [{ node, part, parent, target }]
+function partLabel(name) {
+  return name.replace(/\.?001$/, "").replace(/_/g, " ");
+}
+
+/* a mesh that left its group: its key is its name, so one set holds every level alike */
+function meshKey(name) { return "m:" + name; }
+function isMeshKey(key) { return key.startsWith("m:"); }
+
+function partByKey(key) {
+  const name = key.slice(2);
+  return organParts.find(p => p.name === name);
+}
+
+/* one place that decides what is out and what that implies */
+function syncTree() {
+  let again = true;
+  while (again) {
+    again = false;
+    [...state.nodeOut].forEach(k => {
+      let ok = true;
+      if (isMeshKey(k)) {
+        const p = partByKey(k);
+        ok = !!p && sexOn(p.sex) && state.nodeOut.has(p.node.id);
+      } else {
+        const n = NODE_BY_ID[k];
+        ok = !!n && (!n.parent || state.nodeOut.has(n.parent.id));
+      }
+      if (!ok) { state.nodeOut.delete(k); again = true; }
+    });
+  }
+  if (!state.out.has("organs")) state.nodeOut.clear();
+  state.organsOut = state.out.has("organs") && [...state.nodeOut].some(k => !isMeshKey(k));
+  organParts.forEach(p => { if (!isMeshKey(meshKey(p.name))) p.mesh.visible = sexOn(p.sex); });
+}
+
+function setOut(key, out) {
+  if (out) {
+    state.nodeOut.add(key);
+    const p = isMeshKey(key) ? partByKey(key) : null;
+    let n = p ? p.node : NODE_BY_ID[key];
+    while (n) { state.nodeOut.add(n.id); n = n.parent; }
+    if (!state.out.has("organs")) state.out.add("organs");
+    state.treeOpen = true;
+    if (p) state.openGroups.add(p.node.id);
+  } else {
+    state.nodeOut.delete(key);
+  }
+  syncTree();
+  layout();
+  buildLegend();
+  if (state.sel) select(state.sel);
+}
+
+function toggleKey(key) { setOut(key, !state.nodeOut.has(key)); }
+
+/* everything below a node comes out with it (the set's 'split into organs' and a row's own action) */
+function setOutDeep(id, out) {
+  if (out) setOut(id, true);
+  const n = NODE_BY_ID[id];
+  if (!n) return;
+  (function walk(node) {
+    node.kids.forEach(k => {
+      if (out || state.nodeOut.has(k.id)) setOut(k.id, out);
+      walk(k);
+    });
+  })(n);
+  if (!out) setOut(id, false);
+}
+
+/* the nodes that are actually out, parents first, with where each one belongs */
+function graphRows() {
+  const c = setCentre();
+  const rows = [];
+  const kids = new Map();          // parent row (or null) -> child rows
+  (function walk(list, parentRow) {
+    list.forEach(n => {
+      if (!state.nodeOut.has(n.id)) return;
+      if (!countUnder(n)) return;                   // a system with nothing in it makes no node
+      const row = { key: n.id, meta: n, parent: parentRow, depth: n.depth, parts: [], leaves: [], target: null };
+      rows.push(row);
+      if (!kids.has(parentRow)) kids.set(parentRow, []);
+      kids.get(parentRow).push(row);
+      walk(n.kids, row);
+    });
+  })(ORGAN_TREE, null);
+
+  /* every mesh belongs to the nearest ancestor that is out: a system node owns the meshes of the
+     organs inside it that nobody has opened yet, otherwise it would be an empty sphere */
+  const rowByKey = new Map(rows.map(r => [r.key, r]));
+  organParts.forEach(p => {
+    if (!sexOn(p.sex)) return;
+    if (state.nodeOut.has(meshKey(p.name))) {          // it left on its own
+      let n = p.node;
+      while (n && !state.nodeOut.has(n.id)) n = n.parent;
+      const r = n && rowByKey.get(n.id);
+      if (r) r.leaves.push(p);
+      return;
+    }
+    let n = p.node;
+    while (n && !state.nodeOut.has(n.id)) n = n.parent;
+    const r = n && rowByKey.get(n.id);
+    if (r) r.parts.push(p);
+  });
+
+  kids.forEach((list, parentRow) => {
+    const centre = parentRow ? (parentRow.target || c) : c;
+    const depth = parentRow ? parentRow.depth + 1 : 1;
+    const R = parentRow ? Math.max(0.24, (ORGAN_R * 0.62) * Math.pow(0.72, depth - 2)) : ORGAN_R;
+    const N = list.length, golden = Math.PI * (3 - Math.sqrt(5));
+    list.sort((a, b) => heightOf(b) - heightOf(a));
+    list.forEach((row, i) => {
+      const y = N === 1 ? 0 : 1 - (i / (N - 1)) * 2;
+      const r = Math.sqrt(Math.max(0, 1 - y * y));
+      const th = golden * i;
+      row.target = new THREE.Vector3(Math.cos(th) * r, y, Math.sin(th) * r).multiplyScalar(R).add(centre);
+    });
+  });
+  return { rows, kids };
+}
+
+function heightOf(row) {
+  let h = 0, n = 0;
+  row.parts.forEach(p => { h += p.c.y; n++; });
+  return n ? h / n : 0;
+}
+
+let organRoot = null;        // one Group per node that left its parent
+let organNodes = [];         // [{ key, node, parts, meta, target, parentKey }]
+let partNodes = [];          // [{ key, node, part, parent, target }]
 let edgePairs = [];          // [{ a, b }] — b null means the organs set
 let bodyGhost = null;      // a semi-visible copy of the skin: the 'body cloud' the layers circle
 
@@ -846,11 +1061,11 @@ function collectOrgans() {
     if (!o.isMesh) return;
     o.geometry.computeBoundingBox();
     const c = o.geometry.boundingBox.getCenter(new THREE.Vector3());
-    const meta = groupOf(o.name);
+    const meta = classify(o.name) || NODE_BY_ID.other;
     // the atlas ships one urethra and it is his. Her tract files its own 2.6 cm one, so the atlas
     // tube is male-only — matched loosely, because the exporter renames it Urethra001
     const sex = sexOf(o) || (/^urethra\d*$/i.test(o.name) ? "male" : null);
-    organParts.push({ mesh: o, c, name: o.name, gid: meta.id, gmeta: meta, sex });
+    organParts.push({ mesh: o, c, name: o.name, gid: meta.id, gmeta: meta, node: meta, sex });
   });
   /* the organs set's own centre, in world space, at rest */
   const box = new THREE.Box3();
@@ -888,33 +1103,14 @@ function setCentre() {
 }
 
 /* one node per organ group; a hidden group never leaves the body, it stays inside the faint set */
-function groupRows() {
-  const hc = setCentre();
-  const map = {};
-  organParts.filter(p => sexOn(p.sex)).forEach(p => {
-    const g = map[p.gid] = map[p.gid] || { meta: p.gmeta, parts: [], h: 0, n: 0 };
-    g.parts.push(p);
-    g.h += p.c.y; g.n++;
-  });
-  const rows = Object.values(map).filter(g => state.groupOut.has(g.meta.id));
-  rows.forEach(g => { g.h /= g.n; });
-  rows.sort((a, b) => b.h - a.h);
-  const N = rows.length, golden = Math.PI * (3 - Math.sqrt(5));
-  rows.forEach((g, i) => {
-    const y = N === 1 ? 0 : 1 - (i / (N - 1)) * 2;
-    const r = Math.sqrt(Math.max(0, 1 - y * y));
-    const th = golden * i;
-    g.t = new THREE.Vector3(Math.cos(th) * r, y, Math.sin(th) * r).multiplyScalar(ORGAN_R).add(hc);
-  });
-  return rows;
-}
-
 function buildOrganNodes() {
-  const rows = groupRows();
+  const { rows, kids } = graphRows();
   const inner = groups.organs.userData.inner;
-  // drop the nodes whose organ was put back
+  if (!organRoot) { organRoot = new THREE.Group(); organRoot.name = "organGraph"; scene.add(organRoot); }
+
+  const wanted = new Set(rows.map(r => r.key));
   organNodes = organNodes.filter(o => {
-    if (rows.some(r => r.meta.id === o.meta.id)) return true;
+    if (wanted.has(o.key)) return true;
     o.parts.forEach(p => {
       inner.attach(p.mesh);
       p.mesh.position.set(0, 0, 0); p.mesh.scale.setScalar(1); p.mesh.quaternion.set(0, 0, 0, 1);
@@ -922,61 +1118,77 @@ function buildOrganNodes() {
     o.node.removeFromParent();
     return false;
   });
-  if (!organRoot) { organRoot = new THREE.Group(); organRoot.name = "organGraph"; scene.add(organRoot); }
 
-  rows.forEach(r => {
-    let node = organNodes.find(o => o.meta.id === r.meta.id);
-    if (!node) {
+  rows.forEach(row => {
+    let o = organNodes.find(x => x.key === row.key);
+    if (!o) {
       const g = new THREE.Group();
-      g.userData.nodeLabel = r.meta.label;          // what the hover tip says
-      g.userData.groupId = r.meta.id;               // what a click selects
+      g.userData.nodeLabel = row.meta.label;
+      g.userData.groupId = row.meta.id;
+      g.userData.depth = row.depth;
       organRoot.add(g);
-      r.parts.forEach(p => g.attach(p.mesh));     // attach keeps the organ where it is: no flicker
+      const meshes = row.parts.filter(p => !state.nodeOut.has(meshKey(p.name)));
+      meshes.forEach(p => g.attach(p.mesh));
+      if (!g.children.length) {
+        // everything inside it is out already: leave a small bead, or the edge ends in nothing
+        const dot = new THREE.Mesh(
+          new THREE.SphereGeometry(0.014, 12, 10),
+          new THREE.MeshBasicMaterial({ color: row.meta.color, transparent: true, opacity: 0.9 })
+        );
+        dot.userData.marker = true;
+        dot.raycast = () => {};
+        g.add(dot);
+      }
       g.updateMatrixWorld(true);
-      // the node starts exactly as the organ is, then animates out
       const box = new THREE.Box3().setFromObject(g);
       const size = box.getSize(new THREE.Vector3());
       const maxd = Math.max(size.x, size.y, size.z) || 1;
-      const k = Math.min(6, Math.max(1, NODE_SIZE / maxd));   // enlarge, never shrink
+      const k = Math.min(6, Math.max(1, NODE_SIZE / maxd));
       const cWorld = box.getCenter(new THREE.Vector3());
       g.userData.cLocal = cWorld.clone();
-      g.userData.wantPos = r.t.clone().sub(cWorld.clone().multiplyScalar(k));
+      g.userData.wantPos = row.target.clone().sub(cWorld.clone().multiplyScalar(k));
       g.userData.wantScale = k;
-      node = { node: g, parts: r.parts, meta: r.meta };
-      organNodes.push(node);
+      o = { key: row.key, node: g, parts: row.parts, meta: row.meta };
+      organNodes.push(o);
     }
-    node.target = r.t;
+    o.parts = row.parts;
+    o.target = row.target;
+    o.parentKey = row.parent ? row.parent.key : null;
   });
 
-  /* parts that left their organ: the same rule one level down — an eye open means a node of its own,
-     with an edge to the organ it came from. A part cannot be out while its organ is still inside
-     the set, so anything orphaned is put back here. */
+  /* the meshes that left their group: one node each, an edge back to the group */
+  const leafRows = [];
+  rows.forEach(row => row.leaves.forEach(p => leafRows.push({ part: p, parent: row })));
+  const wantedLeaves = new Set(leafRows.map(l => meshKey(l.part.name)));
   partNodes = partNodes.filter(pn => {
-    const keep = state.partOut.has(pn.part.name) && organNodes.some(o => o.meta.id === pn.part.gid);
-    if (keep) return true;
+    if (wantedLeaves.has(pn.key)) return true;
     inner.attach(pn.part.mesh);
     pn.part.mesh.position.set(0, 0, 0); pn.part.mesh.scale.setScalar(1); pn.part.mesh.quaternion.set(0, 0, 0, 1);
     pn.node.removeFromParent();
     return false;
   });
 
-  organNodes.forEach(o => {
-    const mine = organParts.filter(p => p.gid === o.meta.id && state.partOut.has(p.name));
-    const N = mine.length, golden = Math.PI * (3 - Math.sqrt(5));
-    mine.forEach((p, i) => {
-      const y = N === 1 ? 0.25 : 1 - (i / Math.max(1, N - 1)) * 2;
+  const byParent = new Map();
+  leafRows.forEach(l => {
+    if (!byParent.has(l.parent)) byParent.set(l.parent, []);
+    byParent.get(l.parent).push(l);
+  });
+  byParent.forEach((list, parentRow) => {
+    const N = list.length, golden = Math.PI * (3 - Math.sqrt(5));
+    list.forEach((l, i) => {
+      const y = N === 1 ? 0.35 : 1 - (i / Math.max(1, N - 1)) * 2;
       const r = Math.sqrt(Math.max(0, 1 - y * y));
       const th = golden * i;
-      const t = new THREE.Vector3(Math.cos(th) * r, y, Math.sin(th) * r)
-        .multiplyScalar(PART_R).add(o.target);
-      let pn = partNodes.find(x => x.part.name === p.name);
+      const R = Math.max(0.2, (ORGAN_R * 0.62) * Math.pow(0.72, parentRow.depth - 1)) * 0.55;
+      const t = new THREE.Vector3(Math.cos(th) * r, y, Math.sin(th) * r).multiplyScalar(R).add(parentRow.target);
+      let pn = partNodes.find(x => x.key === meshKey(l.part.name));
       if (!pn) {
         const g = new THREE.Group();
-        g.userData.partName = p.name;
-        g.userData.nodeLabel = partLabel(p.name);
-        g.userData.groupId = o.meta.id;              // clicking it selects its organ
+        g.userData.partName = l.part.name;
+        g.userData.nodeLabel = partLabel(l.part.name);
+        g.userData.groupId = parentRow.meta.id;
         organRoot.add(g);
-        g.attach(p.mesh);
+        g.attach(l.part.mesh);
         g.updateMatrixWorld(true);
         const box = new THREE.Box3().setFromObject(g);
         const size = box.getSize(new THREE.Vector3());
@@ -986,15 +1198,15 @@ function buildOrganNodes() {
         g.userData.cLocal = cWorld.clone();
         g.userData.wantPos = t.clone().sub(cWorld.clone().multiplyScalar(k));
         g.userData.wantScale = k;
-        pn = { node: g, part: p, parent: o };
+        pn = { key: meshKey(l.part.name), node: g, part: l.part, parent: parentRow };
         partNodes.push(pn);
       }
-      pn.parent = o;
+      pn.parent = parentRow;
       pn.target = t;
     });
   });
 
-  edgePairs = organNodes.map(o => ({ a: o.node, b: null }));
+  edgePairs = organNodes.map(o => ({ a: o.node, b: o.parentKey ? (organNodes.find(x => x.key === o.parentKey) || {}).node || null : null }));
   partNodes.forEach(pn => edgePairs.push({ a: pn.node, b: pn.parent.node }));
   ensureEdges();
 }
@@ -1009,6 +1221,7 @@ function disposeOrganNodes() {
   partNodes = [];
   organNodes.forEach(o => {
     o.parts.forEach(p => {
+      if (p.mesh.parent === inner) return;
       inner.attach(p.mesh);
       p.mesh.position.set(0, 0, 0); p.mesh.scale.setScalar(1); p.mesh.quaternion.set(0, 0, 0, 1);
     });
@@ -1043,7 +1256,8 @@ function updateEdges() {
   edgePairs.forEach((e, i) => {
     e.a.updateMatrixWorld(true);
     const a = e.a.localToWorld(e.a.userData.cLocal.clone());
-    const b = e.b ? (e.b.updateMatrixWorld(true), e.b.localToWorld(e.b.userData.cLocal.clone())) : set;
+    let b = set;
+    if (e.b) { e.b.updateMatrixWorld(true); b = e.b.localToWorld(e.b.userData.cLocal.clone()); }
     arr[i * 6] = a.x; arr[i * 6 + 1] = a.y; arr[i * 6 + 2] = a.z;
     arr[i * 6 + 3] = b.x; arr[i * 6 + 4] = b.y; arr[i * 6 + 5] = b.z;
   });
@@ -1229,7 +1443,7 @@ function layout() {
   // somewhere, must not snap the view back to the overview
   // the selection is not part of this: opening the panel must not move the camera the user has
   // just zoomed
-  const camKeyNow = [...state.out].sort().join("+") + "|" + graph + "|" + state.collapsed;
+  const camKeyNow = [...state.out].sort().join("+") + "|" + [...state.nodeOut].sort().join(",") + "|" + graph + "|" + state.collapsed;
   if (camKeyNow !== camKey) {
     camKey = camKeyNow;
     camWant.pos.set(cx - dx, d * elev, d);
@@ -1289,7 +1503,7 @@ renderer.domElement.addEventListener("pointerup", e => {
   if (moved > 5) return;                       // that was an orbit drag, not a click
   const hit = pickAt(e.clientX, e.clientY);
   if (!hit) { select(null); return; }                       // a click on empty space clears it
-  if (hit.partName) { select("part:" + hit.partName); return; }   // a part node: show what it is
+  if (hit.partName) { select(meshKey(hit.partName)); return; }   // a part node: show what it is
   if (hit.groupId) { select(hit.groupId); return; }        // an organ node: show what it is
   if (hit.setId) {                                          // the organs set: select it, say what it is
     select("organs");                                       // splitting is an explicit action in the panel
@@ -1368,12 +1582,12 @@ window.__loadErrors = () => failedFiles.slice();
 window.__layer = id => toggleLayer(id);
 window.__setSex = s => { state.sex = s; applySex(); };
 window.__toggle = id => toggle(id);
-window.__expand = () => { if (!state.out.has("organs")) state.out.add("organs"); state.organsOut = true; if (!state.groupOut.size) fillGroupOut(); layout(); buildLegend(); };
+window.__expand = () => { if (!state.out.has("organs")) state.out.add("organs"); openAll(); };
 window.__organs = (v) => { state.organsOut = v === undefined ? !state.organsOut : !!v; state.treeOpen = state.organsOut; layout(); buildLegend(); };
 window.__part = (name, v) => { togglePart(name); };
 window.__organNames = () => organParts.map(p => p.name);
 window.__groups = () => organNodes.map(g => g.meta.id + ":" + g.parts.length);
-window.__group = (id, v) => { if (v) state.groupOut.add(id); else state.groupOut.delete(id); layout(); buildLegend(); };
+window.__group = (id, v) => { setOut(id, !!v); };
 window.__edgeCount = () => (edges ? edges.geometry.attributes.position.count / 2 : 0);
 window.__nodeCount = () => organNodes.length;
 window.__setSkin = () => layout();   // kept for the test scripts; the shell is always on now
