@@ -158,11 +158,10 @@ const LAYERS = [
 ];
 
 const state = {
-  sex:"male", collapsed:false, hidden:new Set(), sel:null,
+  sex:"male", collapsed:false, hidden:new Set(), sel:null, partOut:new Set(),
   out:new Set(),            // layers taken out of the body; at the start every layer is collapsed
   organsOut:false,          // the organs set split into organ nodes
   groupOut:new Set(),       // organ groups currently out of the set
-  partHidden:new Set(),     // single organ parts switched off
   treeOpen:false, openGroups:new Set()
 };
 const EYE_OUT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
@@ -266,7 +265,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261025x";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261026a";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -480,16 +479,39 @@ function organRows(rows) {
     });
 }
 
+/* a part is a node too: its own name, the organ it belongs to, and one action — put it back */
+function selectPart(name) {
+  const p = organParts.find(x => x.name === name);
+  const panel = document.getElementById("node");
+  if (!p) { panel.hidden = true; return; }
+  panel.hidden = false;
+  document.getElementById("npTitle").textContent = partLabel(name);
+  document.getElementById("npSub").textContent = `part of ${p.gmeta.label} · 1 mesh`;
+  document.getElementById("npDesc").textContent =
+    `One structure of ${p.gmeta.label}, out of its organ as a node of its own. It goes back into the organ with the eye in the list, or with the button below.`;
+  const acts = document.getElementById("npActs");
+  acts.innerHTML = "";
+  const b = document.createElement("button");
+  b.textContent = "put it back into the organ";
+  b.classList.add("on");
+  b.onclick = () => { togglePart(name); select(null); };
+  acts.appendChild(b);
+}
+
+function partLabel(name) {
+  return name.replace(/\.?001$/, "").replace(/_/g, " ");
+}
+
 function partRow(p) {
   const row = document.createElement("div");
-  const off = state.partHidden.has(p.name);
-  row.className = "row kids part" + (off ? " off" : "");
+  const isOut = state.partOut.has(p.name);
+  row.className = "row kids part" + (isOut ? " out" : "");
   row.dataset.organ = p.name;
   const col = p.mesh.material && p.mesh.material.color ? p.mesh.material.color.getHex() : 0xc78fb0;
   row.innerHTML = `<span class="chev blank"></span>` +
     `<span class="dot" style="background:#${col.toString(16).padStart(6,"0")}"></span>` +
     `<span class="nm" title="${p.name}">${p.name.replace(/\.?001$/, "").replace(/_/g, " ")}</span>` +
-    `<button class="eye" title="show / hide this part">${off ? EYE_SHUT : EYE_OPEN}</button>`;
+    `<button class="eye" title="${isOut ? "put it back into the organ" : "take it out of the organ"}">${isOut ? EYE_OPEN : EYE_SHUT}</button>`;
   row.onclick = () => togglePart(p.name);
   return row;
 }
@@ -526,6 +548,8 @@ function select(id) {
   state.sel = id || null;
   const panel = document.getElementById("node");
   if (!state.sel) { panel.hidden = true; clearHighlight(); layout(); return; }
+
+  if (typeof id === "string" && id.startsWith("part:")) { selectPart(id.slice(5)); return; }
 
   const org = ORGAN_GROUPS.find(g => g.id === id);
   const lay = LAYERS.find(l => l.id === id);
@@ -597,7 +621,18 @@ renderer.domElement.addEventListener("dblclick", e => {
 
 /* One rule for the set: it is split when the layer is out of the body and at least one organ has
    left it. Every row and every eye changes this state, nothing else sets organsOut by hand. */
+/* an organ that goes back takes its parts with it: an eye left open on a part that is inside its
+   organ again would be lying */
+function prunePartOut() {
+  if (!state.partOut.size) return;
+  [...state.partOut].forEach(name => {
+    const p = organParts.find(x => x.name === name);
+    if (!p || !state.groupOut.has(p.gid) || !sexOn(p.sex)) state.partOut.delete(name);
+  });
+}
+
 function syncOrgans() {
+  prunePartOut();
   if (!state.out.has("organs")) state.groupOut.clear();
   state.organsOut = state.out.has("organs") && state.groupOut.size > 0;
 }
@@ -629,7 +664,17 @@ function toggleGroup(id) {
 }
 
 function togglePart(name) {
-  if (state.partHidden.has(name)) state.partHidden.delete(name); else state.partHidden.add(name);
+  const p = organParts.find(x => x.name === name);
+  if (!p) return;
+  if (state.partOut.has(name)) state.partOut.delete(name);
+  else {
+    state.partOut.add(name);
+    // a part cannot leave an organ that is still in the body: take that out first, and the set too
+    if (!state.out.has("organs")) state.out.add("organs");
+    state.groupOut.add(p.gid);
+    state.treeOpen = true;
+  }
+  syncOrgans();
   layout();
   buildLegend();
 }
@@ -705,6 +750,8 @@ function fitDistance(w, h) {
 
 let ORGAN_R = 0.55;          // how far the organ nodes fan out: follows the biggest node
 const NODE_SIZE = 0.14;      // every organ node is scaled to roughly this (the heart's old role)
+const PART_R = 0.42;         // how far a part sits from the organ it came from
+const PART_NODE_SIZE = 0.16; // a part reads a little larger than an organ node, so it is legible
 
 const ORGAN_GROUPS = [
   { id:"lungs",       label:"lungs · bronchi · trachea", color:0xd08484, about:"Airway and gas exchange: trachea, bronchi down to the segmental branches, and both lungs. 34 meshes.", re:/lung|bronch|trachea/i },
@@ -738,6 +785,8 @@ function groupOf(name) {
 
 let organRoot = null;        // one Group per expanded organ node
 let organNodes = [];         // [{ node, parts, meta }]
+let partNodes = [];          // [{ node, part, parent, target }]
+let edgePairs = [];          // [{ a, b }] — b null means the organs set
 let bodyGhost = null;      // a semi-visible copy of the skin: the 'body cloud' the layers circle
 
 /* built with the skin group parked at the origin, so the copy marks the body's place whatever the
@@ -786,7 +835,7 @@ function sexOf(obj) {
 }
 
 function partShown(p) {
-  return sexOn(p.sex) && !state.partHidden.has(p.name);
+  return sexOn(p.sex);
 }
 
 function collectOrgans() {
@@ -898,16 +947,66 @@ function buildOrganNodes() {
     }
     node.target = r.t;
   });
+
+  /* parts that left their organ: the same rule one level down — an eye open means a node of its own,
+     with an edge to the organ it came from. A part cannot be out while its organ is still inside
+     the set, so anything orphaned is put back here. */
+  partNodes = partNodes.filter(pn => {
+    const keep = state.partOut.has(pn.part.name) && organNodes.some(o => o.meta.id === pn.part.gid);
+    if (keep) return true;
+    inner.attach(pn.part.mesh);
+    pn.part.mesh.position.set(0, 0, 0); pn.part.mesh.scale.setScalar(1); pn.part.mesh.quaternion.set(0, 0, 0, 1);
+    pn.node.removeFromParent();
+    return false;
+  });
+
+  organNodes.forEach(o => {
+    const mine = organParts.filter(p => p.gid === o.meta.id && state.partOut.has(p.name));
+    const N = mine.length, golden = Math.PI * (3 - Math.sqrt(5));
+    mine.forEach((p, i) => {
+      const y = N === 1 ? 0.25 : 1 - (i / Math.max(1, N - 1)) * 2;
+      const r = Math.sqrt(Math.max(0, 1 - y * y));
+      const th = golden * i;
+      const t = new THREE.Vector3(Math.cos(th) * r, y, Math.sin(th) * r)
+        .multiplyScalar(PART_R).add(o.target);
+      let pn = partNodes.find(x => x.part.name === p.name);
+      if (!pn) {
+        const g = new THREE.Group();
+        g.userData.partName = p.name;
+        g.userData.nodeLabel = partLabel(p.name);
+        g.userData.groupId = o.meta.id;              // clicking it selects its organ
+        organRoot.add(g);
+        g.attach(p.mesh);
+        g.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(g);
+        const size = box.getSize(new THREE.Vector3());
+        const maxd = Math.max(size.x, size.y, size.z) || 1;
+        const k = Math.min(6, Math.max(1, PART_NODE_SIZE / maxd));
+        const cWorld = box.getCenter(new THREE.Vector3());
+        g.userData.cLocal = cWorld.clone();
+        g.userData.wantPos = t.clone().sub(cWorld.clone().multiplyScalar(k));
+        g.userData.wantScale = k;
+        pn = { node: g, part: p, parent: o };
+        partNodes.push(pn);
+      }
+      pn.parent = o;
+      pn.target = t;
+    });
+  });
+
+  edgePairs = organNodes.map(o => ({ a: o.node, b: null }));
+  partNodes.forEach(pn => edgePairs.push({ a: pn.node, b: pn.parent.node }));
   ensureEdges();
 }
 
 function disposeOrganNodes() {
-  if (!organNodes.length) {
-    if (organRoot) { organRoot.removeFromParent(); organRoot = null; }
-    if (edges) { scene.remove(edges); edges.geometry.dispose(); edges = null; }
-    return;
-  }
   const inner = groups.organs.userData.inner;
+  partNodes.forEach(pn => {
+    inner.attach(pn.part.mesh);
+    pn.part.mesh.position.set(0, 0, 0); pn.part.mesh.scale.setScalar(1); pn.part.mesh.quaternion.set(0, 0, 0, 1);
+    pn.node.removeFromParent();
+  });
+  partNodes = [];
   organNodes.forEach(o => {
     o.parts.forEach(p => {
       inner.attach(p.mesh);
@@ -916,20 +1015,21 @@ function disposeOrganNodes() {
     o.node.removeFromParent();
   });
   organNodes = [];
+  edgePairs = [];
   if (organRoot) { organRoot.removeFromParent(); organRoot = null; }
   if (edges) { scene.remove(edges); edges.geometry.dispose(); edges = null; }
 }
 
 function ensureEdges() {
   if (edges) {
-    const need = organNodes.length * 6;
+    const need = edgePairs.length * 6;
     if (edges.geometry.attributes.position.array.length !== need) {
       scene.remove(edges); edges.geometry.dispose(); edges = null;
     } else return;
   }
-  if (!organNodes.length) return;
+  if (!edgePairs.length) return;
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(organNodes.length * 6), 3));
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(edgePairs.length * 6), 3));
   edges = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({
     color: 0x6b5a78, transparent: true, opacity: 0.5, depthWrite: false
   }));
@@ -939,12 +1039,13 @@ function ensureEdges() {
 function updateEdges() {
   if (!edges) return;
   const arr = edges.geometry.attributes.position.array;
-  organNodes.forEach((o, i) => {
-    o.node.updateMatrixWorld(true);
-    const v = o.node.localToWorld(o.node.userData.cLocal.clone());
-    arr[i * 6] = v.x; arr[i * 6 + 1] = v.y; arr[i * 6 + 2] = v.z;
-    const c = setCentre();
-    arr[i * 6 + 3] = c.x; arr[i * 6 + 4] = c.y; arr[i * 6 + 5] = c.z;
+  const set = setCentre();
+  edgePairs.forEach((e, i) => {
+    e.a.updateMatrixWorld(true);
+    const a = e.a.localToWorld(e.a.userData.cLocal.clone());
+    const b = e.b ? (e.b.updateMatrixWorld(true), e.b.localToWorld(e.b.userData.cLocal.clone())) : set;
+    arr[i * 6] = a.x; arr[i * 6 + 1] = a.y; arr[i * 6 + 2] = a.z;
+    arr[i * 6 + 3] = b.x; arr[i * 6 + 4] = b.y; arr[i * 6 + 5] = b.z;
   });
   edges.geometry.attributes.position.needsUpdate = true;
   edges.geometry.computeBoundingSphere();
@@ -1101,6 +1202,10 @@ function layout() {
       const p = o.target || o.node.position;
       rad = Math.max(rad, p.distanceTo(c) + organMaxNode * 0.55 + 0.08);
     });
+    partNodes.forEach(pn => {
+      const p = pn.target || pn.node.position;
+      rad = Math.max(rad, p.distanceTo(c) + PART_NODE_SIZE * 0.9);
+    });
     spanW = rad * 2.0; spanH = rad * 2.1; cx = c.x;
   } else {
     const left = lc - width * 0.30;
@@ -1141,8 +1246,9 @@ function pickAt(x, y) {
   const shown = o => { let p = o; while (p) { if (!p.visible) return false; p = p.parent; } return true; };
   for (const h of hits) {
     if (!shown(h.object)) continue;
-    let o = h.object, layerId = null, label = null, groupId = null, setId = null;
+    let o = h.object, layerId = null, label = null, groupId = null, setId = null, partName = null;
     while (o) {
+      if (o.userData && o.userData.partName) { partName = o.userData.partName; label = o.userData.nodeLabel; break; }
       if (o.userData && o.userData.groupId) { groupId = o.userData.groupId; label = o.userData.nodeLabel; break; }
       if (o.userData && o.userData.setId) { setId = o.userData.setId; label = o.userData.nodeLabel; break; }
       if (o.userData && o.userData.layerId) { layerId = o.userData.layerId; break; }
@@ -1152,7 +1258,7 @@ function pickAt(x, y) {
       const l = LAYERS.find(x => x.id === layerId);
       label = l ? l.name : layerId;
     }
-    if (label || layerId) return { layerId, label, groupId, setId };
+    if (label || layerId) return { layerId, label, groupId, setId, partName };
   }
   return null;
 }
@@ -1183,6 +1289,7 @@ renderer.domElement.addEventListener("pointerup", e => {
   if (moved > 5) return;                       // that was an orbit drag, not a click
   const hit = pickAt(e.clientX, e.clientY);
   if (!hit) { select(null); return; }                       // a click on empty space clears it
+  if (hit.partName) { select("part:" + hit.partName); return; }   // a part node: show what it is
   if (hit.groupId) { select(hit.groupId); return; }        // an organ node: show what it is
   if (hit.setId) {                                          // the organs set: select it, say what it is
     select("organs");                                       // splitting is an explicit action in the panel
@@ -1224,6 +1331,13 @@ function tick() {
     g.position.lerp(t.p, a);
     g.scale.lerp(new THREE.Vector3(t.s,t.s,t.s), a);
   });
+  if (partNodes.length) {
+    partNodes.forEach(pn => {
+      pn.node.position.lerp(pn.node.userData.wantPos, a);
+      const s = pn.node.scale.x + (pn.node.userData.wantScale - pn.node.scale.x) * a;
+      pn.node.scale.setScalar(s);
+    });
+  }
   if (organNodes.length) {
     organNodes.forEach(o => {
       o.node.position.lerp(o.node.userData.wantPos, a);
@@ -1256,7 +1370,7 @@ window.__setSex = s => { state.sex = s; applySex(); };
 window.__toggle = id => toggle(id);
 window.__expand = () => { if (!state.out.has("organs")) state.out.add("organs"); state.organsOut = true; if (!state.groupOut.size) fillGroupOut(); layout(); buildLegend(); };
 window.__organs = (v) => { state.organsOut = v === undefined ? !state.organsOut : !!v; state.treeOpen = state.organsOut; layout(); buildLegend(); };
-window.__part = (name, v) => { if (v) state.partHidden.add(name); else state.partHidden.delete(name); buildLegend(); layout(); };
+window.__part = (name, v) => { togglePart(name); };
 window.__organNames = () => organParts.map(p => p.name);
 window.__groups = () => organNodes.map(g => g.meta.id + ":" + g.parts.length);
 window.__group = (id, v) => { if (v) state.groupOut.add(id); else state.groupOut.delete(id); layout(); buildLegend(); };
