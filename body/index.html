@@ -260,7 +260,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261025q";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261025s";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -407,7 +407,7 @@ const EYE_SHUT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" st
 
 function availableOrganCount() {
   // the whole set for this sex, not what is currently in the group: expanded organs are reparented
-  return organParts.filter(p => !p.sex || p.sex === state.sex).length;
+  return organParts.filter(p => sexOn(p.sex)).length;
 }
 
 function layerCount(l) {
@@ -444,7 +444,7 @@ function buildLegend() {
 /* organs: one row per organ (group), each with its own eye — out of the set, or back inside it */
 function organRows(rows) {
   const byGroup = {};
-  organParts.filter(p => !p.sex || p.sex === state.sex).forEach(p => {
+  organParts.filter(p => sexOn(p.sex)).forEach(p => {
     (byGroup[p.gid] = byGroup[p.gid] || { meta: p.gmeta, parts: [] }).parts.push(p);
   });
   Object.values(byGroup)
@@ -526,9 +526,9 @@ function select(id) {
   const meta = org || lay;
   if (!meta) { panel.hidden = true; clearHighlight(); return; }
 
-  const parts = org ? organParts.filter(p => p.gid === id && (!p.sex || p.sex === state.sex)).length : 0;
+  const parts = org ? organParts.filter(p => p.gid === id && sexOn(p.sex)).length : 0;
   const sub = org ? `organ · ${parts} ${parts === 1 ? "mesh" : "meshes"}`
-            : id === "organs" ? `set · ${new Set(organParts.filter(p => !p.sex || p.sex === state.sex).map(p => p.gid)).size} organs`
+            : id === "organs" ? `set · ${new Set(organParts.filter(p => sexOn(p.sex)).map(p => p.gid)).size} organs`
             : `layer · ${layerCount(meta)} ${layerCount(meta) === 1 ? "mesh" : "meshes"}`;
 
   document.getElementById("npTitle").textContent = org ? org.label : meta.name;
@@ -600,7 +600,7 @@ function toggleLayer(id) {
 
 function fillGroupOut() {
   state.groupOut.clear();
-  organParts.filter(p => !p.sex || p.sex === state.sex).forEach(p => state.groupOut.add(p.gid));
+  organParts.filter(p => sexOn(p.sex)).forEach(p => state.groupOut.add(p.gid));
 }
 
 function toggleGroup(id) {
@@ -614,6 +614,11 @@ function togglePart(name) {
   layout();
   buildLegend();
 }
+
+/* The only place that decides what "female" means. A part without a sex is shared; a part with one
+   is in the scene exactly when it matches state.sex. Everything else asks this, nothing else
+   compares sexes by hand. */
+function sexOn(sex) { return !sex || sex === state.sex; }
 
 function variantCount(id, sex) {
   const g = groups[id];
@@ -634,7 +639,7 @@ function applySex() {
   Object.values(groups).forEach(gr => {
     if (!gr || !gr.userData.variants) return;
     Object.entries(gr.userData.variants).forEach(([sex, obj]) => {
-      const on = sex === state.sex;
+      const on = sexOn(sex);
       obj.visible = on;
       obj.traverse(o => { o.visible = on; });
     });
@@ -734,7 +739,7 @@ function makeBodyGhost() {
     // a copy of the skin for this sex is exactly what the body cloud is
     let v = null;
     for (let p = o; p; p = p.parent) if (p.userData && p.userData.variant) { v = p.userData.variant; break; }
-    if (v && v !== state.sex) return;
+    if (!sexOn(v)) return;
     const base = o.material && o.material.color ? o.material.color.clone() : new THREE.Color(0xb9c6d4);
     const m = new THREE.Mesh(o.geometry, new THREE.MeshStandardMaterial({
       color: base, roughness: 0.9, metalness: 0, transparent: true, opacity: 0.34,
@@ -762,7 +767,7 @@ function sexOf(obj) {
 }
 
 function partShown(p) {
-  return (!p.sex || p.sex === state.sex) && !state.partHidden.has(p.name);
+  return sexOn(p.sex) && !state.partHidden.has(p.name);
 }
 
 function collectOrgans() {
@@ -774,7 +779,10 @@ function collectOrgans() {
     o.geometry.computeBoundingBox();
     const c = o.geometry.boundingBox.getCenter(new THREE.Vector3());
     const meta = groupOf(o.name);
-    organParts.push({ mesh: o, c, name: o.name, gid: meta.id, gmeta: meta, sex: sexOf(o) });
+    // the atlas ships one urethra and it is his. Her tract files its own 2.6 cm one, so the atlas
+    // tube is male-only — matched loosely, because the exporter renames it Urethra001
+    const sex = sexOf(o) || (/^urethra\d*$/i.test(o.name) ? "male" : null);
+    organParts.push({ mesh: o, c, name: o.name, gid: meta.id, gmeta: meta, sex });
   });
   /* the organs set's own centre, in world space, at rest */
   const box = new THREE.Box3();
@@ -787,7 +795,7 @@ function collectOrgans() {
   // the biggest organ, because a node is never shrunk below its true size any more
   const groupBox = {};
   organParts.forEach(p => {
-    if (p.sex && p.sex !== state.sex) return;
+    if (!sexOn(p.sex)) return;
     const s = p.mesh.geometry.boundingBox.getSize(new THREE.Vector3());
     const b = groupBox[p.gid] = groupBox[p.gid] || new THREE.Box3();
     b.expandByPoint(p.c.clone().sub(s.clone().multiplyScalar(0.5)));
@@ -815,7 +823,7 @@ function setCentre() {
 function groupRows() {
   const hc = setCentre();
   const map = {};
-  organParts.filter(p => !p.sex || p.sex === state.sex).forEach(p => {
+  organParts.filter(p => sexOn(p.sex)).forEach(p => {
     const g = map[p.gid] = map[p.gid] || { meta: p.gmeta, parts: [], h: 0, n: 0 };
     g.parts.push(p);
     g.h += p.c.y; g.n++;
@@ -930,7 +938,7 @@ function makeGhost() {
   organGhost.name = "organGhost";
   organGhost.userData.nodeLabel = "all organs";
   organGhost.userData.setId = "organs";
-  organParts.filter(p => !p.sex || p.sex === state.sex).forEach(p => {
+  organParts.filter(p => sexOn(p.sex)).forEach(p => {
     const base = p.mesh.material && p.mesh.material.color ? p.mesh.material.color.clone() : new THREE.Color(0xc8a8c0);
     const m = new THREE.Mesh(p.mesh.geometry, new THREE.MeshStandardMaterial({
       color: base, roughness: 0.85, metalness: 0,
@@ -1209,6 +1217,11 @@ function tick() {
       o.node.scale.setScalar(s);
     });
     updateEdges();
+  }
+  // the body cloud is the body's shadow, not a snapshot: it follows wherever the body is now
+  if (bodyGhost && groups.muscles) {
+    bodyGhost.position.copy(groups.muscles.position);
+    bodyGhost.scale.copy(groups.muscles.scale);
   }
   if (camAnim) {
     camera.position.lerp(camWant.pos, a);

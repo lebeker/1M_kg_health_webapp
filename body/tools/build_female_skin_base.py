@@ -326,6 +326,25 @@ for name in KEEP[:1]:
     obj.data.update()
     print("HAIRLINE %d verts" % len(moved), flush=True)
 
+# --- chin: the base mesh ends in a point -------------------------------------------------------
+# A pointed chin reads as a paper cut in profile. Smooth the tip and pull it back a little, so the
+# jaw ends in a soft curve instead of a spike.
+for name in KEEP[:1]:
+    obj = bpy.data.objects[name]
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    chin = [v for v in bm.verts
+            if 1.430 < v.co.z < 1.520 and v.co.y < -0.010 and abs(v.co.x) < 0.055]
+    for _ in range(7):
+        bmesh.ops.smooth_vert(bm, verts=chin, factor=0.5, use_axis_x=True,
+                              use_axis_y=True, use_axis_z=True)
+    for v in chin:                      # and tuck the remaining point in by 4 mm
+        v.co.y += 0.004 * smoothstep((0.004 - abs(v.co.x)) / 0.012)
+    bm.to_mesh(obj.data)
+    bm.free()
+    obj.data.update()
+    print("CHIN %d verts" % len(chin), flush=True)
+
 # The bundle carries a multires at level 3: exporting that is 100 MB of mesh, one level is plenty.
 # Apply the level and WELD what is left: the modifier's output is unwelded (4 verts per quad), so
 # every quad exports with its own normal — flat shading, which is what looked like inverted normals
