@@ -18,8 +18,11 @@
   button:hover { border-color:#3a4c60; }
   button.on { background:#2a3a4c; color:#fff; border-color:#4a6480; }
   .seg { display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden; }
-  .seg button { border:0; border-radius:0; background:transparent; padding:5px 12px; }
-  .seg button.on { background:#2a3a4c; color:#fff; }
+  .seg button { border:0; border-radius:0; background:transparent; padding:3px 12px 4px;
+    font-size:19px; line-height:1; color:#7b8b9c; }
+  .seg button.on { background:#2a3a4c; }
+  .seg button[data-sex="female"].on { color:#f2a0bf; }
+  .seg button[data-sex="male"].on { color:#7fb4f2; }
 
   .legend { position:fixed; left:0; top:48px; bottom:0; width:236px; display:flex; flex-direction:column;
     background:var(--panel); border-top:1px solid var(--line); border-right:1px solid var(--line);
@@ -65,8 +68,12 @@
   .nodePanel .ntitle { font-size:16px; font-weight:600; margin-bottom:3px; }
   .nodePanel .nsub { color:var(--mut); font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin-bottom:12px; }
   .nodePanel .ndesc { color:#c6d3e0; font-size:12.5px; line-height:1.5; margin:0 0 16px; }
-  .nodePanel .nacts { display:flex; flex-direction:column; gap:8px; }
-  .nodePanel .nacts button { justify-content:flex-start; }
+  .nodePanel .nacts { display:flex; flex-direction:column; gap:6px; margin-top:2px; }
+  .nodePanel .nacts button { width:100%; justify-content:flex-start; padding:8px 11px; font-size:12.5px;
+    background:#18212c; border:1px solid var(--line); border-radius:8px; color:#cfe0f0;
+    transition:background .12s ease, border-color .12s ease; }
+  .nodePanel .nacts button:hover { background:#1d2836; border-color:#3a4c60; }
+  .nodePanel .nacts button.on { background:#233246; border-color:#48627f; color:#fff; }
   .nodePanel .btn { padding:2px 6px; border:1px solid transparent; background:transparent; color:var(--mut); }
   #tip { position:fixed; display:none; z-index:15; pointer-events:none; padding:4px 8px;
     font-size:11px; color:#dbe6f2; background:#161d26; border:1px solid #2a3644; border-radius:5px;
@@ -113,10 +120,9 @@
 
   <span class="spacer"></span>
   <div class="seg" id="sex">
-    <button data-sex="female">female</button>
-    <button data-sex="male" class="on">male</button>
+    <button data-sex="female" title="female" aria-label="female">&#9792;</button>
+    <button data-sex="male" class="on" title="male" aria-label="male">&#9794;</button>
   </div>
-  <button id="skinBtn" title="show the skin shell">skin shell</button>
 </div>
 
 <aside class="legend" id="legend">
@@ -152,7 +158,7 @@ const LAYERS = [
 ];
 
 const state = {
-  sex:"male", skin:false, collapsed:false, hidden:new Set(), sel:null,
+  sex:"male", collapsed:false, hidden:new Set(), sel:null,
   out:new Set(),            // layers taken out of the body; at the start every layer is collapsed
   organsOut:false,          // the organs set split into organ nodes
   groupOut:new Set(),       // organ groups currently out of the set
@@ -260,7 +266,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261025s";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261025v";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -588,11 +594,20 @@ renderer.domElement.addEventListener("dblclick", e => {
   camUntil = performance.now() + 1400;
 });
 
+/* One rule for the set: it is split when the layer is out of the body and at least one organ has
+   left it. Every row and every eye changes this state, nothing else sets organsOut by hand. */
+function syncOrgans() {
+  if (!state.out.has("organs")) state.groupOut.clear();
+  state.organsOut = state.out.has("organs") && state.groupOut.size > 0;
+}
+
 function toggleLayer(id) {
   if (state.out.has(id)) state.out.delete(id); else state.out.add(id);
-  if (id === "organs") state.treeOpen = state.out.has("organs");   // show the organ rows at once
-  if (id === "organs" && !state.out.has("organs")) { state.organsOut = false; }
-  if (id === "organs" && state.out.has("organs") && !state.groupOut.size) fillGroupOut();
+  if (id === "organs") {
+    state.treeOpen = state.out.has("organs");                      // show the organ rows at once
+    if (state.out.has("organs") && !state.groupOut.size) fillGroupOut();   // taking it out splits it
+  }
+  syncOrgans();
   layout();
   buildLegend();
   if (state.sel === id) select(id);        // keep the panel telling the truth
@@ -604,7 +619,10 @@ function fillGroupOut() {
 }
 
 function toggleGroup(id) {
-  if (state.groupOut.has(id)) state.groupOut.delete(id); else state.groupOut.add(id);
+  if (!state.out.has("organs")) state.out.add("organs");           // an organ cannot leave a set
+  if (state.groupOut.has(id)) state.groupOut.delete(id);           // that is still in the body
+  else state.groupOut.add(id);
+  syncOrgans();
   layout();
   buildLegend();
 }
@@ -705,7 +723,7 @@ const ORGAN_GROUPS = [
   { id:"throat",      label:"pharynx · airway",          color:0xb08a9a, about:"Pharynx, epiglottis and nasal cavity above the airway.", re:/pharynx|epiglottis|nasal cavity/i },
   { id:"thymus",      label:"thymus",                    color:0xd8a8b8, about:"Where T cells mature; it shrinks with age.", re:/thymus/i },
   { id:"tonsils",     label:"tonsils",                   color:0xd09090, about:"Lymphoid tissue at the back of the throat.", re:/tonsil/i },
-  { id:"reproductive", label:"reproductive system",      color:0xd98fa4, about:"Gonads, ducts and glands. The whole tract switches with the sex toggle, so the node holds 14 male parts or 18 female ones.", re:/uterus|ovar|vagina|vulva|cervix|fallopian|broad ligament|uterine|prostate|penis|testis|epididym|scrotum|seminal|deferens|bulbourethral|cavernosum|spongiosum|glans|ejaculatory/i }
+  { id:"reproductive", label:"reproductive system",      color:0xd98fa4, about:"Gonads, ducts and glands. The whole tract switches with the sex toggle, so the node holds 14 male parts or 18 female ones.", re:/uterus|ovar|vagina|vulva|cervix|fallopian|broad ligament|uterine|prostate|penis|testis|epididym|scrotum|seminal|deferens|bulbourethral|cavernosum|spongiosum|glans|ejaculatory|mons pubis|labium|labia|vestibular bulb|clitor/i }
 ];
 const OTHER_GROUP = { id:"other", label:"other", color:0x9a9aa8, re:/$^/ };
 
@@ -969,7 +987,7 @@ function bodyHeadCut() {
   headCutMeshes.forEach(o => { o.visible = true; });
   headCutMeshes = [];
   // only while her own shell is the head on screen: with the shell off, the atlas head is all there is
-  if (state.sex !== "female" || !state.skin || state.out.has("skin")) return;
+  if (state.sex !== "female" || state.out.has("skin")) return;
   ["muscles", "bones", "cardio", "nervous", "lymphoid"].forEach(id => {
     const g = groups[id];
     if (!g || state.out.has(id)) return;
@@ -1050,8 +1068,7 @@ function layout() {
     if (!g) return;
     if (l.graphOnly) { g.visible = false; return; }
     const isOut = state.out.has(l.id);
-    const skinOk = l.id !== "skin" || state.skin || isOut;
-    g.visible = skinOk;
+    g.visible = true;          // the skin is a layer like any other: in the body, or a node.
   });
   organParts.forEach(p => { p.mesh.visible = partShown(p); });
   bodyHeadCut();
@@ -1187,11 +1204,6 @@ document.getElementById("collapse").onclick = e => {
   e.currentTarget.textContent = state.collapsed ? "▶" : "◀";
   e.currentTarget.title = state.collapsed ? "expand" : "collapse";
 };
-document.getElementById("skinBtn").onclick = e => {
-  state.skin = !state.skin;
-  e.currentTarget.classList.toggle("on", state.skin);
-  layout();
-};
 addEventListener("keydown", e => {
   if (e.key === "Escape" && state.organsOut) { state.organsOut = false; layout(); buildLegend(); }
 });
@@ -1248,7 +1260,7 @@ window.__groups = () => organNodes.map(g => g.meta.id + ":" + g.parts.length);
 window.__group = (id, v) => { if (v) state.groupOut.add(id); else state.groupOut.delete(id); layout(); buildLegend(); };
 window.__edgeCount = () => (edges ? edges.geometry.attributes.position.count / 2 : 0);
 window.__nodeCount = () => organNodes.length;
-window.__setSkin = v => { state.skin = !!v; document.getElementById("skinBtn").classList.toggle("on", state.skin); layout(); };
+window.__setSkin = () => layout();   // kept for the test scripts; the shell is always on now
 window.__collapse = () => document.getElementById("collapse").click();
 </script>
 </body>

@@ -367,9 +367,12 @@ for s in (-1, 1):
                      lambda t: .0016 * (1 - .5 * t), EXT_M, rings=36, segs=12))
 join("Clitoris", clit, EXT_M)
 
-# Short female urethra, flush with the vestibule (no protruding spike).
-tube("Female urethra", [(0, .006, .822), (0, .000, .814), (0, -.009, .806), (0, -.018, .800)],
-     .0019, MUCOUS, rings=40, segs=18)
+# Her urethra: four points, from the bladder neck down to the vestibule, in front of the vagina.
+# The atlas ships one male tube (8.6 cm, out through the penis); it is male-only in the app, so this
+# is the only one she has, and its top point sits on the bladder so the bladder never hangs in the air.
+tube("Female urethra", [(0, .010, .833), (0, .004, .822), (0, -.004, .812), (0, -.012, .804),
+                        (0, -.018, .800)],
+     lambda t: .0020 + .0004 * (1 - t), MUCOUS, rings=48, segs=18)
 
 # ---------------------------------------------------------------- fit to the atlas pelvis
 # The reference pelvis is male, and its iliac fossa crowds the adnexa. Shift the lateral end of
