@@ -266,7 +266,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261025v";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261025x";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -558,8 +558,9 @@ function select(id) {
     }, isOut);
   } else if (id === "organs") {
     add(state.organsOut ? "merge into one node" : "split into organs", () => {
-      state.organsOut = !state.organsOut;
-      if (state.organsOut && !state.groupOut.size) fillGroupOut();
+      if (state.organsOut) state.groupOut.clear();      // merging means every organ goes back in
+      else fillGroupOut();                              // splitting means every organ comes out
+      syncOrgans();
       layout(); buildLegend();
     }, true);
     add(state.out.has("organs") ? "put the set back into the body" : "take the set out of the body", () => toggleLayer("organs"));
@@ -604,8 +605,8 @@ function syncOrgans() {
 function toggleLayer(id) {
   if (state.out.has(id)) state.out.delete(id); else state.out.add(id);
   if (id === "organs") {
-    state.treeOpen = state.out.has("organs");                      // show the organ rows at once
-    if (state.out.has("organs") && !state.groupOut.size) fillGroupOut();   // taking it out splits it
+    state.treeOpen = state.out.has("organs");   // show the rows at once — but do not open anything
+    if (!state.out.has("organs")) state.groupOut.clear();
   }
   syncOrgans();
   layout();
@@ -1092,9 +1093,15 @@ function layout() {
   // ring is still there, a zoom-out away
   let spanW, spanH, cx;
   if (graph) {
+    // frame what is actually out, not the nominal radius: one organ should fill the view, eighteen
+    // should all fit — otherwise the camera sits inside a fan whose edges run off the screen
     const c = setCentre();
-    const rad = ORGAN_R + organMaxNode * 0.7 + 0.1;
-    spanW = rad * 2.0; spanH = rad * 2.25; cx = c.x;
+    let rad = 0.4;
+    organNodes.forEach(o => {
+      const p = o.target || o.node.position;
+      rad = Math.max(rad, p.distanceTo(c) + organMaxNode * 0.55 + 0.08);
+    });
+    spanW = rad * 2.0; spanH = rad * 2.1; cx = c.x;
   } else {
     const left = lc - width * 0.30;
     let right = rc + width * 0.30;
@@ -1177,13 +1184,8 @@ renderer.domElement.addEventListener("pointerup", e => {
   const hit = pickAt(e.clientX, e.clientY);
   if (!hit) { select(null); return; }                       // a click on empty space clears it
   if (hit.groupId) { select(hit.groupId); return; }        // an organ node: show what it is
-  if (hit.setId) {                                          // the organs set: split it, and show it
-    if (state.out.has("organs")) {
-      state.organsOut = !state.organsOut;
-      if (state.organsOut && !state.groupOut.size) fillGroupOut();
-    }
-    select("organs");
-    layout(); buildLegend();
+  if (hit.setId) {                                          // the organs set: select it, say what it is
+    select("organs");                                       // splitting is an explicit action in the panel
     return;
   }
   if (hit.layerId) {
