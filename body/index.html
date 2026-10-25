@@ -27,7 +27,8 @@
   .legend header { display:flex; align-items:center; justify-content:space-between; padding:8px 10px;
     border-bottom:1px solid var(--line); font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--mut); }
   .legend header .btn { padding:2px 6px; border:1px solid transparent; background:transparent; color:var(--mut); }
-  .legend .rows { overflow:auto; padding:6px; display:grid; gap:2px; }
+  /* a grid column sizes to its widest row, which pushed the eye buttons out of the panel */
+  .legend .rows { overflow:auto; padding:6px; display:grid; grid-template-columns:minmax(0,1fr); gap:2px; }
   .row { display:flex; align-items:center; gap:8px; padding:5px 6px; border-radius:6px; cursor:pointer; }
   .row:hover { background:#18202b; }
   .row .dot { width:10px; height:10px; border-radius:3px; flex:none; }
@@ -53,10 +54,30 @@
   .row.folder .nm { font-weight:600; }
   .hint { position:fixed; right:12px; bottom:12px; color:#5f7183; }
   .foot { position:fixed; left:264px; bottom:12px; color:#5f7183; }
+  /* the models are 35 MB: the page has to say what it is doing while they arrive */
+  #boot { position:fixed; inset:0; z-index:20; display:grid; place-items:center;
+    background:#0c0f13; transition:opacity .5s ease; }
+  #boot.done { opacity:0; pointer-events:none; }
+  .bootbox { width:min(420px, 72vw); }
+  .bootttl { font-size:15px; letter-spacing:.02em; margin-bottom:12px; }
+  .bootstage { color:var(--mut); font-size:12px; min-height:17px; margin-bottom:8px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bootbar { height:4px; background:#1b2430; border-radius:3px; overflow:hidden; }
+  .bootbar i { display:block; height:100%; width:0; background:#7fb3e0; transition:width .2s ease; }
+  .bootnum { color:#5f7183; font-size:11px; margin-top:7px; }
 </style>
 </head>
 <body>
 <div id="stage"></div>
+
+<div id="boot">
+  <div class="bootbox">
+    <div class="bootttl">Body</div>
+    <div class="bootstage" id="bootStage">starting…</div>
+    <div class="bootbar"><i id="bootBar"></i></div>
+    <div class="bootnum" id="bootNum">0 / 0 models</div>
+  </div>
+</div>
 
 <div class="bar">
   <b>Body</b>
@@ -125,6 +146,8 @@ const camera = new THREE.PerspectiveCamera(32, innerWidth/innerHeight, 0.01, 100
 camera.position.set(0, 0, 3.6);
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 const camWant = { pos: new THREE.Vector3(0, 0, 3.6), target: new THREE.Vector3(0, 0, 0) };
+let camAnim = false;        // true only while a layout change is being flown to; after that the
+                            // user's own orbit and zoom must not be fought by the animation
 controls.enableDamping = true; controls.dampingFactor = 0.08;
 
 scene.add(new THREE.HemisphereLight(0xffffff, 0x1a2028, 1.05));
@@ -183,11 +206,41 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261025f";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261025h";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
 const failedFiles = [];
+let loadTotal = 0, loadDone = 0;
+const loadFrac = new Map();       // per-file progress of what is still in flight
+
+const STAGE_NAMES = {
+  skin: "skin · teeth · nails", skinbits2: "teeth · nails", "skin-female2": "her skin",
+  muscles: "muscles", bones: "bones", cardio: "cardio-vascular", "cardio-female": "her vessels",
+  nervous: "nervous system", "nervous-female": "her nerves", lymphoid: "lymphoid system",
+  organs: "organs", spleen: "spleen · thymus · tonsils", "reproductive-female": "her tract",
+  "reproductive-male": "his tract"
+};
+
+function bootUI(stage, frac) {
+  const bar = document.getElementById("bootBar");
+  const num = document.getElementById("bootNum");
+  const st = document.getElementById("bootStage");
+  if (!bar) return;
+  let inflight = 0;
+  loadFrac.forEach(v => { inflight += v; });
+  const done = loadTotal ? Math.min(1, (loadDone + inflight) / loadTotal) : 0;
+  bar.style.width = (done * 100).toFixed(1) + "%";
+  num.textContent = `${Math.min(loadDone, loadTotal)} / ${loadTotal} models`;
+  if (stage) st.textContent = "loading " + (STAGE_NAMES[stage] || stage) + (frac ? ` · ${Math.round(frac * 100)}%` : "…");
+}
+
+function bootDone() {
+  loadDone = loadTotal;
+  bootUI();
+  const el = document.getElementById("boot");
+  if (el) { el.classList.add("done"); setTimeout(() => el.remove(), 600); }
+}
 
 function loadFile(id, file, variant) {
   const key = id + "/" + file + "/" + (variant || "");
@@ -195,7 +248,9 @@ function loadFile(id, file, variant) {
   loadedFiles.add(key);
   return new Promise(res => {
     pending++;
+    bootUI(file, 0);
     loader.load(`models/${file}.glb?v=${ASSET_VERSION}`, gltf => {
+      loadFrac.delete(file); loadDone++; bootUI();
       const g = makeGroup(id);
       paint(LAYERS.find(l => l.id === id), gltf.scene, variant);
       if (variant) {
@@ -206,7 +261,10 @@ function loadFile(id, file, variant) {
         g.userData.inner.add(gltf.scene);
       }
       pending--; buildLegend(); res();
-    }, undefined, error => {
+    }, xhr => {
+      if (xhr && xhr.total) { const f = Math.min(1, xhr.loaded / xhr.total) * 0.999; loadFrac.set(file, f); bootUI(file, f); }
+    }, error => {
+      loadFrac.delete(file); loadDone++; bootUI();
       pending--; failedFiles.push(file); buildLegend();
       document.getElementById("foot").textContent = `Could not load ${file}.glb — reload to retry`;
       console.error(`Could not load anatomy layer ${file}`, error);
@@ -222,6 +280,7 @@ async function boot() {
   loadedFiles.clear();
   failedFiles.length = 0;
   const jobs = [];
+  loadTotal = 0; loadDone = 0;
   LAYERS.forEach(l => {
     if (l.filesBySex) return;
     (l.files || [l.id]).forEach(f => jobs.push(loadFile(l.id, f)));
@@ -241,12 +300,15 @@ async function boot() {
                                               // lymphoid collection, so the organs export missed them
   // models/heart.glb is kept for a later "heart" node, but the graph's centre is the organs set      // the graph's centre: the atlas keeps it inside the
                                               // merged cardio mesh, so it is exported on its own
+  loadTotal = jobs.length;
+  bootUI("organs", 0);
   await Promise.all(jobs);
   normalise();
   collectOrgans();
   buildLegend();
   applySex();
   layout();
+  bootDone();
   if (failedFiles.length) document.getElementById("foot").textContent = `Could not load: ${failedFiles.join(", ")} — reload to retry`;
 }
 
@@ -348,7 +410,7 @@ function partRow(p) {
   const col = p.mesh.material && p.mesh.material.color ? p.mesh.material.color.getHex() : 0xc78fb0;
   row.innerHTML = `<span class="chev blank"></span>` +
     `<span class="dot" style="background:#${col.toString(16).padStart(6,"0")}"></span>` +
-    `<span class="nm" title="${p.name}">${p.name.replace(/\.001$/, "").replace(/_/g, " ")}</span>` +
+    `<span class="nm" title="${p.name}">${p.name.replace(/\.?001$/, "").replace(/_/g, " ")}</span>` +
     `<button class="eye" title="show / hide this part">${off ? EYE_SHUT : EYE_OPEN}</button>`;
   row.onclick = () => togglePart(p.name);
   return row;
@@ -356,6 +418,7 @@ function partRow(p) {
 
 function toggleLayer(id) {
   if (state.out.has(id)) state.out.delete(id); else state.out.add(id);
+  if (id === "organs") state.treeOpen = state.out.has("organs");   // show the organ rows at once
   if (id === "organs" && !state.out.has("organs")) { state.organsOut = false; }
   if (id === "organs" && state.out.has("organs") && !state.groupOut.size) fillGroupOut();
   layout();
@@ -471,7 +534,7 @@ const OTHER_GROUP = { id:"other", label:"other", color:0x9a9aa8, re:/$^/ };
 function groupOf(name) {
   // the atlas spells names with underscores and a .001 suffix ("Bile_duct001"): normalise first,
   // otherwise every multi-word group silently falls through to "other"
-  const clean = name.replace(/\.001$/, "").replace(/_/g, " ");
+  const clean = name.replace(/\.?001$/, "").replace(/_/g, " ");
   for (const g of ORGAN_GROUPS) if (g.re.test(clean)) return g;
   return OTHER_GROUP;
 }
@@ -690,6 +753,7 @@ function layout() {
   const d = fitDistance(spanW, spanH);
   camWant.pos.set(cx, 0, d);
   camWant.target.set(cx, 0, 0);
+  camAnim = true;
 }
 
 let downAt = null;
@@ -750,8 +814,11 @@ function tick() {
     });
     updateEdges();
   }
-  camera.position.lerp(camWant.pos, a);        // one camera, animated: no cut, no flicker
-  controls.target.lerp(camWant.target, a);
+  if (camAnim) {
+    camera.position.lerp(camWant.pos, a);
+    controls.target.lerp(camWant.target, a);
+    if (camera.position.distanceTo(camWant.pos) < 0.004) camAnim = false;
+  }
   controls.update();
   renderer.render(scene, camera);
 }
