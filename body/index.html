@@ -21,9 +21,9 @@
   .seg button { border:0; border-radius:0; background:transparent; padding:5px 12px; }
   .seg button.on { background:#2a3a4c; color:#fff; }
 
-  .legend { position:fixed; left:12px; top:56px; bottom:12px; width:236px; display:flex; flex-direction:column;
-    background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden;
-    transition:width .18s ease; z-index:2; }
+  .legend { position:fixed; left:0; top:48px; bottom:0; width:236px; display:flex; flex-direction:column;
+    background:var(--panel); border-top:1px solid var(--line); border-right:1px solid var(--line);
+    overflow:hidden; transition:width .18s ease; z-index:2; }
   .legend header { display:flex; align-items:center; justify-content:space-between; padding:8px 10px;
     border-bottom:1px solid var(--line); font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--mut); }
   .legend header .btn { padding:2px 6px; border:1px solid transparent; background:transparent; color:var(--mut); }
@@ -40,9 +40,10 @@
   .row.off .nm, .row.off .cnt { opacity:.38; }
   .row.off .eye { color:#5a6a7a; }
   svg { display:block; }
-  .legend.collapsed { width:44px; }
+  /* collapsed: just the button and a couple of pixels around it */
+  .legend.collapsed { width:28px; }
   .legend.collapsed .rows, .legend.collapsed header span, .legend.collapsed .eye, .legend.collapsed .cnt { display:none; }
-  .legend.collapsed header { justify-content:center; border-bottom:0; padding:10px 0; }
+  .legend.collapsed header { justify-content:center; border-bottom:0; padding:8px 0; }
   /* organ tree: the organs row is a folder, every organ is a row of its own */
   .row .chev { width:18px; height:20px; flex:none; display:grid; place-items:center; padding:0;
     border:1px solid transparent; background:transparent; color:var(--mut); font-size:10px; }
@@ -56,7 +57,7 @@
   #tip { position:fixed; display:none; z-index:15; pointer-events:none; padding:4px 8px;
     font-size:11px; color:#dbe6f2; background:#161d26; border:1px solid #2a3644; border-radius:5px;
     white-space:nowrap; }
-  .foot { position:fixed; left:264px; bottom:12px; color:#5f7183; }
+  .foot { position:fixed; left:248px; bottom:10px; color:#5f7183; }
   /* the models are 35 MB: the page has to say what it is doing while they arrive */
   #boot { position:fixed; inset:0; z-index:20; display:grid; place-items:center;
     background:#0c0f13; transition:opacity .5s ease; }
@@ -215,7 +216,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261025i";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261025j";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -323,6 +324,7 @@ async function boot() {
 }
 
 const layerMid = {};   // each layer's own centre, in the normalised body frame
+const layerSize = {};  // and its own extent, so an out layer can be placed clear of its neighbours
 
 function normalise() {
   const box = new THREE.Box3();
@@ -342,7 +344,7 @@ function normalise() {
   bodyBox = new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(0,0,0), size.clone().multiplyScalar(k));
   Object.entries(groups).forEach(([id, g]) => {
     const b = new THREE.Box3().setFromObject(g.userData.inner);
-    if (!b.isEmpty()) layerMid[id] = b.getCenter(new THREE.Vector3());
+    if (!b.isEmpty()) { layerMid[id] = b.getCenter(new THREE.Vector3()); layerSize[id] = b.getSize(new THREE.Vector3()); }
   });
 }
 
@@ -486,6 +488,8 @@ function applySex() {
   organParts.forEach(p => { p.mesh.visible = partShown(p); });
   if (organGhost) { organGhost.removeFromParent(); organGhost = null; }   // rebuild for the new sex
   if (state.organsOut) makeGhost().visible = true;
+  const anyBodyOut = LAYERS.some(l => l.id !== "organs" && state.out.has(l.id));
+  if (bodyGhost || anyBodyOut) { makeBodyGhost(); if (bodyGhost) bodyGhost.visible = anyBodyOut; }
   // teeth and nails show on both sexes; the hair cap was stripped from the model (strip_hair.py)
   document.querySelectorAll("#sex button").forEach(b => b.classList.toggle("on", b.dataset.sex === state.sex));
   document.querySelectorAll(".row").forEach(row => {
@@ -518,7 +522,7 @@ function fitDistance(w, h) {
    Combinations are free: a group is only a set of meshes, so any subset can be shown or hidden
    without a model per combination. */
 
-const ORGAN_R = 0.55;        // how far the organ nodes fan out from the organs set
+let ORGAN_R = 0.55;          // how far the organ nodes fan out: follows the biggest node
 const NODE_SIZE = 0.14;      // every organ node is scaled to roughly this (the heart's old role)
 
 const ORGAN_GROUPS = [
@@ -553,6 +557,43 @@ function groupOf(name) {
 
 let organRoot = null;        // one Group per expanded organ node
 let organNodes = [];         // [{ node, parts, meta }]
+let bodyGhost = null;      // a semi-visible copy of the skin: the 'body cloud' the layers circle
+
+/* built with the skin group parked at the origin, so the copy marks the body's place whatever the
+   skin layer itself is doing */
+function makeBodyGhost() {
+  if (bodyGhost) { bodyGhost.removeFromParent(); bodyGhost = null; }
+  const skinG = groups.skin;
+  if (!skinG) return null;
+  const keep = skinG.position.clone();
+  skinG.position.set(0, 0, 0);
+  skinG.updateMatrixWorld(true);
+  const g = new THREE.Group();
+  g.name = "bodyGhost";
+  g.userData.nodeLabel = "body";
+  skinG.traverse(o => {
+    if (!o.isMesh) return;
+    // the layer is usually hidden when this runs, so look at the variant, not at visibility:
+    // a copy of the skin for this sex is exactly what the body cloud is
+    let v = null;
+    for (let p = o; p; p = p.parent) if (p.userData && p.userData.variant) { v = p.userData.variant; break; }
+    if (v && v !== state.sex) return;
+    const base = o.material && o.material.color ? o.material.color.clone() : new THREE.Color(0xb9c6d4);
+    const m = new THREE.Mesh(o.geometry, new THREE.MeshStandardMaterial({
+      color: base, roughness: 0.9, metalness: 0, transparent: true, opacity: 0.34,
+      depthWrite: false, side: THREE.DoubleSide
+    }));
+    m.userData.ghost = true;
+    m.applyMatrix4(o.matrixWorld);
+    g.add(m);
+  });
+  skinG.position.copy(keep);
+  skinG.updateMatrixWorld(true);
+  scene.add(g);
+  bodyGhost = g;
+  return g;
+}
+
 let organGhost = null;       // the 20 % copy of the organs set, left where the organs belong
 let organCentre = new THREE.Vector3(0, 0.15, 0);   // where the organs sit in the body
 
@@ -585,14 +626,31 @@ function collectOrgans() {
     organCentre = box.getCenter(new THREE.Vector3());
     organSize = box.getSize(new THREE.Vector3());
   }
+  // the biggest organ, because a node is never shrunk below its true size any more
+  const groupBox = {};
+  organParts.forEach(p => {
+    if (p.sex && p.sex !== state.sex) return;
+    const s = p.mesh.geometry.boundingBox.getSize(new THREE.Vector3());
+    const b = groupBox[p.gid] = groupBox[p.gid] || new THREE.Box3();
+    b.expandByPoint(p.c.clone().sub(s.clone().multiplyScalar(0.5)));
+    b.expandByPoint(p.c.clone().add(s.clone().multiplyScalar(0.5)));
+  });
+  organMaxNode = 0.3;
+  Object.values(groupBox).forEach(b => {
+    const s = b.getSize(new THREE.Vector3());
+    organMaxNode = Math.max(organMaxNode, s.x, s.y, s.z);
+  });
+  ORGAN_R = Math.max(0.55, organMaxNode * 2.1);
 }
 
 /* the organs set moves with its layer (one-layer-out slides it aside), so its centre is not fixed:
    it is the rest centre carried through the layer group's own transform */
 function setCentre() {
-  const g = groups.organs;
-  if (!g) return organCentre.clone();
-  return organCentre.clone().multiplyScalar(g.scale.x).add(g.position);
+  // the target, not the mid-animation transform: nodes and their edges must agree on where the
+  // set is going to be, or the fan lands somewhere else entirely
+  const t = targets.organs;
+  if (!t) return organCentre.clone();
+  return organCentre.clone().multiplyScalar(t.s).add(t.p);
 }
 
 /* one node per organ group; a hidden group never leaves the body, it stays inside the faint set */
@@ -644,7 +702,7 @@ function buildOrganNodes() {
       const box = new THREE.Box3().setFromObject(g);
       const size = box.getSize(new THREE.Vector3());
       const maxd = Math.max(size.x, size.y, size.z) || 1;
-      const k = Math.min(8, Math.max(0.35, NODE_SIZE / maxd));
+      const k = Math.min(6, Math.max(1, NODE_SIZE / maxd));   // enlarge, never shrink
       const cWorld = box.getCenter(new THREE.Vector3());
       g.userData.cLocal = cWorld.clone();
       g.userData.wantPos = r.t.clone().sub(cWorld.clone().multiplyScalar(k));
@@ -734,25 +792,46 @@ function layout() {
 
   // the organs set must be out before it can be split
   if (graph && !state.out.has("organs")) state.out.add("organs");
-  if (graph) buildOrganNodes(); else disposeOrganNodes();
-  const ghost = state.out.has("organs") ? makeGhost() : null;
-  if (ghost) { ghost.visible = graph; }
 
-  // every layer that has been taken out takes a slot to the right of the body; the body itself
-  // never moves and never loses a layer that is still collapsed
+  // every layer that has been taken out takes a slot beside the body; the body itself never moves
+  // and never loses a layer that is still collapsed
   const outList = LAYERS.filter(l => !l.graphOnly && state.out.has(l.id));
-  // with the organs out the body shrinks, so it needs room of its own: the slots move right
-  const gap = state.out.has("organs") ? width * 0.55 : 0;
+  const bodyOut = outList.filter(l => l.id !== "organs");
+  const organsOut = state.out.has("organs");
+
+  // the body layers take turns left and right of the body, each one clear of the last and all on
+  // one horizontal level: the body stays at the centre, marked by the faint copy of the skin
+  const gapX = width * 0.30, slot = {};
+  let rc = width * 0.5, lc = -width * 0.5;
+  const halfOf = id => ((layerSize[id] ? layerSize[id].x : width) / 2) * 0.95;
+  bodyOut.forEach((l, i) => {
+    const hw = halfOf(l.id);
+    if (i % 2 === 0) { const x = rc + hw + gapX; slot[l.id] = x; rc = x + hw; }
+    else             { const x = lc - hw - gapX; slot[l.id] = x; lc = x - hw; }
+  });
+  if (organsOut) {
+    slot.organs = rc + gapX * 1.6 + (graph ? ORGAN_R : 0) + organSize.x * 0.5;
+    rc = slot.organs + (graph ? ORGAN_R : 0) + organSize.x * 0.5;
+  }
+
   LAYERS.forEach(l => {
     if (l.graphOnly) return;
     const t = targets[l.id];
-    const i = outList.findIndex(o => o.id === l.id);
-    if (i >= 0) t.p.set(width * (0.85 + i * 0.62) + gap, -(layerMid[l.id] ? layerMid[l.id].y : 0), 0);
+    if (slot[l.id] !== undefined) t.p.set(slot[l.id], -(layerMid[l.id] ? layerMid[l.id].y : 0), 0);
     else t.p.set(0, 0, 0);
     // the organs are what makes the body the body; with them out, the remainder is a node among
     // nodes, so it shrinks to roughly the size of the organs set
-    t.s = (i < 0 && state.out.has("organs")) ? bodyShrink() : 1;
+    t.s = (slot[l.id] === undefined && organsOut) ? bodyShrink() : 1;
   });
+
+  if (graph) buildOrganNodes(); else disposeOrganNodes();
+  const ghost = organsOut ? makeGhost() : null;
+  if (ghost) ghost.visible = graph;
+
+  // the body cloud: a copy of the skin, a little more opaque than the organs copy, so the layers
+  // that left are visibly circling something
+  if (bodyOut.length && !bodyGhost) makeBodyGhost();
+  if (bodyGhost) bodyGhost.visible = bodyOut.length > 0;
 
   LAYERS.forEach(l => {
     const g = groups[l.id];
@@ -772,18 +851,20 @@ function layout() {
     mus.traverse(o => { if (o.isMesh && o.material) { o.material.transparent = see; o.material.opacity = see ? 0.38 : 1; o.material.depthWrite = !see; } });
   }
 
-  let left = -width * 0.55, right = width * 0.55;
-  outList.forEach(l => {
-    const x = targets[l.id].p.x;
-    const half = width * 0.42 + (l.id === "organs" && graph ? ORGAN_R + width * 0.15 : 0);
-    right = Math.max(right, x + half);
-  });
+  let left = lc - width * 0.30, right = rc + width * 0.30;
+  if (organsOut) right = Math.max(right, slot.organs + (graph ? ORGAN_R + (organSize.x / 2) : (organSize.x / 2) * 1.2));
   let spanW = Math.max(width * 1.1, right - left), spanH = 1.8;
-  if (graph) { spanW *= 1.22; spanH *= 1.12; }
+  if (graph) { spanH = Math.max(spanH, ORGAN_R * 2.1); spanW = Math.max(spanW, spanH * 1.5); }
   const cx = (left + right) / 2;
-  const d = fitDistance(spanW, spanH);
-  camWant.pos.set(cx, 0, d);
-  camWant.target.set(cx, 0, 0);
+  // the panel sits over the canvas, so the scene is fitted into the strip to its right instead of
+  // being centred on the window (which pushed the leftmost layer behind the panel)
+  const panelPx = state.collapsed ? 28 : 236;
+  const visW = Math.max(320, innerWidth - panelPx);
+  const grow = innerWidth / visW;
+  const d = fitDistance(spanW * grow, spanH);
+  const dx = ((panelPx + visW / 2) / innerWidth - 0.5) * spanW * grow;
+  camWant.pos.set(cx - dx, 0, d);
+  camWant.target.set(cx - dx, 0, 0);
   camAnim = true;
 }
 
@@ -855,10 +936,16 @@ document.querySelectorAll("#sex button").forEach(b => b.onclick = () => {
   layout();
   buildLegend();
 });
-document.getElementById("skinBtn").onclick = e => {
+document.getElementById("collapse").onclick = e => {
   state.collapsed = !state.collapsed;
   document.getElementById("legend").classList.toggle("collapsed", state.collapsed);
   e.currentTarget.textContent = state.collapsed ? "▶" : "◀";
+  e.currentTarget.title = state.collapsed ? "expand" : "collapse";
+};
+document.getElementById("skinBtn").onclick = e => {
+  state.skin = !state.skin;
+  e.currentTarget.classList.toggle("on", state.skin);
+  layout();
 };
 addEventListener("keydown", e => {
   if (e.key === "Escape" && state.organsOut) { state.organsOut = false; layout(); buildLegend(); }
