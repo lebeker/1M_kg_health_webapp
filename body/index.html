@@ -54,6 +54,20 @@
   .row.kids .nm { font-size:12px; }
   .row.folder .nm { font-weight:600; }
   .hint { position:fixed; right:12px; bottom:12px; color:#5f7183; }
+  /* the node panel: what a node is, in words — the same chrome as the layer list, on the right */
+  .nodePanel { position:fixed; right:0; top:48px; bottom:0; width:320px; display:flex; flex-direction:column;
+    background:var(--panel); border-top:1px solid var(--line); border-left:1px solid var(--line);
+    z-index:2; }
+  .nodePanel[hidden] { display:none; }
+  .nodePanel header { display:flex; align-items:center; justify-content:space-between; padding:8px 10px;
+    border-bottom:1px solid var(--line); font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--mut); }
+  .nodePanel .nbody { padding:12px 14px 16px; overflow:auto; }
+  .nodePanel .ntitle { font-size:16px; font-weight:600; margin-bottom:3px; }
+  .nodePanel .nsub { color:var(--mut); font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin-bottom:12px; }
+  .nodePanel .ndesc { color:#c6d3e0; font-size:12.5px; line-height:1.5; margin:0 0 16px; }
+  .nodePanel .nacts { display:flex; flex-direction:column; gap:8px; }
+  .nodePanel .nacts button { justify-content:flex-start; }
+  .nodePanel .btn { padding:2px 6px; border:1px solid transparent; background:transparent; color:var(--mut); }
   #tip { position:fixed; display:none; z-index:15; pointer-events:none; padding:4px 8px;
     font-size:11px; color:#dbe6f2; background:#161d26; border:1px solid #2a3644; border-radius:5px;
     white-space:nowrap; }
@@ -74,6 +88,16 @@
 <body>
 <div id="stage"></div>
 <div id="tip"></div>
+
+<aside id="node" class="nodePanel" hidden>
+  <header><span>node</span><button class="btn" id="nodeClose" title="close">✕</button></header>
+  <div class="nbody">
+    <div class="ntitle" id="npTitle"></div>
+    <div class="nsub" id="npSub"></div>
+    <p class="ndesc" id="npDesc"></p>
+    <div class="nacts" id="npActs"></div>
+  </div>
+</aside>
 
 <div id="boot">
   <div class="bootbox">
@@ -111,17 +135,24 @@
 <script src="lib/OrbitControls.js"></script>
 <script>
 const LAYERS = [
-  { id:"skin",     name:"skin · teeth · nails", color:0xe8c9a0, filesBySex:true },
-  { id:"muscles",  name:"muscles",                     color:0xc0554f },
-  { id:"bones",    name:"bones",                       color:0xd9d2bd },
-  { id:"cardio",   name:"cardio-vascular",             color:0xb33a3a, filesBySex:true },
-  { id:"nervous",  name:"nervous system",              color:0xe0b93f, filesBySex:true },
-  { id:"lymphoid", name:"lymphoid system",             color:0x9fe07a },
-  { id:"organs",   name:"organs",                      color:0xc78fb0 }
+  { id:"skin",     name:"skin · teeth · nails", color:0xe8c9a0, filesBySex:true,
+    about:"The shell: skin, teeth and nails. Drawn at 45 % so the anatomy under it stays readable; the top-bar button shows it on the assembled body." },
+  { id:"muscles",  name:"muscles",                     color:0xc0554f,
+    about:"Skeletal muscle, one mesh per muscle or muscle group. Kept at 38 % while it is collapsed inside the body." },
+  { id:"bones",    name:"bones",                       color:0xd9d2bd,
+    about:"The skeleton: skull, spine, ribs, pelvis and limbs. The frame every other layer is fitted to." },
+  { id:"cardio",   name:"cardio-vascular",             color:0xb33a3a, filesBySex:true,
+    about:"Heart and vessels, atlas-wide. The heart is merged into this layer rather than being a node of its own." },
+  { id:"nervous",  name:"nervous system",              color:0xe0b93f, filesBySex:true,
+    about:"Brain, spinal cord and the peripheral nerves. Its own model per sex." },
+  { id:"lymphoid", name:"lymphoid system",             color:0x9fe07a,
+    about:"Lymph nodes and vessels. The spleen, thymus and tonsils live in this atlas collection but are drawn with the organs." },
+  { id:"organs",   name:"organs",                      color:0xc78fb0,
+    about:"The visceral set: 18 organs, everything from the lungs to the pineal. Split it to get one node per organ." }
 ];
 
 const state = {
-  sex:"male", skin:false, collapsed:false, hidden:new Set(),
+  sex:"male", skin:false, collapsed:false, hidden:new Set(), sel:null,
   out:new Set(),            // layers taken out of the body; at the start every layer is collapsed
   organsOut:false,          // the organs set split into organ nodes
   groupOut:new Set(),       // organ groups currently out of the set
@@ -216,7 +247,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261025j";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261025k";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -434,6 +465,87 @@ function partRow(p) {
   return row;
 }
 
+/* ---------- the node panel: what the node under the cursor actually is ---------- */
+let selMats = [];
+
+function clearHighlight() {
+  selMats.forEach(([m, c, i]) => { m.emissive.copy(c); m.emissiveIntensity = i; });
+  selMats = [];
+}
+
+function highlight(obj) {
+  clearHighlight();
+  const seen = new Set();
+  obj.traverse(o => {
+    if (!o.isMesh || !o.material || !o.material.emissive || seen.has(o.material)) return;
+    seen.add(o.material);
+    selMats.push([o.material, o.material.emissive.clone(), o.material.emissiveIntensity]);
+    o.material.emissive.setHex(0x27405a);
+    o.material.emissiveIntensity = 0.8;
+  });
+}
+
+function selectedObject() {
+  if (!state.sel) return null;
+  if (state.sel === "organs") return organGhost;
+  const n = organNodes.find(o => o.meta.id === state.sel);
+  if (n) return n.node;
+  return groups[state.sel] || null;
+}
+
+function select(id) {
+  state.sel = id || null;
+  const panel = document.getElementById("node");
+  if (!state.sel) { panel.hidden = true; clearHighlight(); layout(); return; }
+
+  const org = ORGAN_GROUPS.find(g => g.id === id);
+  const lay = LAYERS.find(l => l.id === id);
+  const meta = org || lay;
+  if (!meta) { panel.hidden = true; clearHighlight(); return; }
+
+  const parts = org ? organParts.filter(p => p.gid === id && (!p.sex || p.sex === state.sex)).length : 0;
+  const sub = org ? `organ · ${parts} ${parts === 1 ? "mesh" : "meshes"}`
+            : id === "organs" ? `set · ${new Set(organParts.filter(p => !p.sex || p.sex === state.sex).map(p => p.gid)).size} organs`
+            : `layer · ${layerCount(meta)} ${layerCount(meta) === 1 ? "mesh" : "meshes"}`;
+
+  document.getElementById("npTitle").textContent = org ? org.label : meta.name;
+  document.getElementById("npSub").textContent = sub;
+  document.getElementById("npDesc").textContent = meta.about || "";
+
+  const acts = document.getElementById("npActs");
+  acts.innerHTML = "";
+  const add = (text, fn, primary) => {
+    const b = document.createElement("button");
+    b.textContent = text;
+    if (primary) b.classList.add("on");
+    b.onclick = () => { fn(); select(state.sel); };
+    acts.appendChild(b);
+  };
+  if (org) {
+    const isOut = state.groupOut.has(id);
+    add(isOut ? "put back into the set" : "take it out of the set", () => {
+      if (isOut) state.groupOut.delete(id); else state.groupOut.add(id);
+      layout(); buildLegend();
+    }, isOut);
+  } else if (id === "organs") {
+    add(state.organsOut ? "merge into one node" : "split into organs", () => {
+      state.organsOut = !state.organsOut;
+      if (state.organsOut && !state.groupOut.size) fillGroupOut();
+      layout(); buildLegend();
+    }, true);
+    add(state.out.has("organs") ? "put the set back into the body" : "take the set out of the body", () => toggleLayer("organs"));
+  } else {
+    add(state.out.has(id) ? "put it back into the body" : "take it out of the body", () => toggleLayer(id), state.out.has(id));
+  }
+
+  panel.hidden = false;
+  const obj = selectedObject();
+  if (obj) highlight(obj); else clearHighlight();
+  layout();
+}
+
+document.getElementById("nodeClose").onclick = () => select(null);
+
 function toggleLayer(id) {
   if (state.out.has(id)) state.out.delete(id); else state.out.add(id);
   if (id === "organs") state.treeOpen = state.out.has("organs");   // show the organ rows at once
@@ -441,6 +553,7 @@ function toggleLayer(id) {
   if (id === "organs" && state.out.has("organs") && !state.groupOut.size) fillGroupOut();
   layout();
   buildLegend();
+  if (state.sel === id) select(id);        // keep the panel telling the truth
 }
 
 function fillGroupOut() {
@@ -492,6 +605,7 @@ function applySex() {
   if (bodyGhost || anyBodyOut) { makeBodyGhost(); if (bodyGhost) bodyGhost.visible = anyBodyOut; }
   // teeth and nails show on both sexes; the hair cap was stripped from the model (strip_hair.py)
   document.querySelectorAll("#sex button").forEach(b => b.classList.toggle("on", b.dataset.sex === state.sex));
+  if (state.sel) select(state.sel);
   document.querySelectorAll(".row").forEach(row => {
     const id = row.dataset.layer;
     const gr = groups[id];
@@ -526,24 +640,24 @@ let ORGAN_R = 0.55;          // how far the organ nodes fan out: follows the big
 const NODE_SIZE = 0.14;      // every organ node is scaled to roughly this (the heart's old role)
 
 const ORGAN_GROUPS = [
-  { id:"lungs",       label:"lungs · bronchi · trachea", color:0xd08484, re:/lung|bronch|trachea/i },
-  { id:"liver",       label:"liver",                     color:0x8c4b32, re:/liver/i },
-  { id:"gallbladder", label:"gallbladder · bile ducts",  color:0x5f8a3a, re:/gallbladder|bile duct/i },
-  { id:"pancreas",    label:"pancreas",                  color:0xd2a86a, re:/pancrea/i },
-  { id:"spleen",      label:"spleen",                    color:0x7a4f6d, re:/spleen/i },
-  { id:"gut",         label:"stomach · intestines · oesophagus", color:0xc98a5e, re:/stomach|oesophag|duodenum|jejunum|colon|taenia|appendix|ileum/i },
-  { id:"kidneys",     label:"kidneys · ureters",         color:0x8c3a3e, re:/kidney|renal pelvis|ureter/i },
-  { id:"bladder",     label:"bladder · urethra",         color:0xd6c48a, re:/bladder|urethra/i },
-  { id:"thyroid",     label:"thyroid · parathyroid",     color:0xa86868, re:/thyroid|parathyroid/i },
-  { id:"adrenal",     label:"adrenal glands",            color:0xd0a43c, re:/suprarenal|adrenal/i },
-  { id:"pituitary",   label:"pituitary",                 color:0xc8b8c8, re:/hypophysis|pituitary/i },
-  { id:"pineal",      label:"pineal",                    color:0xb8a8c8, re:/pineal/i },
-  { id:"salivary",    label:"salivary glands",           color:0xc89a7a, re:/parotid|sublingual|submandibular/i },
-  { id:"mouth",       label:"mouth · tongue · palate",   color:0xc06070, re:/tongue|gingiva|uvula|soft palate/i },
-  { id:"throat",      label:"pharynx · airway",          color:0xb08a9a, re:/pharynx|epiglottis|nasal cavity/i },
-  { id:"thymus",      label:"thymus",                    color:0xd8a8b8, re:/thymus/i },
-  { id:"tonsils",     label:"tonsils",                   color:0xd09090, re:/tonsil/i },
-  { id:"reproductive", label:"reproductive system",      color:0xd98fa4, re:/uterus|ovar|vagina|vulva|cervix|fallopian|broad ligament|uterine|prostate|penis|testis|epididym|scrotum|seminal|deferens|bulbourethral|cavernosum|spongiosum|glans|ejaculatory/i }
+  { id:"lungs",       label:"lungs · bronchi · trachea", color:0xd08484, about:"Airway and gas exchange: trachea, bronchi down to the segmental branches, and both lungs. 34 meshes.", re:/lung|bronch|trachea/i },
+  { id:"liver",       label:"liver",                     color:0x8c4b32, about:"Metabolism, bile production, detoxification. The largest internal organ; 9 meshes including the segments.", re:/liver/i },
+  { id:"gallbladder", label:"gallbladder · bile ducts",  color:0x5f8a3a, about:"Stores and concentrates bile; the ducts carry it to the duodenum.", re:/gallbladder|bile duct/i },
+  { id:"pancreas",    label:"pancreas",                  color:0xd2a86a, about:"Exocrine digestion and the endocrine islets: insulin, glucagon.", re:/pancrea/i },
+  { id:"spleen",      label:"spleen",                    color:0x7a4f6d, about:"Filters blood and mounts immune responses. It sits in the atlas's lymphoid collection, not with the viscera.", re:/spleen/i },
+  { id:"gut",         label:"stomach · intestines · oesophagus", color:0xc98a5e, about:"The digestive tube: oesophagus, stomach, small and large intestine, appendix. 14 meshes.", re:/stomach|oesophag|duodenum|jejunum|colon|taenia|appendix|ileum/i },
+  { id:"kidneys",     label:"kidneys · ureters",         color:0x8c3a3e, about:"Filter the blood and make urine; the ureters carry it down to the bladder.", re:/kidney|renal pelvis|ureter/i },
+  { id:"bladder",     label:"bladder · urethra",         color:0xd6c48a, about:"Urine store, with the urethra as its outlet. The outlet changes with the sex toggle.", re:/bladder|urethra/i },
+  { id:"thyroid",     label:"thyroid · parathyroid",     color:0xa86868, about:"Metabolic rate, with the four parathyroids sitting on its back and controlling calcium.", re:/thyroid|parathyroid/i },
+  { id:"adrenal",     label:"adrenal glands",            color:0xd0a43c, about:"Two glands on top of the kidneys: cortisol, aldosterone, adrenaline.", re:/suprarenal|adrenal/i },
+  { id:"pituitary",   label:"pituitary",                 color:0xc8b8c8, about:"The master gland under the hypothalamus; it drives the other endocrine organs.", re:/hypophysis|pituitary/i },
+  { id:"pineal",      label:"pineal",                    color:0xb8a8c8, about:"Melatonin and circadian timing.", re:/pineal/i },
+  { id:"salivary",    label:"salivary glands",           color:0xc89a7a, about:"Parotid, submandibular and sublingual glands, 12 meshes in all.", re:/parotid|sublingual|submandibular/i },
+  { id:"mouth",       label:"mouth · tongue · palate",   color:0xc06070, about:"Entry: tongue, gums, palate and uvula.", re:/tongue|gingiva|uvula|soft palate/i },
+  { id:"throat",      label:"pharynx · airway",          color:0xb08a9a, about:"Pharynx, epiglottis and nasal cavity above the airway.", re:/pharynx|epiglottis|nasal cavity/i },
+  { id:"thymus",      label:"thymus",                    color:0xd8a8b8, about:"Where T cells mature; it shrinks with age.", re:/thymus/i },
+  { id:"tonsils",     label:"tonsils",                   color:0xd09090, about:"Lymphoid tissue at the back of the throat.", re:/tonsil/i },
+  { id:"reproductive", label:"reproductive system",      color:0xd98fa4, about:"Gonads, ducts and glands. The whole tract switches with the sex toggle, so the node holds 14 male parts or 18 female ones.", re:/uterus|ovar|vagina|vulva|cervix|fallopian|broad ligament|uterine|prostate|penis|testis|epididym|scrotum|seminal|deferens|bulbourethral|cavernosum|spongiosum|glans|ejaculatory/i }
 ];
 const OTHER_GROUP = { id:"other", label:"other", color:0x9a9aa8, re:/$^/ };
 
@@ -695,6 +809,7 @@ function buildOrganNodes() {
     if (!node) {
       const g = new THREE.Group();
       g.userData.nodeLabel = r.meta.label;          // what the hover tip says
+      g.userData.groupId = r.meta.id;               // what a click selects
       organRoot.add(g);
       r.parts.forEach(p => g.attach(p.mesh));     // attach keeps the organ where it is: no flicker
       g.updateMatrixWorld(true);
@@ -770,6 +885,7 @@ function makeGhost() {
   organGhost = new THREE.Group();
   organGhost.name = "organGhost";
   organGhost.userData.nodeLabel = "all organs";
+  organGhost.userData.setId = "organs";
   organParts.filter(p => !p.sex || p.sex === state.sex).forEach(p => {
     const base = p.mesh.material && p.mesh.material.color ? p.mesh.material.color.clone() : new THREE.Color(0xc8a8c0);
     const m = new THREE.Mesh(p.mesh.geometry, new THREE.MeshStandardMaterial({
@@ -801,23 +917,26 @@ function layout() {
 
   // the body layers take turns left and right of the body, each one clear of the last and all on
   // one horizontal level: the body stays at the centre, marked by the faint copy of the skin
+  // the layers go round the body on one level: one in front, one behind, one on each flank and the
+  // diagonals between — a ring in the horizontal plane, the body at its centre
   const gapX = width * 0.30, slot = {};
-  let rc = width * 0.5, lc = -width * 0.5;
-  const halfOf = id => ((layerSize[id] ? layerSize[id].x : width) / 2) * 0.95;
+  const widest = bodyOut.reduce((m, l) => Math.max(m, layerSize[l.id] ? layerSize[l.id].x : width), width);
+  const ringR = Math.max(width * 1.7, (bodyOut.length * (widest + width * 0.35)) / (Math.PI * 2));
+  let rc = ringR + widest * 0.55 + gapX, lc = -rc;
   bodyOut.forEach((l, i) => {
-    const hw = halfOf(l.id);
-    if (i % 2 === 0) { const x = rc + hw + gapX; slot[l.id] = x; rc = x + hw; }
-    else             { const x = lc - hw - gapX; slot[l.id] = x; lc = x - hw; }
+    const a = Math.PI / 2 + (i / bodyOut.length) * Math.PI * 2;    // 0 rad = straight in front
+    slot[l.id] = { x: Math.cos(a) * ringR, z: Math.sin(a) * ringR };
   });
   if (organsOut) {
-    slot.organs = rc + gapX * 1.6 + (graph ? ORGAN_R : 0) + organSize.x * 0.5;
-    rc = slot.organs + (graph ? ORGAN_R : 0) + organSize.x * 0.5;
+    slot.organs = { x: rc + gapX * 1.6 + (graph ? ORGAN_R : 0) + organSize.x * 0.5, z: 0 };
+    rc = slot.organs.x + (graph ? ORGAN_R : 0) + organSize.x * 0.5;
   }
 
   LAYERS.forEach(l => {
     if (l.graphOnly) return;
     const t = targets[l.id];
-    if (slot[l.id] !== undefined) t.p.set(slot[l.id], -(layerMid[l.id] ? layerMid[l.id].y : 0), 0);
+    const s = slot[l.id];
+    if (s) t.p.set(s.x, -(layerMid[l.id] ? layerMid[l.id].y : 0), s.z);
     else t.p.set(0, 0, 0);
     // the organs are what makes the body the body; with them out, the remainder is a node among
     // nodes, so it shrinks to roughly the size of the organs set
@@ -852,18 +971,21 @@ function layout() {
   }
 
   let left = lc - width * 0.30, right = rc + width * 0.30;
-  if (organsOut) right = Math.max(right, slot.organs + (graph ? ORGAN_R + (organSize.x / 2) : (organSize.x / 2) * 1.2));
+  if (organsOut) right = Math.max(right, slot.organs.x + (graph ? ORGAN_R + (organSize.x / 2) : (organSize.x / 2) * 1.2));
   let spanW = Math.max(width * 1.1, right - left), spanH = 1.8;
   if (graph) { spanH = Math.max(spanH, ORGAN_R * 2.1); spanW = Math.max(spanW, spanH * 1.5); }
   const cx = (left + right) / 2;
   // the panel sits over the canvas, so the scene is fitted into the strip to its right instead of
   // being centred on the window (which pushed the leftmost layer behind the panel)
-  const panelPx = state.collapsed ? 28 : 236;
-  const visW = Math.max(320, innerWidth - panelPx);
+  const panelL = state.collapsed ? 28 : 236, panelR = state.sel ? 320 : 0;
+  const visW = Math.max(320, innerWidth - panelL - panelR);
   const grow = innerWidth / visW;
   const d = fitDistance(spanW * grow, spanH);
-  const dx = ((panelPx + visW / 2) / innerWidth - 0.5) * spanW * grow;
-  camWant.pos.set(cx - dx, 0, d);
+  const dx = ((panelL + visW / 2) / innerWidth - 0.5) * spanW * grow;
+  // once the layers are on the ring the camera has to look slightly down, or a ring seen edge-on
+  // is just a pile of overlapping bodies
+  const elev = bodyOut.length > 1 ? 0.30 : 0.06;
+  camWant.pos.set(cx - dx, d * elev, d);
   camWant.target.set(cx - dx, 0, 0);
   camAnim = true;
 }
@@ -875,9 +997,10 @@ function pickAt(x, y) {
   const shown = o => { let p = o; while (p) { if (!p.visible) return false; p = p.parent; } return true; };
   for (const h of hits) {
     if (!shown(h.object)) continue;
-    let o = h.object, layerId = null, label = null;
+    let o = h.object, layerId = null, label = null, groupId = null, setId = null;
     while (o) {
-      if (o.userData && o.userData.nodeLabel) { label = o.userData.nodeLabel; break; }
+      if (o.userData && o.userData.groupId) { groupId = o.userData.groupId; label = o.userData.nodeLabel; break; }
+      if (o.userData && o.userData.setId) { setId = o.userData.setId; label = o.userData.nodeLabel; break; }
       if (o.userData && o.userData.layerId) { layerId = o.userData.layerId; break; }
       o = o.parent;
     }
@@ -885,7 +1008,7 @@ function pickAt(x, y) {
       const l = LAYERS.find(x => x.id === layerId);
       label = l ? l.name : layerId;
     }
-    if (label || layerId) return { layerId, label };
+    if (label || layerId) return { layerId, label, groupId, setId };
   }
   return null;
 }
@@ -910,23 +1033,21 @@ renderer.domElement.addEventListener("pointerup", e => {
   const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y);
   downAt = null;
   if (moved > 5) return;                       // that was an orbit drag, not a click
-  const ray = new THREE.Raycaster();
-  const pt = new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-  ray.setFromCamera(pt, camera);
-  const hits = ray.intersectObjects(scene.children, true);
-  const shown = o => { let p = o; while (p) { if (!p.visible) return false; p = p.parent; } return true; };
-  for (const h of hits) {
-    if (!shown(h.object)) continue;
-    let o = h.object;
-    while (o && !o.userData.layerId && o.parent) o = o.parent;
-    const layerId = o && o.userData.layerId;
-    if (layerId === "organs" && state.out.has("organs")) {
+  const hit = pickAt(e.clientX, e.clientY);
+  if (!hit) { select(null); return; }                       // a click on empty space clears it
+  if (hit.groupId) { select(hit.groupId); return; }        // an organ node: show what it is
+  if (hit.setId) {                                          // the organs set: split it, and show it
+    if (state.out.has("organs")) {
       state.organsOut = !state.organsOut;
       if (state.organsOut && !state.groupOut.size) fillGroupOut();
-      layout(); buildLegend();
-      return;
     }
-    if (layerId) { toggleLayer(layerId); return; }
+    select("organs");
+    layout(); buildLegend();
+    return;
+  }
+  if (hit.layerId) {
+    if (state.out.has(hit.layerId)) select(hit.layerId);   // an out layer is a node: select it
+    else toggleLayer(hit.layerId);                          // one still in the body comes out
   }
 });
 
