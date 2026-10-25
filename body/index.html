@@ -60,9 +60,7 @@
 
 <div class="bar">
   <b>Body</b>
-  <button data-mode="body" class="on">1 · one body</button>
-  <button data-mode="out">2 · one layer out</button>
-  <button data-mode="spread">3 · all apart</button>
+
   <span class="spacer"></span>
   <div class="seg" id="sex">
     <button data-sex="female">female</button>
@@ -97,9 +95,15 @@ const LAYERS = [
   { id:"reproductive", name:"reproductive",            color:0xd98fa4, filesBySex:true }
 ];
 
-const state = { mode:"body", pull:"nervous", sex:"male", skin:false, hidden:new Set(), collapsed:false,
-                organsOut:false, organOff:new Set(), treeOpen:false,
-                groupOff:new Set(), openGroups:new Set() };
+const state = {
+  sex:"male", skin:false, collapsed:false, hidden:new Set(),
+  out:new Set(),            // layers taken out of the body; at the start every layer is collapsed
+  organsOut:false,          // the organs set split into organ nodes
+  groupOut:new Set(),       // organ groups currently out of the set
+  partHidden:new Set(),     // single organ parts switched off
+  treeOpen:false, openGroups:new Set()
+};
+const EYE_OUT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
 const SHELL_OPACITY = 0.45;
 const groups = {}, targets = {}, counts = {};
 let bodyBox = null, pending = 0;
@@ -179,7 +183,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261025e";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261025f";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -268,9 +272,8 @@ const EYE_OPEN = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" st
 const EYE_SHUT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3l18 18"/><path d="M10.6 6.2A10.6 10.6 0 0 1 12 6c6.4 0 10 6 10 6a17 17 0 0 1-3.2 3.7"/><path d="M6.2 7.6A16.5 16.5 0 0 0 2 12s3.6 6 10 6a10 10 0 0 0 4-.8"/></svg>';
 
 function availableOrganCount() {
-  let count = 0;
-  if (groups.organs) groups.organs.traverse(o => { if (o.isMesh && (state.sex === "male" || !/^(Urethra|Ejaculatory[ _]duct)/i.test(o.name))) count++; });
-  return count;
+  // the whole set, not what is currently in the group: expanded organs are reparented to nodes
+  return organParts.filter(p => state.sex === "male" || !/^(Urethra|Ejaculatory[ _]duct)/i.test(p.name)).length;
 }
 
 function layerCount(l) {
@@ -284,8 +287,9 @@ function buildLegend() {
   rows.innerHTML = "";
   LAYERS.filter(l => !l.graphOnly).forEach(l => {
     const isOrgans = l.id === "organs";
+    const isOut = state.out.has(l.id);
     const row = document.createElement("div");
-    row.className = "row" + (state.hidden.has(l.id) ? " off" : "") + (isOrgans ? " folder" : "");
+    row.className = "row" + (isOut ? " out" : "") + (isOrgans ? " folder" : "");
     row.dataset.layer = l.id;
     const chev = isOrgans
       ? `<button class="chev" title="expand">${state.treeOpen ? "\u25be" : "\u25b8"}</button>`
@@ -293,22 +297,18 @@ function buildLegend() {
     row.innerHTML = chev +
       `<span class="dot" style="background:#${l.color.toString(16).padStart(6,"0")}"></span>` +
       `<span class="nm">${l.name}</span><span class="cnt">${layerCount(l)}</span>` +
-      `<button class="eye" title="show / hide">${state.hidden.has(l.id) ? EYE_SHUT : EYE_OPEN}</button>`;
+      `<button class="eye" title="${isOut ? "put back into the body" : "take out of the body"}">${isOut ? EYE_OPEN : EYE_SHUT}</button>`;
     row.onclick = e => {
-      if (e.target.closest(".eye")) { toggle(l.id); return; }
-      if (e.target.closest(".chev")) { state.treeOpen = !state.treeOpen; buildLegend(); return; }
-      pullLayer(l.id);
+      if (e.target.closest(".chev") && isOrgans) { state.treeOpen = !state.treeOpen; buildLegend(); return; }
+      toggleLayer(l.id);
     };
     rows.appendChild(row);
     if (isOrgans && state.treeOpen) organRows(rows);
   });
 }
 
-/* the organs folder: the heart first (the graph's hub), then one row per organ group, and the
-   group's own parts under it. Every row keeps the same eye toggle. */
+/* organs: one row per organ (group), each with its own eye — out of the set, or back inside it */
 function organRows(rows) {
-  const heart = groups.heart && groups.heart.userData.inner.children[0];
-  if (heart) rows.appendChild(organRow("heart", "heart", 0xc03038, true));
   const byGroup = {};
   organParts.forEach(p => {
     (byGroup[p.gid] = byGroup[p.gid] || { meta: p.gmeta, parts: [] }).parts.push(p);
@@ -316,66 +316,67 @@ function organRows(rows) {
   Object.values(byGroup)
     .sort((a, b) => a.meta.label.localeCompare(b.meta.label))
     .forEach(g => {
-      const row = organRow(g.meta.id, g.meta.label, g.meta.color, false, g.parts.length);
-      row.classList.add("group");
+      const isOut = state.groupOut.has(g.meta.id);
+      const row = document.createElement("div");
+      row.className = "row kids group" + (isOut ? " out" : "");
+      row.dataset.organ = g.meta.id;
+      row.innerHTML = `<button class="chev" title="show the parts">${state.openGroups.has(g.meta.id) ? "\u25be" : "\u25b8"}</button>` +
+        `<span class="dot" style="background:#${g.meta.color.toString(16).padStart(6,"0")}"></span>` +
+        `<span class="nm" title="${g.meta.label}">${g.meta.label}</span>` +
+        `<span class="cnt">${g.parts.length}</span>` +
+        `<button class="eye" title="${isOut ? "put back into the organs set" : "take out of the organs set"}">${isOut ? EYE_OPEN : EYE_SHUT}</button>`;
+      row.onclick = e => {
+        if (e.target.closest(".chev")) {
+          if (state.openGroups.has(g.meta.id)) state.openGroups.delete(g.meta.id); else state.openGroups.add(g.meta.id);
+          buildLegend();
+          return;
+        }
+        toggleGroup(g.meta.id);
+      };
       rows.appendChild(row);
       if (state.openGroups.has(g.meta.id)) {
-        g.parts.slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(p => {
-          rows.appendChild(partRow(p));
-        });
+        g.parts.slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(p => rows.appendChild(partRow(p)));
       }
     });
 }
 
-function organRow(id, label, colour, isHeart, count) {
-  const row = document.createElement("div");
-  const off = isHeart ? state.organOff.has("heart") : state.groupOff.has(id);
-  row.className = "row kids" + (off ? " off" : "");
-  row.dataset.organ = id;
-  const chev = isHeart ? `<span class="chev blank"></span>`
-    : `<button class="chev" title="show the parts">${state.openGroups.has(id) ? "\u25be" : "\u25b8"}</button>`;
-  row.innerHTML = chev +
-    `<span class="dot" style="background:#${colour.toString(16).padStart(6,"0")}"></span>` +
-    `<span class="nm" title="${label}">${label}</span>` +
-    (count ? `<span class="cnt">${count}</span>` : "") +
-    `<button class="eye" title="${isHeart ? "show / hide the heart" : "put this organ back"}">${off ? EYE_SHUT : EYE_OPEN}</button>`;
-  row.onclick = e => {
-    if (e.target.closest(".eye")) {
-      if (isHeart) toggleOrgan("heart"); else toggleGroup(id);
-      return;
-    }
-    if (e.target.closest(".chev") && !isHeart) {
-      if (state.openGroups.has(id)) state.openGroups.delete(id); else state.openGroups.add(id);
-      buildLegend();
-    }
-  };
-  return row;
-}
-
 function partRow(p) {
   const row = document.createElement("div");
-  row.className = "row kids part" + (state.organOff.has(p.name) ? " off" : "");
+  const off = state.partHidden.has(p.name);
+  row.className = "row kids part" + (off ? " off" : "");
   row.dataset.organ = p.name;
   const col = p.mesh.material && p.mesh.material.color ? p.mesh.material.color.getHex() : 0xc78fb0;
   row.innerHTML = `<span class="chev blank"></span>` +
     `<span class="dot" style="background:#${col.toString(16).padStart(6,"0")}"></span>` +
     `<span class="nm" title="${p.name}">${p.name.replace(/\.001$/, "").replace(/_/g, " ")}</span>` +
-    `<button class="eye" title="show / hide this part">${state.organOff.has(p.name) ? EYE_SHUT : EYE_OPEN}</button>`;
-  row.onclick = () => toggleOrgan(p.name);
+    `<button class="eye" title="show / hide this part">${off ? EYE_SHUT : EYE_OPEN}</button>`;
+  row.onclick = () => togglePart(p.name);
   return row;
 }
 
-function pullLayer(id) {
-  if (state.mode === "out" && state.pull === id) state.mode = "body";
-  else { state.mode = "out"; state.pull = id; }
+function toggleLayer(id) {
+  if (state.out.has(id)) state.out.delete(id); else state.out.add(id);
+  if (id === "organs" && !state.out.has("organs")) { state.organsOut = false; }
+  if (id === "organs" && state.out.has("organs") && !state.groupOut.size) fillGroupOut();
   layout();
+  buildLegend();
 }
 
-function toggleOrgans() {
-  state.organsOut = !state.organsOut;
-  state.treeOpen = state.organsOut;
+function fillGroupOut() {
+  state.groupOut.clear();
+  organParts.forEach(p => state.groupOut.add(p.gid));
+}
+
+function toggleGroup(id) {
+  if (state.groupOut.has(id)) state.groupOut.delete(id); else state.groupOut.add(id);
   layout();
-  buildLegend();     // after layout: the count only exists once the organ meshes are back/attached
+  buildLegend();
+}
+
+function togglePart(name) {
+  if (state.partHidden.has(name)) state.partHidden.delete(name); else state.partHidden.add(name);
+  layout();
+  buildLegend();
 }
 
 function variantCount(id, sex) {
@@ -405,9 +406,11 @@ function applySex() {
     });
   });
   if (groups.organs) groups.organs.traverse(o => {
-    if (!o.isMesh) return;
+    if (!o.isMesh || o.userData.ghost) return;
     if (/^(Urethra|Ejaculatory[ _]duct)/i.test(o.name)) o.visible = state.sex === "male";
   });
+  if (organGhost) { organGhost.removeFromParent(); organGhost = null; }   // rebuild for the new sex
+  if (state.organsOut) makeGhost().visible = true;
   // teeth and nails show on both sexes; the hair cap was stripped from the model (strip_hair.py)
   document.querySelectorAll("#sex button").forEach(b => b.classList.toggle("on", b.dataset.sex === state.sex));
   document.querySelectorAll(".row").forEach(row => {
@@ -475,7 +478,7 @@ function groupOf(name) {
 
 let organRoot = null;        // one Group per expanded organ node
 let organNodes = [];         // [{ node, parts, meta }]
-let organCloud = null;       // the faint "all organs" node the expanded organs come from
+let organGhost = null;       // the 20 % copy of the organs set, left where the organs belong
 let organCentre = new THREE.Vector3(0, 0.15, 0);   // where the organs sit in the body
 
 function collectOrgans() {
@@ -494,7 +497,6 @@ function collectOrgans() {
   g.updateMatrixWorld(true);
   organParts.forEach(p => box.expandByPoint(p.mesh.localToWorld(p.c.clone())));
   if (!box.isEmpty()) organCentre = box.getCenter(new THREE.Vector3());
-  if (organCloud) placeCloud();
 }
 
 /* the organs set moves with its layer (one-layer-out slides it aside), so its centre is not fixed:
@@ -503,20 +505,6 @@ function setCentre() {
   const g = groups.organs;
   if (!g) return organCentre.clone();
   return organCentre.clone().multiplyScalar(g.scale.x).add(g.position);
-}
-
-function placeCloud() {
-  if (!organCloud) return;
-  if (!organCloud.userData.r) {
-    const box = new THREE.Box3();
-    organParts.forEach(p => box.expandByPoint(p.mesh.localToWorld(p.c.clone())));
-    if (box.isEmpty()) return;
-    const size = box.getSize(new THREE.Vector3());
-    organCloud.userData.r = Math.max(size.x, size.y, size.z) * 0.62;
-  }
-  const g = groups.organs;
-  organCloud.position.copy(setCentre());
-  organCloud.scale.setScalar(organCloud.userData.r * (g ? g.scale.x : 1));
 }
 
 /* one node per organ group; a hidden group never leaves the body, it stays inside the faint set */
@@ -528,7 +516,7 @@ function groupRows() {
     g.parts.push(p);
     g.h += p.c.y; g.n++;
   });
-  const rows = Object.values(map).filter(g => !state.groupOff.has(g.meta.id));
+  const rows = Object.values(map).filter(g => state.groupOut.has(g.meta.id));
   rows.forEach(g => { g.h /= g.n; });
   rows.sort((a, b) => b.h - a.h);
   const N = rows.length, golden = Math.PI * (3 - Math.sqrt(5));
@@ -629,24 +617,25 @@ function updateEdges() {
   edges.geometry.computeBoundingSphere();
 }
 
-function makeCloud() {
-  if (organCloud) return organCloud;
-  organCloud = new THREE.Group();
-  organCloud.name = "organsSet";
-  const geo = new THREE.SphereGeometry(1, 32, 24);
-  // the visible skin of the set: only the far wall, so it reads as a faint haze
-  const haze = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-    color: 0xc78fb0, transparent: true, opacity: 0.07, depthWrite: false, side: THREE.BackSide }));
-  haze.userData.kind = "organSet";
-  haze.renderOrder = 2;
-  // and an invisible front wall, because a BackSide sphere cannot be clicked from outside
-  const hit = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-    transparent: true, opacity: 0, depthWrite: false, side: THREE.FrontSide }));
-  hit.userData.kind = "organSet";
-  organCloud.add(haze, hit);
-  scene.add(organCloud);
-  placeCloud();
-  return organCloud;
+function makeGhost() {
+  if (organGhost) return organGhost;
+  const inner = groups.organs.userData.inner;
+  organGhost = new THREE.Group();
+  organGhost.name = "organGhost";
+  organParts.forEach(p => {
+    const base = p.mesh.material && p.mesh.material.color ? p.mesh.material.color.clone() : new THREE.Color(0xc8a8c0);
+    const m = new THREE.Mesh(p.mesh.geometry, new THREE.MeshStandardMaterial({
+      color: base, roughness: 0.85, metalness: 0,
+      transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide
+    }));
+    // the geometry is already in body coordinates: identity transform, wherever the real organ is now
+    m.userData.kind = "organSet";
+    m.userData.ghost = true;
+    if (state.sex !== "male" && /^(Urethra|Ejaculatory[ _]duct)/i.test(p.name)) m.visible = false;
+    organGhost.add(m);
+  });
+  inner.add(organGhost);       // it rides the layer, so it stays where the organs belong
+  return organGhost;
 }
 
 function layout() {
@@ -654,68 +643,55 @@ function layout() {
   const width = bodyBox.getSize(new THREE.Vector3()).x;
   const graph = state.organsOut;
 
-  const organsPulled = state.mode === "out" && state.pull === "organs";
-  if (graph) { buildOrganNodes(); }
-  else disposeOrganNodes();
-  if (graph || organsPulled) { makeCloud().visible = !state.hidden.has("organs"); placeCloud(); }
-  else if (organCloud) organCloud.visible = false;
+  // the organs set must be out before it can be split
+  if (graph && !state.out.has("organs")) state.out.add("organs");
+  if (graph) buildOrganNodes(); else disposeOrganNodes();
+  const ghost = state.out.has("organs") ? makeGhost() : null;
+  if (ghost) { ghost.visible = graph; }
 
-  // the body is never taken away: in "one layer out" the pulled layer moves aside and everything
-  // else stays; expanding the organs only adds nodes around the organs set
-  const layers = LAYERS.filter(l => !l.graphOnly && l.id !== "organs" && !state.hidden.has(l.id));
-  layers.forEach((l, i) => {
+  // every layer that has been taken out takes a slot to the right of the body; the body itself
+  // never moves and never loses a layer that is still collapsed
+  const outList = LAYERS.filter(l => !l.graphOnly && state.out.has(l.id));
+  LAYERS.forEach(l => {
+    if (l.graphOnly) return;
     const t = targets[l.id];
-    if (state.mode === "out") {
-      t.p.set(l.id === state.pull ? width * 1.1 : 0, 0, 0); t.s = 1;
-    } else if (state.mode === "spread") {
-      t.p.set((i - (layers.length - 1) / 2) * width * 0.9, 0, 0); t.s = 0.9;
-    } else { t.p.set(0, 0, 0); t.s = 1; }
+    const i = outList.findIndex(o => o.id === l.id);
+    if (i >= 0) t.p.set(width * (0.85 + i * 0.62), 0, 0);
+    else t.p.set(0, 0, 0);
+    t.s = 1;
   });
-  if (targets.organs) {
-    if (state.mode === "out") targets.organs.p.set(state.pull === "organs" ? width * 1.1 : 0, 0, 0);
-    else if (state.mode === "spread") targets.organs.p.set(0, 0, 0);
-    else targets.organs.p.set(0, 0, 0);
-    targets.organs.s = state.mode === "spread" ? 0.9 : 1;
-  }
 
   LAYERS.forEach(l => {
     const g = groups[l.id];
     if (!g) return;
-    if (l.graphOnly) { g.visible = graph && !state.hidden.has(l.id); return; }
-    const skinOk = l.id !== "skin" || state.skin || state.mode === "spread" || state.pull === "skin";
-    g.visible = !state.hidden.has(l.id) && skinOk;
+    if (l.graphOnly) { g.visible = false; return; }
+    const isOut = state.out.has(l.id);
+    const skinOk = l.id !== "skin" || state.skin || isOut;
+    g.visible = skinOk;
   });
   organParts.forEach(p => {
-    p.mesh.visible = !state.organOff.has(p.name) &&
+    p.mesh.visible = !state.partHidden.has(p.name) &&
       (state.sex === "male" || !/^(Urethra|Ejaculatory[ _]duct)/i.test(p.name));
   });
 
   const skinG = groups.skin;
-  if (skinG) skinG.traverse(o => { if (o.isMesh && o.material) { o.material.transparent = state.skin || state.mode === "spread"; o.material.opacity = SHELL_OPACITY; o.material.depthWrite = false; } });
+  if (skinG) skinG.traverse(o => { if (o.isMesh && o.material) { o.material.transparent = true; o.material.opacity = SHELL_OPACITY; o.material.depthWrite = false; } });
   const mus = groups.muscles;
   if (mus) {
-    const see = state.mode === "body" && !state.hidden.has("muscles") && !graph;
+    const see = !state.out.has("muscles");       // collapsed in the body: let the inside show
     mus.traverse(o => { if (o.isMesh && o.material) { o.material.transparent = see; o.material.opacity = see ? 0.38 : 1; o.material.depthWrite = !see; } });
   }
 
-  let cx = 0, cy = 0, spanW = width, spanH = 1.8;
-  if (state.mode === "out") { cx = width * 0.55; spanW = width * 2.2; }
-  else if (state.mode === "spread") {
-    spanW = Math.max(1, layers.length) * width * 0.9 + width * 1.5;
-    spanH = 1.62;
-    cx = -spanW * 0.10;
-  }
-  if (graph) { spanW *= 1.25; spanH *= 1.12; }        // room for the organ nodes
-  const d = fitDistance(spanW, spanH) * (state.mode === "spread" && !graph ? 1.06 : 1);
-  camWant.pos.set(cx, cy, d);
-  camWant.target.set(cx, cy, 0);
-  document.querySelectorAll(".bar button[data-mode]").forEach(b => b.classList.toggle("on", b.dataset.mode === state.mode));
-  document.querySelectorAll(".row").forEach(r => r.classList.toggle("pull", r.dataset.layer === state.pull));
+  const left = -width * 0.55;
+  const right = outList.length ? width * (0.85 + (outList.length - 1) * 0.62) + width * 0.55 : width * 0.55;
+  let spanW = Math.max(width * 1.1, right - left), spanH = 1.8;
+  if (graph) { spanW *= 1.22; spanH *= 1.12; }
+  const cx = (left + right) / 2;
+  const d = fitDistance(spanW, spanH);
+  camWant.pos.set(cx, 0, d);
+  camWant.target.set(cx, 0, 0);
 }
 
-document.querySelectorAll(".bar button[data-mode]").forEach(b => b.onclick = () => { state.mode = b.dataset.mode; layout(); });
-document.querySelectorAll("#sex button").forEach(b => b.onclick = () => { state.sex = b.dataset.sex; applySex(); });
-document.getElementById("skinBtn").onclick = e => { state.skin = !state.skin; e.currentTarget.classList.toggle("on", state.skin); layout(); };
 let downAt = null;
 renderer.domElement.addEventListener("pointerdown", e => { downAt = { x: e.clientX, y: e.clientY }; });
 renderer.domElement.addEventListener("pointerup", e => {
@@ -730,10 +706,16 @@ renderer.domElement.addEventListener("pointerup", e => {
   const shown = o => { let p = o; while (p) { if (!p.visible) return false; p = p.parent; } return true; };
   for (const h of hits) {
     if (!shown(h.object)) continue;
-    if (h.object.userData && h.object.userData.kind === "organSet") { toggleOrgans(); return; }
     let o = h.object;
-    while (o && !o.userData.layerId) o = o.parent;
-    if (o && o.userData.layerId) { pullLayer(o.userData.layerId); return; }
+    while (o && !o.userData.layerId && o.parent) o = o.parent;
+    const layerId = o && o.userData.layerId;
+    if (layerId === "organs" && state.out.has("organs")) {
+      state.organsOut = !state.organsOut;
+      if (state.organsOut && !state.groupOut.size) fillGroupOut();
+      layout(); buildLegend();
+      return;
+    }
+    if (layerId) { toggleLayer(layerId); return; }
   }
 });
 
@@ -743,9 +725,7 @@ document.getElementById("collapse").onclick = e => {
   e.currentTarget.textContent = state.collapsed ? "▶" : "◀";
 };
 addEventListener("keydown", e => {
-  if (e.key === "1") { state.mode = "body"; layout(); }
-  if (e.key === "2") { state.mode = "out"; layout(); }
-  if (e.key === "3") { state.mode = "spread"; layout(); }
+  if (e.key === "Escape" && state.organsOut) { state.organsOut = false; layout(); buildLegend(); }
 });
 addEventListener("resize", () => {
   camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
@@ -770,7 +750,6 @@ function tick() {
     });
     updateEdges();
   }
-  if (organCloud && organCloud.visible) placeCloud();
   camera.position.lerp(camWant.pos, a);        // one camera, animated: no cut, no flicker
   controls.target.lerp(camWant.target, a);
   controls.update();
@@ -782,16 +761,15 @@ boot();
 
 window.__ready = () => pending === 0 && !!bodyBox && failedFiles.length === 0;
 window.__loadErrors = () => failedFiles.slice();
-window.__setMode = (m, pull) => { state.mode = m; if (pull) state.pull = pull; layout(); };
+window.__layer = id => toggleLayer(id);
 window.__setSex = s => { state.sex = s; applySex(); };
 window.__toggle = id => toggle(id);
-window.__pull = id => pullLayer(id);
-window.__mode = m => { state.mode = m; layout(); };
+window.__expand = () => { if (!state.out.has("organs")) state.out.add("organs"); state.organsOut = true; if (!state.groupOut.size) fillGroupOut(); layout(); buildLegend(); };
 window.__organs = (v) => { state.organsOut = v === undefined ? !state.organsOut : !!v; state.treeOpen = state.organsOut; layout(); buildLegend(); };
-window.__organOff = (name, v) => { if (v) state.organOff.add(name); else state.organOff.delete(name); buildLegend(); layout(); };
+window.__part = (name, v) => { if (v) state.partHidden.add(name); else state.partHidden.delete(name); buildLegend(); layout(); };
 window.__organNames = () => organParts.map(p => p.name);
 window.__groups = () => organNodes.map(g => g.meta.id + ":" + g.parts.length);
-window.__groupOff = (id, v) => { if (v) state.groupOff.add(id); else state.groupOff.delete(id); buildLegend(); layout(); };
+window.__group = (id, v) => { if (v) state.groupOut.add(id); else state.groupOut.delete(id); layout(); buildLegend(); };
 window.__edgeCount = () => (edges ? edges.geometry.attributes.position.count / 2 : 0);
 window.__nodeCount = () => organNodes.length;
 window.__setSkin = v => { state.skin = !!v; document.getElementById("skinBtn").classList.toggle("on", state.skin); layout(); };
