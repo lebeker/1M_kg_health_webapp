@@ -253,7 +253,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261025l";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261025m";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1004,11 +1004,22 @@ function layout() {
     mus.traverse(o => { if (o.isMesh && o.material) { o.material.transparent = see; o.material.opacity = see ? 0.38 : 1; o.material.depthWrite = !see; } });
   }
 
-  let left = lc - width * 0.30, right = rc + width * 0.30;
-  if (organsOut) right = Math.max(right, slot.organs.x + (graph ? ORGAN_R + (organSize.x / 2) : (organSize.x / 2) * 1.2));
-  let spanW = Math.max(width * 1.1, right - left), spanH = 1.8;
-  if (graph) { spanH = Math.max(spanH, ORGAN_R * 2.1); spanW = Math.max(spanW, spanH * 1.5); }
-  const cx = (left + right) / 2;
+  // what the camera frames: once the organs are split they are the work surface, and fitting the
+  // whole ring plus the fan at once made every organ a speck. Splitting now flies to the fan; the
+  // ring is still there, a zoom-out away
+  let spanW, spanH, cx;
+  if (graph) {
+    const c = setCentre();
+    const rad = ORGAN_R + organMaxNode * 0.7 + 0.1;
+    spanW = rad * 2.0; spanH = rad * 2.25; cx = c.x;
+  } else {
+    const left = lc - width * 0.30;
+    let right = rc + width * 0.30;
+    if (organsOut) right = Math.max(right, slot.organs.x + (organSize.x / 2) * 1.2);
+    spanW = Math.max(width * 1.1, right - left);
+    spanH = 1.8;
+    cx = (left + right) / 2;
+  }
   // the panel sits over the canvas, so the scene is fitted into the strip to its right instead of
   // being centred on the window (which pushed the leftmost layer behind the panel)
   const panelL = state.collapsed ? 28 : 236, panelR = state.sel ? 320 : 0;
@@ -1018,7 +1029,7 @@ function layout() {
   const dx = ((panelL + visW / 2) / innerWidth - 0.5) * spanW * grow;
   // once the layers are on the ring the camera has to look slightly down, or a ring seen edge-on
   // is just a pile of overlapping bodies
-  const elev = bodyOut.length > 1 ? 0.45 : 0.06;
+  const elev = (!graph && bodyOut.length > 1) ? 0.45 : 0.06;
   // re-frame only when the scene itself changed: selecting a node, or the user having zoomed
   // somewhere, must not snap the view back to the overview
   // the selection is not part of this: opening the panel must not move the camera the user has
