@@ -265,7 +265,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261026p";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261026x";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -938,93 +938,36 @@ function toggleKey(key) { setOut(key, !state.nodeOut.has(key)); }
 
 /* everything below a node comes out with it (the set's 'split into organs' and a row's own action) */
 function setOutDeep(id, out) {
-  if (out) setOut(id, true);
   const n = NODE_BY_ID[id];
   if (!n) return;
-  (function walk(node) {
-    node.kids.forEach(k => {
-      if (out || state.nodeOut.has(k.id)) setOut(k.id, out);
-      walk(k);
-    });
-  })(n);
-  if (!out) setOut(id, false);
+  if (out) {
+    setOut(id, true);
+    n.kids.forEach(k => setOut(k.id, true));       // one level down: the organs, not their parts
+  } else {
+    (function close(node) {
+      node.kids.forEach(k => { close(k); setOut(k.id, false); });
+    })(n);
+    setOut(id, false);
+  }
 }
 
-/* the nodes that are actually out, parents first, with where each one belongs */
-function graphRows() {
-  const c = setCentre();
-  const rows = [];
-  const kids = new Map();          // parent row (or null) -> child rows
-  (function walk(list, parentRow) {
-    list.forEach(n => {
-      if (!state.nodeOut.has(n.id)) return;
-      if (!countUnder(n)) return;                   // a system with nothing in it makes no node
-      const row = { key: n.id, meta: n, parent: parentRow, depth: n.depth, parts: [], leaves: [], target: null };
-      rows.push(row);
-      if (!kids.has(parentRow)) kids.set(parentRow, []);
-      kids.get(parentRow).push(row);
-      walk(n.kids, row);
-    });
-  })(ORGAN_TREE, null);
+/* the organ graph's own state: the nodes that are out, the root that holds them, and the edges */
+let organRoot = null;
+let organNodes = [];
+let partNodes = [];
+let edgePairs = [];
+let organGhost = null;
+let bodyGhost = null;
 
-  /* every mesh belongs to the nearest ancestor that is out: a system node owns the meshes of the
-     organs inside it that nobody has opened yet, otherwise it would be an empty sphere */
-  const rowByKey = new Map(rows.map(r => [r.key, r]));
-  organParts.forEach(p => {
-    if (!sexOn(p.sex)) return;
-    if (state.nodeOut.has(meshKey(p.name))) {          // it left on its own
-      let n = p.node;
-      while (n && !state.nodeOut.has(n.id)) n = n.parent;
-      const r = n && rowByKey.get(n.id);
-      if (r) r.leaves.push(p);
-      return;
-    }
-    let n = p.node;
-    while (n && !state.nodeOut.has(n.id)) n = n.parent;
-    const r = n && rowByKey.get(n.id);
-    if (r) r.parts.push(p);
-  });
+let organCentre = new THREE.Vector3(0, 0.15, 0);   // where the organs sit in the body
+let organSize = new THREE.Vector3(0.3, 0.6, 0.25); // how big the set is
 
-  kids.forEach((list, parentRow) => {
-    const centre = parentRow ? parentRow.target : c;
-    const depth = parentRow ? parentRow.depth + 1 : 1;
-    const R = parentRow ? Math.max(0.22, ORGAN_R * 0.55 * Math.pow(0.78, depth - 2)) : ORGAN_R;
-    // the direction the branch arrived by: children fan around it, so the tree bends through space
-    // instead of laying every level out on the same straight line
-    const axis = new THREE.Vector3(0, 0, 1);
-    if (parentRow) {
-      const gp = parentRow.parent ? parentRow.parent.target : c;
-      axis.copy(parentRow.target).sub(gp);
-      if (axis.lengthSq() < 1e-6) axis.set(0.3, 0.25, 1);
-      axis.normalize();
-    }
-    const n1 = new THREE.Vector3(0, 1, 0).cross(axis);
-    if (n1.lengthSq() < 1e-4) n1.set(1, 0, 0).cross(axis);
-    n1.normalize();
-    const n2 = new THREE.Vector3().crossVectors(axis, n1).normalize();
-    const N = list.length;
-    const golden = Math.PI * (3 - Math.sqrt(5));
-    const twist = (hashStr(parentRow ? parentRow.key : "set") % 360) * Math.PI / 180;
-    list.sort((a, b) => heightOf(b) - heightOf(a));
-    list.forEach((row, i) => {
-      let dir;
-      if (!parentRow) {
-        // the systems go round the set on a ring that faces the default view — a full sphere puts
-        // half of them behind the others, where they project onto the same few pixels
-        const th = (i / Math.max(1, N)) * Math.PI * 2 + 0.35;
-        dir = new THREE.Vector3(Math.cos(th), Math.sin(th), ((i % 3) - 1) * 0.12).normalize();
-      } else {
-        const a = N === 1 ? 1.02 : 0.42 + 0.5 * (i % 2);    // a cone, wide enough to read as a branch
-        const th = twist + golden * i;
-        dir = axis.clone().multiplyScalar(Math.cos(a))
-          .add(n1.clone().multiplyScalar(Math.sin(a) * Math.cos(th)))
-          .add(n2.clone().multiplyScalar(Math.sin(a) * Math.sin(th)))
-          .normalize();
-      }
-      row.target = dir.multiplyScalar(R).add(centre);
-    });
-  });
-  return { rows, kids };
+/* the organs set moves with its layer, so its centre is not fixed: it is the rest centre carried
+   through the layer group's own transform */
+function setCentre() {
+  const t = targets.organs;
+  if (!t) return organCentre.clone();
+  return organCentre.clone().multiplyScalar(t.s).add(t.p);
 }
 
 function hashStr(s) {
@@ -1033,20 +976,59 @@ function hashStr(s) {
   return Math.abs(h);
 }
 
-function heightOf(row) {
-  let h = 0, n = 0;
-  row.parts.forEach(p => { h += p.c.y; n++; });
-  return n ? h / n : 0;
+function sexOf(obj) {
+  for (let o = obj; o; o = o.parent) if (o.userData && o.userData.variant) return o.userData.variant;
+  return null;
 }
 
-let organRoot = null;        // one Group per node that left its parent
-let organNodes = [];         // [{ key, node, parts, meta, target, parentKey }]
-let partNodes = [];          // [{ key, node, part, parent, target }]
-let edgePairs = [];          // [{ a, b }] — b null means the organs set
-let bodyGhost = null;      // a semi-visible copy of the skin: the 'body cloud' the layers circle
+function partShown(p) {
+  return sexOn(p.sex);
+}
 
-/* built with the skin group parked at the origin, so the copy marks the body's place whatever the
-   skin layer itself is doing */
+function collectOrgans() {
+  organParts.length = 0;
+  const g = groups.organs;
+  if (!g) return;
+  g.userData.inner.traverse(o => {
+    if (!o.isMesh) return;
+    o.geometry.computeBoundingBox();
+    const c = o.geometry.boundingBox.getCenter(new THREE.Vector3());
+    const meta = classify(o.name) || NODE_BY_ID.other;
+    // the atlas ships one urethra and it is his. Her tract files its own 2.6 cm one, so the atlas
+    // tube is male-only — matched loosely, because the exporter renames it Urethra001
+    const sex = sexOf(o) || (/^urethra\d*$/i.test(o.name) ? "male" : null);
+    organParts.push({
+      mesh: o, c, name: o.name, gid: meta.id, gmeta: meta, node: meta, sex,
+      // where it sits in the set, untransformed: putting a node back must not move a single organ
+      home: { p: o.position.clone(), q: o.quaternion.clone(), s: o.scale.clone() }
+    });
+  });
+  /* the organs set's own centre, in world space, at rest */
+  const box = new THREE.Box3();
+  g.updateMatrixWorld(true);
+  organParts.forEach(p => box.expandByPoint(p.mesh.localToWorld(p.c.clone())));
+  if (!box.isEmpty()) {
+    organCentre = box.getCenter(new THREE.Vector3());
+    organSize = box.getSize(new THREE.Vector3());
+  }
+  // the biggest organ, because a node is never shrunk below its true size any more
+  const groupBox = {};
+  organParts.forEach(p => {
+    if (!sexOn(p.sex)) return;
+    const s = p.mesh.geometry.boundingBox.getSize(new THREE.Vector3());
+    let top = p.node; while (top && top.parent) top = top.parent;   // a whole system, not one leaf
+    const b = groupBox[top.id] = groupBox[top.id] || new THREE.Box3();
+    b.expandByPoint(p.c.clone().sub(s.clone().multiplyScalar(0.5)));
+    b.expandByPoint(p.c.clone().add(s.clone().multiplyScalar(0.5)));
+  });
+  organMaxNode = 0.3;
+  Object.values(groupBox).forEach(b => {
+    const s = b.getSize(new THREE.Vector3());
+    organMaxNode = Math.max(organMaxNode, s.x, s.y, s.z);
+  });
+  ORGAN_R = Math.max(0.9, organMaxNode * 1.6);   // a tight ring: nodes stay close and legible
+}
+
 function makeBodyGhost() {
   if (bodyGhost) { bodyGhost.removeFromParent(); bodyGhost = null; }
   const skinG = groups.skin;
@@ -1081,70 +1063,6 @@ function makeBodyGhost() {
   return g;
 }
 
-let organGhost = null;       // the 20 % copy of the organs set, left where the organs belong
-let organCentre = new THREE.Vector3(0, 0.15, 0);   // where the organs sit in the body
-
-/* both tracts live in the organs group as variants; a part belongs to one sex or to neither */
-function sexOf(obj) {
-  for (let o = obj; o; o = o.parent) if (o.userData && o.userData.variant) return o.userData.variant;
-  return null;
-}
-
-function partShown(p) {
-  return sexOn(p.sex);
-}
-
-function collectOrgans() {
-  organParts.length = 0;
-  const g = groups.organs;
-  if (!g) return;
-  g.userData.inner.traverse(o => {
-    if (!o.isMesh) return;
-    o.geometry.computeBoundingBox();
-    const c = o.geometry.boundingBox.getCenter(new THREE.Vector3());
-    const meta = classify(o.name) || NODE_BY_ID.other;
-    // the atlas ships one urethra and it is his. Her tract files its own 2.6 cm one, so the atlas
-    // tube is male-only — matched loosely, because the exporter renames it Urethra001
-    const sex = sexOf(o) || (/^urethra\d*$/i.test(o.name) ? "male" : null);
-    organParts.push({ mesh: o, c, name: o.name, gid: meta.id, gmeta: meta, node: meta, sex });
-  });
-  /* the organs set's own centre, in world space, at rest */
-  const box = new THREE.Box3();
-  g.updateMatrixWorld(true);
-  organParts.forEach(p => box.expandByPoint(p.mesh.localToWorld(p.c.clone())));
-  if (!box.isEmpty()) {
-    organCentre = box.getCenter(new THREE.Vector3());
-    organSize = box.getSize(new THREE.Vector3());
-  }
-  // the biggest organ, because a node is never shrunk below its true size any more
-  const groupBox = {};
-  organParts.forEach(p => {
-    if (!sexOn(p.sex)) return;
-    const s = p.mesh.geometry.boundingBox.getSize(new THREE.Vector3());
-    let top = p.node; while (top && top.parent) top = top.parent;   // a whole system, not one leaf
-    const b = groupBox[top.id] = groupBox[top.id] || new THREE.Box3();
-    b.expandByPoint(p.c.clone().sub(s.clone().multiplyScalar(0.5)));
-    b.expandByPoint(p.c.clone().add(s.clone().multiplyScalar(0.5)));
-  });
-  organMaxNode = 0.3;
-  Object.values(groupBox).forEach(b => {
-    const s = b.getSize(new THREE.Vector3());
-    organMaxNode = Math.max(organMaxNode, s.x, s.y, s.z);
-  });
-  ORGAN_R = Math.max(0.9, organMaxNode * 1.6);   // a tight ring: nodes stay close and legible
-}
-
-/* the organs set moves with its layer (one-layer-out slides it aside), so its centre is not fixed:
-   it is the rest centre carried through the layer group's own transform */
-function setCentre() {
-  // the target, not the mid-animation transform: nodes and their edges must agree on where the
-  // set is going to be, or the fan lands somewhere else entirely
-  const t = targets.organs;
-  if (!t) return organCentre.clone();
-  return organCentre.clone().multiplyScalar(t.s).add(t.p);
-}
-
-/* the object behind a selection key: a group node, a single mesh node, the set, or a body layer */
 function objectForSel(key) {
   if (!key) return null;
   if (isMeshKey(key)) { const pn = partNodes.find(x => x.key === key); return pn ? pn.node : null; }
@@ -1154,7 +1072,6 @@ function objectForSel(key) {
   return groups[key] || null;
 }
 
-/* the camera belongs to the node you picked: it centres on it, and orbiting turns around it */
 function focusOn(obj) {
   if (!obj) return;
   obj.updateMatrixWorld(true);
@@ -1174,9 +1091,93 @@ function focusOn(obj) {
   camUntil = performance.now() + 1200;
 }
 
-/* one node per organ group; a hidden group never leaves the body, it stays inside the faint set */
+/* the organs set's own centre, in world space, at rest */
+
+/* ---------- the graph: nodes are balls, and where they sit is computed, not drawn ----------
+   A node is a sphere with its meshes shrunk inside it, so every node reads at the same weight
+   whatever it holds: the lungs and the three immune organs are both one ball. Positions come from
+   a spring/repulsion relaxation (edges pull, everything pushes), which spreads the tree through
+   space and keeps nodes from landing on top of each other. */
+
+const LEVEL_R = { 1: 0.30, 2: 0.21, 3: 0.145, 4: 0.10 };
+function levelR(depth) { return LEVEL_R[Math.min(4, Math.max(1, depth))] || 0.06; }
+
+/* the rows that are out, with their meshes assigned to the nearest open ancestor */
+function graphRows() {
+  const c = setCentre();
+  const rows = [];
+  (function walk(list, parentRow) {
+    list.forEach(n => {
+      if (!state.nodeOut.has(n.id) || !countUnder(n)) return;
+      const row = { key: n.id, meta: n, parent: parentRow, depth: n.depth, parts: [], leaves: [], pos: new THREE.Vector3() };
+      rows.push(row);
+      walk(n.kids, row);
+    });
+  })(ORGAN_TREE, null);
+
+  const rowByKey = new Map(rows.map(r => [r.key, r]));
+  organParts.forEach(p => {
+    if (!sexOn(p.sex)) return;
+    let n = p.node;
+    while (n && !state.nodeOut.has(n.id)) n = n.parent;
+    const row = n && rowByKey.get(n.id);
+    if (!row) return;
+    if (state.nodeOut.has(meshKey(p.name))) row.leaves.push(p);
+    else row.parts.push(p);
+  });
+
+  /* seed: each child a step away from its parent, in a direction that depends on its own key, so
+     the relaxation starts in three dimensions instead of on one line */
+  rows.forEach(r => {
+    const base = r.parent ? r.parent.pos : c;
+    const h = hashStr(r.key);
+    const u = new THREE.Vector3(
+      ((h % 101) / 101) - 0.5,
+      (((h >> 7) % 97) / 97) - 0.5,
+      (((h >> 13) % 89) / 89) - 0.5
+    );
+    if (u.lengthSq() < 1e-4) u.set(0.3, 0.5, 0.8);
+    r.pos.copy(base).add(u.normalize().multiplyScalar(levelR(r.depth) * 4));
+  });
+
+  /* springs along the tree, repulsion between everything, a light pull to the set */
+  const edges = rows.map(r => ({ a: r.key, b: r.parent ? r.parent.key : null, depth: r.depth }));
+  const P = new Map(rows.map(r => [r.key, r.pos.clone()]));
+  const rest = d => 0.46 * Math.pow(0.72, d - 1) + 0.10;
+  const idx = rows.map(r => r.key);
+  for (let it = 0; it < 320; it++) {
+    const F = new Map(idx.map(k => [k, new THREE.Vector3()]));
+    edges.forEach(e => {
+      const a = P.get(e.a);
+      const b = e.b ? P.get(e.b) : c;
+      const d = b.clone().sub(a);
+      const len = Math.max(1e-4, d.length());
+      F.get(e.a).add(d.multiplyScalar((len - rest(e.depth)) * 0.09 / len));
+      if (e.b) F.get(e.b).sub(d.multiplyScalar((len - rest(e.depth)) * 0.09 / len));
+    });
+    for (let i = 0; i < idx.length; i++) {
+      for (let j = i + 1; j < idx.length; j++) {
+        const a = P.get(idx[i]), b = P.get(idx[j]);
+        const d = a.clone().sub(b);
+        let len = d.length();
+        if (len < 1e-3) { d.set(0.37, 0.21, 0.53); len = d.length(); }
+        const min = (levelR(rows[i].depth) + levelR(rows[j].depth)) * 2.1;
+        if (len < min * 2.2) {
+          const push = Math.min(1.2, (min * min) / (len * len)) * 0.5;
+          const fv = d.multiplyScalar(push / len);
+          F.get(idx[i]).add(fv);
+          F.get(idx[j]).sub(fv);
+        }
+      }
+    }
+    idx.forEach(k => P.get(k).add(F.get(k).multiplyScalar(0.9)));
+  }
+  rows.forEach(r => r.pos = P.get(r.key));
+  return { rows };
+}
+
 function buildOrganNodes() {
-  const { rows, kids } = graphRows();
+  const { rows } = graphRows();
   const inner = groups.organs.userData.inner;
   if (!organRoot) { organRoot = new THREE.Group(); organRoot.name = "organGraph"; scene.add(organRoot); }
 
@@ -1184,8 +1185,8 @@ function buildOrganNodes() {
   organNodes = organNodes.filter(o => {
     if (wanted.has(o.key)) return true;
     o.parts.forEach(p => {
-      inner.attach(p.mesh);
-      p.mesh.position.set(0, 0, 0); p.mesh.scale.setScalar(1); p.mesh.quaternion.set(0, 0, 0, 1);
+      inner.add(p.mesh);
+      p.mesh.position.copy(p.home.p); p.mesh.quaternion.copy(p.home.q); p.mesh.scale.copy(p.home.s);
     });
     o.node.removeFromParent();
     return false;
@@ -1198,46 +1199,77 @@ function buildOrganNodes() {
       g.userData.nodeLabel = row.meta.label;
       g.userData.groupId = row.meta.id;
       g.userData.depth = row.depth;
+      const R = levelR(row.depth);
+      g.userData.radius = R;
+      // the node itself: a ball you can see and click, with room inside for whatever it holds
+      // unlit on purpose: the ball is a coloured shell, and its colour must read the same at any angle
+      const ball = new THREE.Mesh(
+        new THREE.SphereGeometry(R, 28, 20),
+        new THREE.MeshBasicMaterial({
+          color: row.meta.color, transparent: true, opacity: 0.20, depthWrite: false
+        })
+      );
+      ball.userData.ball = true;
+      g.add(ball);
+      const rim = new THREE.Mesh(
+        new THREE.SphereGeometry(R, 26, 18),
+        new THREE.MeshBasicMaterial({ color: row.meta.color, transparent: true, opacity: 0.55,
+          side: THREE.BackSide, depthWrite: false })
+      );
+      rim.scale.setScalar(1.04);
+      rim.userData.rim = true;
+      g.add(rim);
+      const holder = new THREE.Group();
+      holder.userData.holder = true;
+      g.add(holder);
+      g.position.copy(row.pos);
       organRoot.add(g);
-      const meshes = row.parts.filter(p => !state.nodeOut.has(meshKey(p.name)));
-      meshes.forEach(p => g.attach(p.mesh));
-      if (!g.children.length) {
-        // everything inside it is out already: leave a small bead, or the edge ends in nothing
-        const dot = new THREE.Mesh(
-          new THREE.SphereGeometry(0.014, 12, 10),
-          new THREE.MeshBasicMaterial({ color: row.meta.color, transparent: true, opacity: 0.9 })
-        );
-        dot.userData.marker = true;
-        dot.raycast = () => {};
-        g.add(dot);
-      }
-      g.updateMatrixWorld(true);
-      const box = new THREE.Box3().setFromObject(g);
-      const size = box.getSize(new THREE.Vector3());
-      const maxd = Math.max(size.x, size.y, size.z) || 1;
-      // the level decides the size: a system reads bigger than an organ, an organ bigger than a part
-      const want = row.depth === 1 ? 0.62 : row.depth === 2 ? 0.4 : row.depth === 3 ? 0.26 : 0.16;
-      const k = Math.min(8, Math.max(0.5, want / maxd));   // equal-ish per level, big organs may come down to fit
-      const cWorld = box.getCenter(new THREE.Vector3());
-      g.userData.cLocal = cWorld.clone();
-      g.userData.wantPos = row.target.clone().sub(cWorld.clone().multiplyScalar(k));
-      g.userData.wantScale = k;
-      o = { key: row.key, node: g, parts: row.parts, meta: row.meta };
+      o = { key: row.key, node: g, parts: [], meta: row.meta };
       organNodes.push(o);
     }
+    const g = o.node;
+    const holder = g.children.find(c => c.userData.holder);
+    g.userData.nodeLabel = row.meta.label;
+    g.userData.groupId = row.meta.id;
+    const R = g.userData.radius;
+
+    const meshes = row.parts.filter(p => !state.nodeOut.has(meshKey(p.name)));
+    meshes.forEach(p => holder.attach(p.mesh));
+
+    // fit whatever it holds inside the ball, centred: the meshes float, the node stays a node
+    holder.scale.setScalar(1);
+    holder.position.set(0, 0, 0);
+    holder.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(holder);
+    if (!box.isEmpty()) {
+      const s = box.getSize(new THREE.Vector3());
+      const cw = box.getCenter(new THREE.Vector3());
+      const k = (R * 0.80) / Math.max(1e-4, Math.max(s.x, s.y, s.z));
+      holder.scale.setScalar(k);
+      const cl = g.worldToLocal(cw.clone());
+      holder.position.copy(cl.multiplyScalar(-k));
+    }
+    const ball = g.children.find(c => c.userData.ball);
+    if (ball) ball.material.color.setHex(row.meta.color);
+    const rim = g.children.find(c => c.userData.rim);
+    if (rim) rim.material.color.setHex(row.meta.color);
+
+    g.userData.cLocal = new THREE.Vector3(0, 0, 0);
+    g.userData.wantPos = row.pos.clone();
+    g.userData.wantScale = 1;
     o.parts = row.parts;
-    o.target = row.target;
+    o.target = row.pos;
     o.parentKey = row.parent ? row.parent.key : null;
   });
 
-  /* the meshes that left their group: one node each, an edge back to the group */
+  /* a single mesh that left its group is a small node of its own, same idea one size down */
   const leafRows = [];
   rows.forEach(row => row.leaves.forEach(p => leafRows.push({ part: p, parent: row })));
   const wantedLeaves = new Set(leafRows.map(l => meshKey(l.part.name)));
   partNodes = partNodes.filter(pn => {
     if (wantedLeaves.has(pn.key)) return true;
-    inner.attach(pn.part.mesh);
-    pn.part.mesh.position.set(0, 0, 0); pn.part.mesh.scale.setScalar(1); pn.part.mesh.quaternion.set(0, 0, 0, 1);
+    inner.add(pn.part.mesh);
+    pn.part.mesh.position.copy(pn.part.home.p); pn.part.mesh.quaternion.copy(pn.part.home.q); pn.part.mesh.scale.copy(pn.part.home.s);
     pn.node.removeFromParent();
     return false;
   });
@@ -1248,39 +1280,66 @@ function buildOrganNodes() {
     byParent.get(l.parent).push(l);
   });
   byParent.forEach((list, parentRow) => {
-    const N = list.length, golden = Math.PI * (3 - Math.sqrt(5));
+    const N = list.length;
     list.forEach((l, i) => {
-      const y = N === 1 ? 0.35 : 1 - (i / Math.max(1, N - 1)) * 2;
-      const r = Math.sqrt(Math.max(0, 1 - y * y));
-      const th = golden * i;
-      const R = Math.max(0.2, (ORGAN_R * 0.62) * Math.pow(0.72, parentRow.depth - 1)) * 0.55;
-      const t = new THREE.Vector3(Math.cos(th) * r, y, Math.sin(th) * r).multiplyScalar(R).add(parentRow.target);
+      const h = hashStr(l.part.name + i);
+      const u = new THREE.Vector3(((h % 97) / 97) - 0.5, (((h >> 7) % 89) / 89) - 0.5, (((h >> 13) % 83) / 83) - 0.5).normalize();
+      const t = parentRow.pos.clone().add(u.multiplyScalar(levelR(parentRow.depth) * 3.2));
       let pn = partNodes.find(x => x.key === meshKey(l.part.name));
       if (!pn) {
         const g = new THREE.Group();
         g.userData.partName = l.part.name;
         g.userData.nodeLabel = partLabel(l.part.name);
         g.userData.groupId = parentRow.meta.id;
+        const R = 0.085;
+        g.userData.radius = R;
+        const ball = new THREE.Mesh(new THREE.SphereGeometry(R, 20, 14),
+          new THREE.MeshStandardMaterial({ color: parentRow.meta.color, roughness: 0.45,
+            transparent: true, opacity: 0.34, depthWrite: false }));
+        ball.userData.ball = true;
+        g.add(ball);
+        const holder = new THREE.Group(); holder.userData.holder = true; g.add(holder);
+        g.position.copy(t);
         organRoot.add(g);
-        g.attach(l.part.mesh);
-        g.updateMatrixWorld(true);
-        const box = new THREE.Box3().setFromObject(g);
-        const size = box.getSize(new THREE.Vector3());
-        const maxd = Math.max(size.x, size.y, size.z) || 1;
-        const k = Math.min(6, Math.max(1, PART_NODE_SIZE / maxd));
-        const cWorld = box.getCenter(new THREE.Vector3());
-        g.userData.cLocal = cWorld.clone();
-        g.userData.wantPos = t.clone().sub(cWorld.clone().multiplyScalar(k));
-        g.userData.wantScale = k;
         pn = { key: meshKey(l.part.name), node: g, part: l.part, parent: parentRow };
         partNodes.push(pn);
       }
+      const g = pn.node;
+      const holder = g.children.find(c => c.userData.holder);
+      if (l.part.mesh.parent !== holder) holder.attach(l.part.mesh);
+      holder.scale.setScalar(1); holder.position.set(0, 0, 0);
+      holder.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(holder);
+      if (!box.isEmpty()) {
+        const s = box.getSize(new THREE.Vector3());
+        const cw = box.getCenter(new THREE.Vector3());
+        const k = (0.085 * 0.8) / Math.max(1e-4, Math.max(s.x, s.y, s.z));
+        holder.scale.setScalar(k);
+        holder.position.copy(g.worldToLocal(cw.clone()).multiplyScalar(-k));
+      }
       pn.parent = parentRow;
       pn.target = t;
+      g.userData.wantPos = t.clone();
+      g.userData.wantScale = 1;
+      g.userData.cLocal = new THREE.Vector3(0, 0, 0);
     });
   });
 
-  edgePairs = organNodes.map(o => ({ a: o.node, b: o.parentKey ? (organNodes.find(x => x.key === o.parentKey) || {}).node || null : null }));
+  /* the set itself: a bare hint of a ball, so the edges have something to land on */
+  let setBall = organRoot.children.find(c => c.userData.setBall);
+  if (!setBall) {
+    setBall = new THREE.Mesh(new THREE.SphereGeometry(1, 26, 18),
+      new THREE.MeshBasicMaterial({ color: 0x8fa0b6, transparent: true, opacity: 0.055, depthWrite: false }));
+    setBall.userData.setBall = true;
+    organRoot.add(setBall);
+  }
+  setBall.position.copy(setCentre());
+  setBall.scale.setScalar(0.30);
+
+  edgePairs = organNodes.map(o => ({
+    a: o.node,
+    b: o.parentKey ? (organNodes.find(x => x.key === o.parentKey) || {}).node || null : null
+  }));
   partNodes.forEach(pn => edgePairs.push({ a: pn.node, b: pn.parent.node }));
   ensureEdges();
 }
@@ -1288,8 +1347,8 @@ function buildOrganNodes() {
 function disposeOrganNodes() {
   const inner = groups.organs.userData.inner;
   partNodes.forEach(pn => {
-    inner.attach(pn.part.mesh);
-    pn.part.mesh.position.set(0, 0, 0); pn.part.mesh.scale.setScalar(1); pn.part.mesh.quaternion.set(0, 0, 0, 1);
+    inner.add(pn.part.mesh);
+    pn.part.mesh.position.copy(pn.part.home.p); pn.part.mesh.quaternion.copy(pn.part.home.q); pn.part.mesh.scale.copy(pn.part.home.s);
     pn.node.removeFromParent();
   });
   partNodes = [];
@@ -1446,8 +1505,7 @@ function layout() {
   });
 
   if (graph) buildOrganNodes(); else disposeOrganNodes();
-  const ghost = organsOut ? makeGhost() : null;
-  if (ghost) ghost.visible = graph;
+  const ghost = null;               // no copy in the body: a second set of organs reads as organs that never left
 
   // the body cloud: a copy of the skin, a little more opaque than the organs copy, so the layers
   // that left are visibly circling something
