@@ -141,6 +141,11 @@
 <script src="lib/three.min.js"></script>
 <script src="lib/GLTFLoader.js"></script>
 <script src="lib/OrbitControls.js"></script>
+<script src="lib/d3-dispatch.min.js"></script>
+<script src="lib/d3-quadtree.min.js"></script>
+<script src="lib/d3-octree.min.js"></script>
+<script src="lib/d3-timer.min.js"></script>
+<script src="lib/d3-force-3d.min.js"></script>
 <script>
 const LAYERS = [
   { id:"skin",     name:"skin · teeth · nails", color:0xe8c9a0, filesBySex:true,
@@ -268,7 +273,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261029a";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261029b";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1209,61 +1214,34 @@ function graphRows() {
   /* the tree is laid out radially: the systems on a sphere round the set, and any node that opens
      puts its children on a smaller sphere round itself. Siblings land on the Fibonacci spiral, so
      they never sit on top of each other and every edge runs outward from the node it belongs to. */
-  /* A force layout, run to convergence before anything is drawn: springs along the tree, a charge
-     between every pair, a collision radius so nodes cannot overlap, and a wall that keeps the whole
-     graph off the body. Three dimensions, because two of them always end up as one line. */
-  rows.forEach((r, i) => {
+  /* d3-force-3d, ticked to convergence before anything is drawn. The dimensions are the SECOND
+     argument to forceSimulation — `forceSimulation(nodes, 3)`. Calling .numDimensions(3) after the
+     fact leaves every node's vz undefined, and the z axis turns to NaN on the first tick. */
+  const BODY_X = 1.15;                                 // the body's right flank, plus a margin
+  const simNodes = rows.map((r, i) => {
     const h = hashStr(r.key + i);
-    r.pos.set(
-      c.x + (((h % 101) / 101) - 0.5) * 1.2,
-      c.y + ((((h >> 7) % 97) / 97) - 0.5) * 1.4,
-      c.z + ((((h >> 13) % 89) / 89) - 0.5) * 1.2
-    );
+    return { id: r.key, row: r, r: levelR(r.depth),
+      x: c.x + (((h % 101) / 101) - 0.5) * 1.8,
+      y: c.y + ((((h >> 7) % 97) / 97) - 0.5) * 2.0,
+      z: c.z + ((((h >> 13) % 89) / 89) - 0.5) * 1.8 };
   });
-
-  const N = rows.length;
-  const pos = rows.map(r => r.pos.clone());
-  const vel = rows.map(() => new THREE.Vector3());
-  const parentIdx = rows.map(r => r.parent ? rows.findIndex(x => x === r.parent) : -1);
-  const rad = rows.map(r => levelR(r.depth));
-  const REST = d => (d <= 1 ? 1.10 : 0.60 * Math.pow(0.78, d - 2));
-  const BODY_X = 1.15;                                  // the body's right flank, plus a margin
-
-  for (let step = 0; step < 700; step++) {
-    const f = rows.map(() => new THREE.Vector3());
-    // springs: a node is tied to its parent, or to the set it came out of
-    rows.forEach((r, i) => {
-      const pi = parentIdx[i];
-      const target = pi >= 0 ? pos[pi] : c;
-      const d = target.clone().sub(pos[i]);
-      const len = Math.max(1e-4, d.length());
-      f[i].add(d.multiplyScalar((len - REST(r.depth)) * 0.05 / len));
-    });
-    // charge and collision
-    for (let i = 0; i < N; i++) {
-      for (let j = i + 1; j < N; j++) {
-        const d = pos[i].clone().sub(pos[j]);
-        let len = d.length();
-        if (len < 1e-3) { d.set(0.21, 0.13, 0.31); len = d.length(); }
-        const min = (rad[i] + rad[j]) * 1.30;
-        const repel = 0.020 / (len * len);
-        const collide = len < min ? (min - len) * 0.45 : 0;
-        const push = d.multiplyScalar((repel + collide) / len);
-        f[i].add(push); f[j].sub(push);
-      }
-    }
-    // the wall: nothing may drift into the body
-    rows.forEach((r, i) => {
-      if (pos[i].x < BODY_X) f[i].x += (BODY_X - pos[i].x) * 0.8;
-    });
-    rows.forEach((r, i) => {
-      vel[i].add(f[i].multiplyScalar(0.02)).multiplyScalar(0.85);
-      const v = vel[i].length();
-      if (v > 0.22) vel[i].multiplyScalar(0.22 / v);
-      pos[i].add(vel[i]);
-    });
-  }
-  rows.forEach((r, i) => r.pos.copy(pos[i]));
+  const simById = new Map(simNodes.map(n => [n.id, n]));
+  const simLinks = simNodes.filter(n => n.row.parent && simById.has(n.row.parent.key))
+    .map(n => ({ source: simById.get(n.row.parent.key), target: n }));
+  const sim = d3.forceSimulation(simNodes, 3)
+    .force("link", d3.forceLink(simLinks).distance(l => l.source.r + l.target.r + 0.34).strength(0.7))
+    .force("charge", d3.forceManyBody().strength(-0.055).distanceMax(4))
+    .force("collide", d3.forceCollide().radius(n => n.r * 1.25).iterations(3))
+    .stop();
+  for (let i = 0; i < 420; i++) sim.tick();
+  let cx = 0, cy = 0, cz = 0;
+  simNodes.forEach(n => { cx += n.x; cy += n.y; cz += n.z; });
+  cx /= simNodes.length || 1; cy /= simNodes.length || 1; cz /= simNodes.length || 1;
+  simNodes.forEach(n => {
+    n.x += c.x - cx; n.y += c.y - cy; n.z += c.z - cz;
+    if (n.x < BODY_X) n.x = BODY_X + (BODY_X - n.x) * 0.25;    // the body is a box, not a line
+    n.row.pos.set(n.x, n.y, n.z);
+  });
   return { rows };
 }
 
