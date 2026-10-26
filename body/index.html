@@ -265,7 +265,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261027i";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261027m";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -703,7 +703,7 @@ function applySex() {
   organParts.forEach(p => { p.mesh.visible = partShown(p); });
   bodyHeadCut();
   if (organGhost) { organGhost.removeFromParent(); organGhost = null; }   // rebuild for the new sex
-  if (state.organsOut) makeGhost().visible = true;
+  makeGhost().visible = state.organsOut;
   const anyBodyOut = LAYERS.some(l => l.id !== "organs" && state.out.has(l.id));
   if (bodyGhost || anyBodyOut) { makeBodyGhost(); if (bodyGhost) bodyGhost.visible = anyBodyOut; }
   // teeth and nails show on both sexes; the hair cap was stripped from the model (strip_hair.py)
@@ -1228,13 +1228,19 @@ function cloudTexture() {
 }
 
 function makeCloud(color, R) {
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: cloudTexture(), color, transparent: true, opacity: 0.85, depthWrite: false, depthTest: true
-  }));
-  s.userData.cloud = true;
-  s.scale.setScalar((R || 0.2) * 3.0);
-  s.raycast = () => {};
-  return s;
+  // three stacked hazes read as a volume; one sprite reads as a smudge
+  const g = new THREE.Group();
+  g.userData.cloud = true;
+  [[1.00, 0.62], [0.78, 0.40], [0.55, 0.30]].forEach(([f, op], i) => {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: cloudTexture(), color, transparent: true, opacity: op, depthWrite: false, depthTest: true
+    }));
+    s.scale.setScalar((R || 0.2) * 3.0 * f);
+    s.userData.cloudLayer = i;
+    g.add(s);
+  });
+  g.scale.setScalar(1);
+  return g;
 }
 
 function buildOrganNodes() {
@@ -1318,7 +1324,7 @@ function buildOrganNodes() {
         const c = bb.getCenter(new THREE.Vector3());
         const sz = bb.getSize(new THREE.Vector3());
         // up as well as down: a spleen is a few centimetres and would otherwise be a speck
-        const want = Math.max(0.3, Math.min(4, (cloudR * 0.46) / Math.max(1e-4, Math.max(sz.x, sz.y, sz.z))));
+        const want = Math.max(0.2, Math.min(3, (cloudR * 0.26) / Math.max(1e-4, Math.max(sz.x, sz.y, sz.z))));
         p.mesh.scale.multiplyScalar(want);
         p.mesh.updateMatrixWorld(true);
         const bb2 = new THREE.Box3().setFromObject(p.mesh);
@@ -1326,7 +1332,7 @@ function buildOrganNodes() {
         const dir = c.clone().sub(c0);
         if (dir.lengthSq() < 1e-6) dir.set(((i % 3) - 1) || 0.4, (i % 2 ? 0.6 : -0.5), 0.5);
         dir.normalize();
-        const target = row.pos.clone().add(dir.multiplyScalar(cloudR * (meshes.length === 1 ? 0 : 0.58)));
+        const target = row.pos.clone().add(dir.multiplyScalar(cloudR * (meshes.length === 1 ? 0 : 0.62)));
         p.mesh.position.add(target.sub(c2));
       });
     }
@@ -1334,9 +1340,19 @@ function buildOrganNodes() {
     const cloud = g.children.find(c => c.userData.cloud);
     if (cloud) {
       cloud.visible = scattered;                       // only a group marked `cloud`
-      cloud.material.color.setHex(row.meta.color);
-      cloud.scale.setScalar(scattered ? R * 3.0 : R * 2.0);   // diameter: the haze wraps the organs
+      cloud.children.forEach((s, i) => { s.material.color.setHex(row.meta.color); });
     }
+    // the cloud is the node: a sphere the rays can hit, so clicking the haze selects it
+    let pick = g.children.find(c => c.userData.pickSphere);
+    if (!pick) {
+      pick = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 12),
+        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+      pick.userData.pickSphere = true;
+      g.add(pick);
+    }
+    pick.visible = scattered;
+    pick.scale.setScalar(scattered ? R * 1.45 : R);
+    pick.userData.groupId = row.meta.id;
     g.userData.scattered = scattered;
 
     g.userData.cLocal = new THREE.Vector3(0, 0, 0);
@@ -1410,17 +1426,12 @@ function buildOrganNodes() {
     });
   });
 
-  /* the set itself stays on screen: when its organs are out it is the cloud they came from, and the
-     edges land on it. It never disappears. */
-  let setCloud = organRoot.children.find(c => c.userData.setCloud);
-  if (!setCloud) {
-    setCloud = makeCloud(0xb9c6d6, 0.30);
-    setCloud.userData.setCloud = true;
-    setCloud.material.opacity = 0.30;
-    organRoot.add(setCloud);
-  }
-  setCloud.position.copy(setCentre());
-  setCloud.scale.setScalar(0.55);
+  /* the set itself is a semi-transparent copy of the whole organ model, standing at the centre the
+     expanded organs radiate from — never inside the body, never a dot */
+  const ghost = makeGhost();
+  if (ghost.parent !== organRoot) organRoot.add(ghost);
+  ghost.position.copy(setCentre());
+  ghost.visible = organNodes.length > 0;     // only when the set really is split: after a merge the real organs are the set
 
   edgePairs = organNodes.map(o => ({
     a: o.node,
@@ -1495,14 +1506,24 @@ function makeGhost() {
     const base = p.mesh.material && p.mesh.material.color ? p.mesh.material.color.clone() : new THREE.Color(0xc8a8c0);
     const m = new THREE.Mesh(p.mesh.geometry, new THREE.MeshStandardMaterial({
       color: base, roughness: 0.85, metalness: 0,
-      transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide
+      transparent: true, opacity: 0.26, depthWrite: false, side: THREE.DoubleSide
     }));
     // the geometry is already in body coordinates: identity transform, wherever the real organ is now
     m.userData.kind = "organSet";
     m.userData.ghost = true;
     organGhost.add(m);
   });
-  inner.add(organGhost);       // it rides the layer, so it stays where the organs belong
+  /* the geometry sits in body coordinates, so the copy is re-centred on its own origin: this node
+     stands where the expansion radiates from, not where the organs sit in the body */
+  organGhost.updateMatrixWorld(true);
+  const bb = new THREE.Box3();
+  organGhost.children.forEach(m => bb.expandByObject(m));
+  if (!bb.isEmpty()) {
+    const cc = bb.getCenter(new THREE.Vector3());
+    organGhost.children.forEach(m => m.position.sub(cc));
+  }
+  (organRoot || scene).add(organGhost);
+  organGhost.position.copy(setCentre());
   return organGhost;
 }
 
@@ -1777,10 +1798,18 @@ function tick() {
     });
   }
   if (organNodes.length) {
+    const t = performance.now() / 1000;
     organNodes.forEach(o => {
       o.node.position.lerp(o.node.userData.wantPos, a);
       const s = o.node.scale.x + (o.node.userData.wantScale - o.node.scale.x) * a;
       o.node.scale.setScalar(s);
+      if (o.node.userData.scattered) {
+        const holder = o.node.children.find(c => c.userData.holder);
+        if (holder) {
+          holder.rotation.y += dt * 0.35;
+          holder.position.y = Math.sin(t * 0.8 + o.node.position.x * 3) * 0.012;
+        }
+      }
     });
     updateEdges();
   }
