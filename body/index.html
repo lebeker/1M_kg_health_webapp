@@ -268,7 +268,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261028m";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261028n";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1417,7 +1417,7 @@ function buildOrganNodes() {
       sball.raycast = () => {};
       g.add(sball);
     }
-    sball.visible = shadow;
+    sball.visible = false;   // the sphere is gone: no bubbles
     if (shadow) {
       sball.scale.setScalar(0.13);                       // half the old radius
       sball.material.color.setHex(row.meta.color);

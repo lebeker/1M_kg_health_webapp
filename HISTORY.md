@@ -189,3 +189,16 @@ plausible soft-tissue layer, the limbs wrap the bones, and the crotch is a femal
 
 `skinbits` (teeth, hair, nails) is loaded as the **male** variant, so the female view no longer
 shows a male hair cap or a tuft of pubic hair at the crotch.
+
+## 2026-10-28 — her head, grafted
+
+The female head was the Blender Studio base mesh at multires level 1: a smooth wedge with no nose,
+no lips and no chin, which in profile read as a muzzle. It was replaced, not sculpted: the atlas male
+head (`skin.glb` -> `skin-head`, 11,012 verts, with a real face) is baked, scaled to her head height
+(0.943), moved to her skull centre, dropped 52 mm so the neck meets the torso, given her skin
+material and exported as `skin-female2-head` inside `skin-female2.glb`.
+Script: `/tmp/graft2.py` (the earlier `/tmp/graft_head.py` set object transforms, which the glTF
+node rotations swallowed, and exported a stray Cube; the working version bakes transforms and moves
+vertices).
+Trade-off, stated plainly: the graft carries his short spiky hair, and the neck is his, so there is a
+step where her narrower neck meets the torso.
