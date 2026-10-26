@@ -265,7 +265,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261027m";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261027s";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1126,65 +1126,35 @@ function graphRows() {
     else row.parts.push(p);
   });
 
-  /* seed: each child a step away from its parent, in a direction that depends on its own key, so
-     the relaxation starts in three dimensions instead of on one line */
+  /* the tree is laid out radially: the systems on a sphere round the set, and any node that opens
+     puts its children on a smaller sphere round itself. Siblings land on the Fibonacci spiral, so
+     they never sit on top of each other and every edge runs outward from the node it belongs to. */
+  /* A ring in a tilted plane, not a sphere: a sphere's back half projects onto its front half, so
+     every node lands on the same few pixels. Tilted, the ring keeps real depth and still reads. */
+  const placeRing = (list, centre, radius, seed) => {
+    const n = new THREE.Vector3(0.30 + 0.10 * Math.sin(seed), 0.20 + 0.10 * Math.cos(seed * 1.7), 0.94).normalize();
+    const u = new THREE.Vector3(1, 0, 0).projectOnPlane(n).normalize();
+    const v = n.clone().cross(u).normalize();
+    const N = list.length;
+    list.forEach((r, i) => {
+      const a = (i / Math.max(1, N)) * Math.PI * 2 + seed;
+      if (N === 1) { r.pos.copy(centre).addScaledVector(u, radius); return; }
+      r.pos.copy(centre).addScaledVector(u, Math.cos(a) * radius).addScaledVector(v, Math.sin(a) * radius);
+    });
+  };
+
+  const roots = rows.filter(r => !r.parent);
+  placeRing(roots, c, 1.16, 0.55);
   rows.forEach(r => {
-    const base = r.parent ? r.parent.pos : c;
-    const h = hashStr(r.key);
-    const u = new THREE.Vector3(
-      ((h % 101) / 101) - 0.5,
-      (((h >> 7) % 97) / 97) - 0.5,
-      (((h >> 13) % 89) / 89) - 0.5
-    );
-    if (u.lengthSq() < 1e-4) u.set(0.3, 0.5, 0.8);
-    r.pos.copy(base).add(u.normalize().multiplyScalar(levelR(r.depth) * 4));
+    if (!r.parent) return;
+    const kids = rows.filter(x => x.parent === r);
+    const radius = r.depth === 1 ? 0.60 : r.depth === 2 ? 0.33 : 0.20;
+    placeRing(kids, r.pos, radius, (hashStr(r.key) % 628) / 100);
   });
 
-  /* springs along the tree, repulsion between everything, a light pull to the set */
-  const edges = rows.map(r => ({ a: r.key, b: r.parent ? r.parent.key : null, depth: r.depth }));
-  const P = new Map(rows.map(r => [r.key, r.pos.clone()]));
-  // the roots hang off the set on a long leash, so seven of them ring it instead of piling up
-  const rest = d => (d <= 1 ? 1.05 : 0.40 * Math.pow(0.74, d - 2) + 0.12);
+  /* a final sweep: nothing may sit inside anything else */
   const idx = rows.map(r => r.key);
-  for (let it = 0; it < 700; it++) {
-    const F = new Map(idx.map(k => [k, new THREE.Vector3()]));
-    edges.forEach(e => {
-      const a = P.get(e.a);
-      const b = e.b ? P.get(e.b) : c;
-      const d = b.clone().sub(a);
-      const len = Math.max(1e-4, d.length());
-      F.get(e.a).add(d.multiplyScalar((len - rest(e.depth)) * 0.09 / len));
-      if (e.b) F.get(e.b).sub(d.multiplyScalar((len - rest(e.depth)) * 0.09 / len));
-    });
-    for (let i = 0; i < idx.length; i++) {
-      for (let j = i + 1; j < idx.length; j++) {
-        const a = P.get(idx[i]), b = P.get(idx[j]);
-        const d = a.clone().sub(b);
-        let len = d.length();
-        if (len < 1e-3) { d.set(0.37, 0.21, 0.53); len = d.length(); }
-        // never let two nodes come closer than their own sizes: the push grows as they do
-        const min = (levelR(rows[i].depth) + levelR(rows[j].depth)) * 1.35 + 0.06;
-        if (len < min * 1.6) {
-          const push = Math.min(3.0, (min * min) / (len * len)) * 1.1;
-          const fv = d.multiplyScalar(push / len);
-          F.get(idx[i]).add(fv);
-          F.get(idx[j]).sub(fv);
-        }
-      }
-    }
-    // small steps: a hard shove that overshoots just makes the pair bounce for ever
-    idx.forEach(k => {
-      const f = F.get(k).multiplyScalar(0.28);
-      const l = f.length();
-      if (l > 0.12) f.multiplyScalar(0.12 / l);
-      P.get(k).add(f);
-    });
-  }
-  /* the solved positions are the layout */
-  rows.forEach(r => r.pos = P.get(r.key));
-
-  /* separation as a projection, not a force: a spring can always win against a push, so at the end
-     every pair that is too close is moved apart until none of them are */
+  const P = new Map(rows.map(r => [r.key, r.pos.clone()]));
   for (let pass = 0; pass < 80; pass++) {
     let moved = false;
     for (let i = 0; i < idx.length; i++) {
@@ -1231,11 +1201,12 @@ function makeCloud(color, R) {
   // three stacked hazes read as a volume; one sprite reads as a smudge
   const g = new THREE.Group();
   g.userData.cloud = true;
-  [[1.00, 0.62], [0.78, 0.40], [0.55, 0.30]].forEach(([f, op], i) => {
+  [[1.00, 0.55], [0.82, 0.42], [0.64, 0.30]].forEach(([f, op], i) => {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: cloudTexture(), color, transparent: true, opacity: op, depthWrite: false, depthTest: true
+      map: cloudTexture(), color, transparent: true, opacity: op, depthWrite: false, depthTest: true,
+      blending: THREE.AdditiveBlending
     }));
-    s.scale.setScalar((R || 0.2) * 3.0 * f);
+    s.scale.setScalar((R || 0.2) * 3.2 * f);
     s.userData.cloudLayer = i;
     g.add(s);
   });
@@ -1319,20 +1290,23 @@ function buildOrganNodes() {
       meshes.forEach(p => all.expandByObject(p.mesh));
       const c0 = all.getCenter(new THREE.Vector3());
       const cloudR = R * 1.5;
+      const N = meshes.length;
       meshes.forEach((p, i) => {
         const bb = new THREE.Box3().setFromObject(p.mesh);
-        const c = bb.getCenter(new THREE.Vector3());
         const sz = bb.getSize(new THREE.Vector3());
-        // up as well as down: a spleen is a few centimetres and would otherwise be a speck
-        const want = Math.max(0.2, Math.min(3, (cloudR * 0.26) / Math.max(1e-4, Math.max(sz.x, sz.y, sz.z))));
+        const want = Math.max(0.15, Math.min(3, (cloudR * 0.34) / Math.max(1e-4, Math.max(sz.x, sz.y, sz.z))));
         p.mesh.scale.multiplyScalar(want);
         p.mesh.updateMatrixWorld(true);
         const bb2 = new THREE.Box3().setFromObject(p.mesh);
         const c2 = bb2.getCenter(new THREE.Vector3());
-        const dir = c.clone().sub(c0);
-        if (dir.lengthSq() < 1e-6) dir.set(((i % 3) - 1) || 0.4, (i % 2 ? 0.6 : -0.5), 0.5);
+        // even stations on a spiral, not their places in the body: inside a cloud they are decoration
+        const y = N === 1 ? 0 : 1 - (i / (N - 1)) * 2;
+        const rad = Math.sqrt(Math.max(0, 1 - y * y));
+        const th = i * 2.399963;
+        const dir = new THREE.Vector3(Math.cos(th) * rad, y, Math.sin(th) * rad);
+        if (dir.lengthSq() < 1e-6) dir.set(0.4, 0.5, 0.6);
         dir.normalize();
-        const target = row.pos.clone().add(dir.multiplyScalar(cloudR * (meshes.length === 1 ? 0 : 0.62)));
+        const target = row.pos.clone().add(dir.multiplyScalar(cloudR * (N === 1 ? 0 : 0.60)));
         p.mesh.position.add(target.sub(c2));
       });
     }
@@ -1340,7 +1314,9 @@ function buildOrganNodes() {
     const cloud = g.children.find(c => c.userData.cloud);
     if (cloud) {
       cloud.visible = scattered;                       // only a group marked `cloud`
-      cloud.children.forEach((s, i) => { s.material.color.setHex(row.meta.color); });
+      cloud.children.forEach((s, i) => {
+        s.material.color.setHex(row.meta.color);
+      });
     }
     // the cloud is the node: a sphere the rays can hit, so clicking the haze selects it
     let pick = g.children.find(c => c.userData.pickSphere);
@@ -1806,8 +1782,8 @@ function tick() {
       if (o.node.userData.scattered) {
         const holder = o.node.children.find(c => c.userData.holder);
         if (holder) {
-          holder.rotation.y += dt * 0.35;
-          holder.position.y = Math.sin(t * 0.8 + o.node.position.x * 3) * 0.012;
+          holder.rotation.y += dt * 1.1;
+          holder.position.y = Math.sin(t * 1.6 + o.node.position.x * 3) * 0.02;
         }
       }
     });
