@@ -265,7 +265,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261026x";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261027e";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1143,9 +1143,10 @@ function graphRows() {
   /* springs along the tree, repulsion between everything, a light pull to the set */
   const edges = rows.map(r => ({ a: r.key, b: r.parent ? r.parent.key : null, depth: r.depth }));
   const P = new Map(rows.map(r => [r.key, r.pos.clone()]));
-  const rest = d => 0.46 * Math.pow(0.72, d - 1) + 0.10;
+  // the roots hang off the set on a long leash, so seven of them ring it instead of piling up
+  const rest = d => (d <= 1 ? 1.05 : 0.40 * Math.pow(0.74, d - 2) + 0.12);
   const idx = rows.map(r => r.key);
-  for (let it = 0; it < 320; it++) {
+  for (let it = 0; it < 700; it++) {
     const F = new Map(idx.map(k => [k, new THREE.Vector3()]));
     edges.forEach(e => {
       const a = P.get(e.a);
@@ -1161,16 +1162,46 @@ function graphRows() {
         const d = a.clone().sub(b);
         let len = d.length();
         if (len < 1e-3) { d.set(0.37, 0.21, 0.53); len = d.length(); }
-        const min = (levelR(rows[i].depth) + levelR(rows[j].depth)) * 2.1;
-        if (len < min * 2.2) {
-          const push = Math.min(1.2, (min * min) / (len * len)) * 0.5;
+        // never let two nodes come closer than their own sizes: the push grows as they do
+        const min = (levelR(rows[i].depth) + levelR(rows[j].depth)) * 1.35 + 0.06;
+        if (len < min * 1.6) {
+          const push = Math.min(3.0, (min * min) / (len * len)) * 1.1;
           const fv = d.multiplyScalar(push / len);
           F.get(idx[i]).add(fv);
           F.get(idx[j]).sub(fv);
         }
       }
     }
-    idx.forEach(k => P.get(k).add(F.get(k).multiplyScalar(0.9)));
+    // small steps: a hard shove that overshoots just makes the pair bounce for ever
+    idx.forEach(k => {
+      const f = F.get(k).multiplyScalar(0.28);
+      const l = f.length();
+      if (l > 0.12) f.multiplyScalar(0.12 / l);
+      P.get(k).add(f);
+    });
+  }
+  /* the solved positions are the layout */
+  rows.forEach(r => r.pos = P.get(r.key));
+
+  /* separation as a projection, not a force: a spring can always win against a push, so at the end
+     every pair that is too close is moved apart until none of them are */
+  for (let pass = 0; pass < 80; pass++) {
+    let moved = false;
+    for (let i = 0; i < idx.length; i++) {
+      for (let j = i + 1; j < idx.length; j++) {
+        const a = P.get(idx[i]), b = P.get(idx[j]);
+        const need = (levelR(rows[i].depth) + levelR(rows[j].depth)) * 1.12 + 0.05;
+        const d = a.clone().sub(b);
+        let len = d.length();
+        if (len < 1e-4) { d.set(0.31, 0.17, 0.47); len = d.length(); }
+        if (len < need) {
+          const push = d.multiplyScalar((need - len) * 0.5 / len);
+          a.add(push); b.sub(push);
+          moved = true;
+        }
+      }
+    }
+    if (!moved) break;
   }
   rows.forEach(r => r.pos = P.get(r.key));
   return { rows };
@@ -1219,6 +1250,14 @@ function buildOrganNodes() {
       rim.scale.setScalar(1.04);
       rim.userData.rim = true;
       g.add(rim);
+      const halo = new THREE.Mesh(
+        new THREE.SphereGeometry(1, 20, 14),
+        new THREE.MeshBasicMaterial({ color: row.meta.color, transparent: true, opacity: 0.05,
+          depthWrite: false })
+      );
+      halo.userData.halo = true;
+      halo.raycast = () => {};
+      g.add(halo);
       const holder = new THREE.Group();
       holder.userData.holder = true;
       g.add(holder);
@@ -1236,23 +1275,40 @@ function buildOrganNodes() {
     const meshes = row.parts.filter(p => !state.nodeOut.has(meshKey(p.name)));
     meshes.forEach(p => holder.attach(p.mesh));
 
-    // fit whatever it holds inside the ball, centred: the meshes float, the node stays a node
     holder.scale.setScalar(1);
     holder.position.set(0, 0, 0);
     holder.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(holder);
+    let scattered = false;
     if (!box.isEmpty()) {
       const s = box.getSize(new THREE.Vector3());
       const cw = box.getCenter(new THREE.Vector3());
-      const k = (R * 0.80) / Math.max(1e-4, Math.max(s.x, s.y, s.z));
+      /* A sphere is only for a group whose pieces are islands — the spleen, thymus and tonsils are
+         nowhere near each other, so without a shell they read as three specks. A lung, a liver or a
+         bronchial tree are already one shape: they are drawn as themselves, at their own size. */
+      if (meshes.length >= 2 && meshes.length <= 12) {
+        let biggest = 1e-4;
+        meshes.forEach(p => {
+          if (!p.mesh.geometry.boundingBox) p.mesh.geometry.computeBoundingBox();
+          const bb = p.mesh.geometry.boundingBox.getSize(new THREE.Vector3()).length() * Math.abs(p.mesh.scale.x || 1);
+          biggest = Math.max(biggest, bb);
+        });
+        scattered = s.length() > biggest * 2.0;
+      }
+      const fit = scattered ? R * 0.80 : R * 1.75;
+      const k = fit / Math.max(1e-4, Math.max(s.x, s.y, s.z));
       holder.scale.setScalar(k);
       const cl = g.worldToLocal(cw.clone());
       holder.position.copy(cl.multiplyScalar(-k));
     }
     const ball = g.children.find(c => c.userData.ball);
-    if (ball) ball.material.color.setHex(row.meta.color);
     const rim = g.children.find(c => c.userData.rim);
-    if (rim) rim.material.color.setHex(row.meta.color);
+    const halo = g.children.find(c => c.userData.halo);
+    if (ball) { ball.visible = scattered; ball.material.color.setHex(row.meta.color); }
+    if (rim) { rim.visible = scattered; rim.material.color.setHex(row.meta.color); }
+    /* no disc behind an organ that is already one shape: the edge can land on the organ itself */
+    if (halo) halo.visible = false;
+    g.userData.scattered = scattered;
 
     g.userData.cLocal = new THREE.Vector3(0, 0, 0);
     g.userData.wantPos = row.pos.clone();
