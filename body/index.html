@@ -255,9 +255,9 @@ function paint(l, root, tag) {
     const isHead = l.id === "skin" && /-head$/.test(o.name);
     const m = new THREE.MeshStandardMaterial({
       color: base, roughness: keep ? 0.6 : 0.72, metalness: 0.02,
-      transparent: l.id === "skin" && !isHead,
-      opacity: l.id === "skin" ? (isHead ? 1 : SHELL_OPACITY) : 1,
-      depthWrite: l.id !== "skin" || isHead,
+      transparent: l.id === "skin",
+      opacity: l.id === "skin" ? SHELL_OPACITY : 1,
+      depthWrite: l.id !== "skin",
       side: l.id === "skin" ? THREE.FrontSide : THREE.DoubleSide
     });
     if (isHead) m.userData.solidHead = true;
@@ -273,7 +273,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261029b";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261029c";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1764,7 +1764,7 @@ function layout() {
   const skinG = groups.skin;
   const skinOut = state.out.has("skin");
   if (skinG) skinG.traverse(o => {
-    if (!o.isMesh || !o.material || o.material.userData.solidHead) return;
+    if (!o.isMesh || !o.material) return;
     o.material.transparent = !skinOut;
     o.material.opacity = skinOut ? 1 : SHELL_OPACITY;
     o.material.depthWrite = skinOut;
