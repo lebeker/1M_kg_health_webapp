@@ -268,7 +268,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261028q";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261029a";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -483,7 +483,8 @@ function countUnder(n) {
 
 function organRows(rows) {
   const render = (list, depth) => {
-    list.forEach(n => {
+    const walkAll = (node, out = []) => { (node.kids || []).forEach(k => { out.push(k); walkAll(k, out); }); return out; };
+  list.forEach(n => {
       if (!countUnder(n) && !n.shadow) return;         // nothing under it for this sex
       const out = state.nodeOut.has(n.id);
       const open = state.openGroups.has(n.id);
@@ -511,6 +512,21 @@ function organRows(rows) {
       };
       rows.appendChild(row);
       if (open) {
+        // a gland that moved into an organ is still this system's organ: say so where it now lives
+        walkAll(n).filter(d => d.system).forEach(d => {
+          const g = document.createElement("div");
+          const gOut = state.nodeOut.has(d.id);
+          g.className = "row kids group" + (gOut ? " out" : "");
+          g.dataset.organ = d.id;
+          g.style.paddingLeft = (8 + depth * 11) + "px";
+          g.innerHTML =
+            `<span class="dot" style="background:#${d.color.toString(16).padStart(6, "0")}"></span>` +
+            `<span class="nm" title="${d.label} — a ${d.system} organ, kept with ${d.parent ? d.parent.label : "its organ"}">${d.label}</span>` +
+            `<span class="cnt">${d.system}</span>` +
+            `<button class="eye" title="${gOut ? "put it back" : "take it out"}">${gOut ? EYE_OPEN : EYE_SHUT}</button>`;
+          g.onclick = e => { if (!e.target.closest(".eye")) { select(d.id); return; } toggleKey(d.id); };
+          rows.appendChild(g);
+        });
         if (n.kids.length) render(n.kids, depth + 1);
         organParts.filter(p => p.node === n && sexOn(p.sex))
           .sort((a, b) => a.name.localeCompare(b.name))
@@ -1162,7 +1178,7 @@ function focusOn(obj) {
    a spring/repulsion relaxation (edges pull, everything pushes), which spreads the tree through
    space and keeps nodes from landing on top of each other. */
 
-const LEVEL_R = { 1: 0.30, 2: 0.21, 3: 0.145, 4: 0.10 };
+const LEVEL_R = { 1: 0.15, 2: 0.105, 3: 0.073, 4: 0.05 };   // half of what they were: a mark, not a moon
 function levelR(depth) { return LEVEL_R[Math.min(4, Math.max(1, depth))] || 0.06; }
 
 /* the rows that are out, with their meshes assigned to the nearest open ancestor */
@@ -1211,7 +1227,7 @@ function graphRows() {
   const parentIdx = rows.map(r => r.parent ? rows.findIndex(x => x === r.parent) : -1);
   const rad = rows.map(r => levelR(r.depth));
   const REST = d => (d <= 1 ? 1.10 : 0.60 * Math.pow(0.78, d - 2));
-  const BODY_X = 0.95;                                  // the body's right flank, plus a margin
+  const BODY_X = 1.15;                                  // the body's right flank, plus a margin
 
   for (let step = 0; step < 700; step++) {
     const f = rows.map(() => new THREE.Vector3());
@@ -1463,11 +1479,11 @@ function buildOrganNodes() {
         g.userData.partName = l.part.name;
         g.userData.nodeLabel = partLabel(l.part.name);
         g.userData.groupId = parentRow.meta.id;
-        const R = 0.085;
+        const R = 0.05;                                  // half the old radius
         g.userData.radius = R;
-        const ball = new THREE.Mesh(new THREE.SphereGeometry(R, 20, 14),
-          new THREE.MeshStandardMaterial({ color: parentRow.meta.color, roughness: 0.45,
-            transparent: true, opacity: 0.34, depthWrite: false }));
+        const ball = new THREE.Mesh(new THREE.SphereGeometry(R, 24, 16),
+          new THREE.MeshStandardMaterial({ color: parentRow.meta.color, roughness: 0.42,
+            metalness: 0.05 }));                         // lit and solid: a ball, not a disc
         ball.userData.ball = true;
         g.add(ball);
         const holder = new THREE.Group(); holder.userData.holder = true; g.add(holder);
@@ -1485,7 +1501,7 @@ function buildOrganNodes() {
       if (!box.isEmpty()) {
         const s = box.getSize(new THREE.Vector3());
         const cw = box.getCenter(new THREE.Vector3());
-        const k = (0.085 * 0.8) / Math.max(1e-4, Math.max(s.x, s.y, s.z));
+        const k = (0.05 * 0.85) / Math.max(1e-4, Math.max(s.x, s.y, s.z));
         holder.scale.setScalar(k);
         holder.position.copy(g.worldToLocal(cw.clone()).multiplyScalar(-k));
       }
