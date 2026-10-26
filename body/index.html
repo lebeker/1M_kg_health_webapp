@@ -265,7 +265,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261026n";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261026p";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1429,9 +1429,9 @@ function layout() {
     slot[l.id] = { x: Math.cos(a) * ringR, z: Math.sin(a) * ringR };
   });
   if (organsOut) {
-    // the organs do not slide away from the body any more: the tree grows out of the abdomen and
-    // the body stays as a shadow around it, which keeps the whole graph in one frame
-    slot.organs = { x: 0, z: 0 };
+    // out has to be visible: the set leaves the body and stands beside it, far enough that the tree
+    // that fans out around it never reaches back into the body
+    slot.organs = { x: width * 0.5 + (graph ? ORGAN_R + 0.15 : 0) + organSize.x * 0.5 + width * 0.22, z: 0 };
   }
 
   LAYERS.forEach(l => {
@@ -1483,8 +1483,8 @@ function layout() {
   // ring is still there, a zoom-out away
   let spanW, spanH, cx;
   if (graph) {
-    // frame what is actually out, not the nominal radius: one organ should fill the view, eighteen
-    // should all fit — otherwise the camera sits inside a fan whose edges run off the screen
+    // frame the body and the nodes that are out together: the body is the anchor that says what
+    // left it, and framing the tree alone pushes the body behind the panel
     const c = setCentre();
     let rad = 0.4;
     organNodes.forEach(o => {
@@ -1495,7 +1495,12 @@ function layout() {
       const p = pn.target || pn.node.position;
       rad = Math.max(rad, p.distanceTo(c) + PART_NODE_SIZE * 0.9);
     });
-    spanW = rad * 2.0; spanH = rad * 2.1; cx = c.x;
+    let minX = c.x - rad, maxX = c.x + rad, minY = -rad, maxY = rad;
+    if (bodyBox && !bodyBox.isEmpty()) {
+      minX = Math.min(minX, bodyBox.min.x - 0.12); maxX = Math.max(maxX, bodyBox.max.x + 0.12);
+      minY = Math.min(minY, bodyBox.min.y - 0.06); maxY = Math.max(maxY, bodyBox.max.y + 0.06);
+    }
+    spanW = Math.max(0.8, maxX - minX); spanH = Math.max(0.8, maxY - minY); cx = (minX + maxX) / 2;
   } else {
     const left = lc - width * 0.30;
     let right = rc + width * 0.30;
