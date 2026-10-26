@@ -37,6 +37,8 @@
   .row .dot { width:10px; height:10px; border-radius:3px; flex:none; }
   .row .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .row .cnt { color:var(--mut); font-size:11px; }
+  .sect { padding:12px 14px 4px; font-size:10.5px; letter-spacing:.09em; text-transform:uppercase;
+          color:var(--mut); border-top:1px solid var(--line); margin-top:8px; }
   .row .eye { width:26px; height:22px; display:grid; place-items:center; border-radius:5px;
     border:1px solid transparent; background:transparent; color:var(--mut); padding:0; }
   .row .eye:hover { border-color:var(--line); color:var(--fg); }
@@ -162,7 +164,8 @@ const state = {
   out:new Set(),            // layers taken out of the body; at the start every layer is collapsed
   organsOut:false,          // the organs set split into organ nodes
   nodeOut:new Set(),        // anything that left its parent: a group id, or "m:<mesh>"
-  treeOpen:false, openGroups:new Set()
+  treeOpen:false, openGroups:new Set(),
+  edgeOff:new Set()          // edge types the user has hidden
 };
 const EYE_OUT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
 const SHELL_OPACITY = 0.45;
@@ -265,7 +268,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261027s";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261028g";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -444,6 +447,30 @@ function buildLegend() {
     rows.appendChild(row);
     if (isOrgans && state.treeOpen) organRows(rows);
   });
+
+  if (state.out.has("organs")) {
+    const sect = document.createElement("div");
+    sect.className = "sect";
+    sect.textContent = "edges";
+    rows.appendChild(sect);
+    [["tree", "organ tree", 0x6b5a78], ["endocrine", "endocrine links", 0xb8a8c8],
+     ["immune", "immune links", 0xd8a8b8]].forEach(([id, label, col]) => {
+      const off = state.edgeOff.has(id);
+      const row = document.createElement("div");
+      row.className = "row" + (off ? " off" : "");
+      row.dataset.edge = id;
+      row.innerHTML =
+        `<span class="chev blank"></span>` +
+        `<span class="dot" style="background:#${col.toString(16).padStart(6, "0")}"></span>` +
+        `<span class="nm">${label}</span><span class="cnt">${id === "tree" ? "structure" : "link"}</span>` +
+        `<button class="eye" title="${off ? "show" : "hide"}">${off ? EYE_SHUT : EYE_OPEN}</button>`;
+      row.onclick = () => {
+        if (off) state.edgeOff.delete(id); else state.edgeOff.add(id);
+        applyEdgeState(); buildLegend();
+      };
+      rows.appendChild(row);
+    });
+  }
 }
 
 /* organs: the tree, any depth. An eye takes a node out of its parent; a chevron opens what is
@@ -457,7 +484,7 @@ function countUnder(n) {
 function organRows(rows) {
   const render = (list, depth) => {
     list.forEach(n => {
-      if (!countUnder(n)) return;                     // nothing under it for this sex
+      if (!countUnder(n) && !n.shadow) return;         // nothing under it for this sex
       const out = state.nodeOut.has(n.id);
       const open = state.openGroups.has(n.id);
       // a leaf group still has meshes inside: the chevron has to open those, not just subgroups
@@ -663,7 +690,8 @@ function toggleLayer(id) {
 function syncOrgans() { syncTree(); }
 
 function openAll() {
-  ORGAN_TREE.filter(n => countUnder(n) > 0).forEach(n => setOut(n.id, true));   // level one: the systems
+  // level one: the systems, and the shadow systems, which have no organs of their own
+  ORGAN_TREE.filter(n => countUnder(n) > 0 || n.shadow).forEach(n => setOut(n.id, true));
   layout(); buildLegend();
 }
 
@@ -816,22 +844,23 @@ const ORGAN_TREE = [
         ] },
     ] },
 
-  { id:"endocrine", label:"endocrine", color:0xb8a8c8, cloud:true,
-    about:"The glands that run the body by hormone: pituitary, pineal, thyroid, parathyroids, adrenals.",
+  /* a system without a body of its own: a shadow sphere, and its glands living where they sit */
+  { id:"endocrine", label:"endocrine", color:0xb8a8c8, shadow:true,
+    about:"The glands that run the body by hormone. Each one lives with the anatomy it sits in — the adrenals on the kidneys, the thyroid and pituitary in the head and neck.",
     children:[
-      { id:"pituitary", label:"pituitary", test:n => /hypophysis|pituitary/i.test(n) },
-      { id:"pineal", label:"pineal", test:n => /pineal/i.test(n) },
-      { id:"thyroid", label:"thyroid", test:n => /^thyroid|thyroid gland/i.test(n) && !/parathyroid/i.test(n) },
-      { id:"parathyroids", label:"parathyroids", test:n => /parathyroid/i.test(n) },
-      { id:"adrenals", label:"adrenals", test:n => /suprarenal|adrenal/i.test(n) },
+      { id:"pituitary", label:"pituitary", into:"ent", test:n => /hypophysis|pituitary/i.test(n) },
+      { id:"pineal", label:"pineal", into:"ent", test:n => /pineal/i.test(n) },
+      { id:"thyroid", label:"thyroid", into:"ent", test:n => /^thyroid|thyroid gland/i.test(n) && !/parathyroid/i.test(n) },
+      { id:"parathyroids", label:"parathyroids", into:"ent", test:n => /parathyroid/i.test(n) },
+      { id:"adrenals", label:"adrenals", into:"kidneys", test:n => /suprarenal|adrenal/i.test(n) },
     ] },
 
-  { id:"immune", label:"immune", color:0xd8a8b8, cloud:true,
-    about:"Lymphoid organs: the spleen, the thymus and the palatine tonsils.",
+  { id:"immune", label:"immune", color:0xd8a8b8, shadow:true,
+    about:"Lymphoid organs: the spleen, the thymus and the palatine tonsils, each living with the anatomy it sits in.",
     children:[
-      { id:"spleen", label:"spleen", test:n => /spleen/i.test(n) },
-      { id:"thymus", label:"thymus", test:n => /thymus/i.test(n) },
-      { id:"tonsils", label:"tonsils", test:n => /tonsil/i.test(n) },
+      { id:"spleen", label:"spleen", into:"digestive", test:n => /spleen/i.test(n) },
+      { id:"thymus", label:"thymus", into:"respiratory", test:n => /thymus/i.test(n) },
+      { id:"tonsils", label:"tonsils", into:"pharynx", test:n => /tonsil/i.test(n) },
     ] },
 
   { id:"reproductive", label:"reproductive", color:0xd98fa4,
@@ -956,6 +985,7 @@ let organRoot = null;
 let organNodes = [];
 let partNodes = [];
 let edgePairs = [];
+let linkPairs = [];               // shadow system -> the node that hosts its organs
 let organGhost = null;
 let bodyGhost = null;
 
@@ -993,12 +1023,14 @@ function collectOrgans() {
     if (!o.isMesh) return;
     o.geometry.computeBoundingBox();
     const c = o.geometry.boundingBox.getCenter(new THREE.Vector3());
-    const meta = classify(o.name) || NODE_BY_ID.other;
+    const hit = classify(o.name) || NODE_BY_ID.other;
+    // `into` sends a gland to the anatomy it lives with, but the part still remembers where it came from
+    const meta = (hit.into && NODE_BY_ID[hit.into]) || hit;
     // the atlas ships one urethra and it is his. Her tract files its own 2.6 cm one, so the atlas
     // tube is male-only — matched loosely, because the exporter renames it Urethra001
     const sex = sexOf(o) || (/^urethra\d*$/i.test(o.name) ? "male" : null);
     organParts.push({
-      mesh: o, c, name: o.name, gid: meta.id, gmeta: meta, node: meta, sex,
+      mesh: o, c, name: o.name, gid: meta.id, gmeta: meta, node: meta, origin: hit, sex,
       // where it sits in the set, untransformed: putting a node back must not move a single organ
       home: { p: o.position.clone(), q: o.quaternion.clone(), s: o.scale.clone() }
     });
@@ -1108,7 +1140,8 @@ function graphRows() {
   const rows = [];
   (function walk(list, parentRow) {
     list.forEach(n => {
-      if (!state.nodeOut.has(n.id) || !countUnder(n)) return;
+      if (!state.nodeOut.has(n.id)) return;
+      if (!countUnder(n) && !n.shadow) return;
       const row = { key: n.id, meta: n, parent: parentRow, depth: n.depth, parts: [], leaves: [], pos: new THREE.Vector3() };
       rows.push(row);
       walk(n.kids, row);
@@ -1311,9 +1344,10 @@ function buildOrganNodes() {
       });
     }
 
+    const shadow = row.meta.shadow === true;
     const cloud = g.children.find(c => c.userData.cloud);
     if (cloud) {
-      cloud.visible = scattered;                       // only a group marked `cloud`
+      cloud.visible = scattered && !shadow;            // only a group marked `cloud`
       cloud.children.forEach((s, i) => {
         s.material.color.setHex(row.meta.color);
       });
@@ -1326,8 +1360,14 @@ function buildOrganNodes() {
       pick.userData.pickSphere = true;
       g.add(pick);
     }
-    pick.visible = scattered;
-    pick.scale.setScalar(scattered ? R * 1.45 : R);
+    pick.visible = shadow || scattered;
+    pick.scale.setScalar(shadow ? 0.26 : (scattered ? R * 1.45 : R));
+    if (shadow) {
+      // the CSS-shadow look: 10 % of a light tint, so it reads as a sphere and not a hole
+      pick.material.opacity = 0.13;
+      pick.material.color.setHex(row.meta.color).lerp(new THREE.Color(0xffffff), 0.45);
+      pick.material.depthWrite = false;
+    }
     pick.userData.groupId = row.meta.id;
     g.userData.scattered = scattered;
 
@@ -1409,12 +1449,29 @@ function buildOrganNodes() {
   ghost.position.copy(setCentre());
   ghost.visible = organNodes.length > 0;     // only when the set really is split: after a merge the real organs are the set
 
+  /* a shadow system is not a container: it is bound by links to the nodes that hold its organs */
+  const rowByKey = new Map(rows.map(r => [r.key, r]));
+  linkPairs = [];
+  rows.filter(r => r.meta.shadow).forEach(sh => {
+    const hosts = new Set();
+    organParts.forEach(p => {
+      if (!sexOn(p.sex)) return;
+      let under = false, n = p.origin;
+      while (n) { if (n.id === sh.key) { under = true; break; } n = n.parent; }
+      let hostNode = p.node;
+      while (hostNode && !rowByKey.has(hostNode.id)) hostNode = hostNode.parent;
+      if (under && hostNode && hostNode.id !== sh.key) hosts.add(hostNode.id);
+    });
+    hosts.forEach(hid => linkPairs.push({ a: sh.key, b: hid, type: sh.key }));
+  });
+
   edgePairs = organNodes.map(o => ({
     a: o.node,
     b: o.parentKey ? (organNodes.find(x => x.key === o.parentKey) || {}).node || null : null
   }));
   partNodes.forEach(pn => edgePairs.push({ a: pn.node, b: pn.parent.node }));
   ensureEdges();
+  ensureLinks();
 }
 
 function disposeOrganNodes() {
@@ -1439,6 +1496,55 @@ function disposeOrganNodes() {
   if (edges) { scene.remove(edges); edges.geometry.dispose(); edges = null; }
 }
 
+let linkObjs = {};                 // one LineSegments per link type
+const LINK_COLOR = { endocrine: 0xb8a8c8, immune: 0xd8a8b8 };
+
+function ensureLinks() {
+  Object.keys(linkObjs).forEach(t => {
+    if (linkPairs.some(l => l.type === t)) return;
+    scene.remove(linkObjs[t]); linkObjs[t].geometry.dispose(); delete linkObjs[t];
+  });
+  const byType = {};
+  linkPairs.forEach(l => { (byType[l.type] = byType[l.type] || []).push(l); });
+  Object.entries(byType).forEach(([t, list]) => {
+    let o = linkObjs[t];
+    if (!o || o.geometry.attributes.position.array.length !== list.length * 6) {
+      if (o) { scene.remove(o); o.geometry.dispose(); }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(list.length * 6), 3));
+      o = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({
+        color: LINK_COLOR[t] || 0x8a7a9a, transparent: true, opacity: 0.75, depthWrite: false
+      }));
+      o.userData.linkType = t;
+      scene.add(o);
+      linkObjs[t] = o;
+    }
+    o.userData.list = list;
+    o.visible = !state.edgeOff.has(t);
+  });
+}
+
+function updateLinks() {
+  Object.values(linkObjs).forEach(o => {
+    const list = o.userData.list || [];
+    const arr = o.geometry.attributes.position.array;
+    list.forEach((l, i) => {
+      const A = organNodes.find(x => x.key === l.a), B = organNodes.find(x => x.key === l.b);
+      if (!A || !B) return;
+      const a = A.node.position, b = B.node.position;
+      arr[i * 6] = a.x; arr[i * 6 + 1] = a.y; arr[i * 6 + 2] = a.z;
+      arr[i * 6 + 3] = b.x; arr[i * 6 + 4] = b.y; arr[i * 6 + 5] = b.z;
+    });
+    o.geometry.attributes.position.needsUpdate = true;
+    o.geometry.computeBoundingSphere();
+  });
+}
+
+function applyEdgeState() {
+  if (edges) edges.visible = !state.edgeOff.has("tree");
+  Object.entries(linkObjs).forEach(([t, o]) => { o.visible = !state.edgeOff.has(t); });
+}
+
 function ensureEdges() {
   if (edges) {
     const need = edgePairs.length * 6;
@@ -1453,6 +1559,7 @@ function ensureEdges() {
     color: 0x6b5a78, transparent: true, opacity: 0.5, depthWrite: false
   }));
   scene.add(edges);
+  applyEdgeState();
 }
 
 function updateEdges() {
@@ -1788,6 +1895,7 @@ function tick() {
       }
     });
     updateEdges();
+    updateLinks();
   }
   // the body cloud is the body's shadow, not a snapshot: it follows wherever the body is now
   if (bodyGhost && groups.muscles) {
