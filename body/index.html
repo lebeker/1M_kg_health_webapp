@@ -265,7 +265,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261027e";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261027i";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -816,7 +816,7 @@ const ORGAN_TREE = [
         ] },
     ] },
 
-  { id:"endocrine", label:"endocrine", color:0xb8a8c8,
+  { id:"endocrine", label:"endocrine", color:0xb8a8c8, cloud:true,
     about:"The glands that run the body by hormone: pituitary, pineal, thyroid, parathyroids, adrenals.",
     children:[
       { id:"pituitary", label:"pituitary", test:n => /hypophysis|pituitary/i.test(n) },
@@ -826,7 +826,7 @@ const ORGAN_TREE = [
       { id:"adrenals", label:"adrenals", test:n => /suprarenal|adrenal/i.test(n) },
     ] },
 
-  { id:"immune", label:"immune", color:0xd8a8b8,
+  { id:"immune", label:"immune", color:0xd8a8b8, cloud:true,
     about:"Lymphoid organs: the spleen, the thymus and the palatine tonsils.",
     children:[
       { id:"spleen", label:"spleen", test:n => /spleen/i.test(n) },
@@ -1207,6 +1207,36 @@ function graphRows() {
   return { rows };
 }
 
+
+/* a soft radial haze: what the collapsed parent looked like in science-kg */
+let CLOUD_TEX = null;
+function cloudTexture() {
+  if (CLOUD_TEX) return CLOUD_TEX;
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const x = c.getContext("2d");
+  const grd = x.createRadialGradient(64, 64, 2, 64, 64, 64);
+  grd.addColorStop(0.0, "rgba(255,255,255,0.55)");
+  grd.addColorStop(0.35, "rgba(255,255,255,0.34)");
+  grd.addColorStop(0.70, "rgba(255,255,255,0.10)");
+  grd.addColorStop(1.0, "rgba(255,255,255,0)");
+  x.fillStyle = grd;
+  x.fillRect(0, 0, 128, 128);
+  CLOUD_TEX = new THREE.CanvasTexture(c);
+  CLOUD_TEX.needsUpdate = true;
+  return CLOUD_TEX;
+}
+
+function makeCloud(color, R) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: cloudTexture(), color, transparent: true, opacity: 0.85, depthWrite: false, depthTest: true
+  }));
+  s.userData.cloud = true;
+  s.scale.setScalar((R || 0.2) * 3.0);
+  s.raycast = () => {};
+  return s;
+}
+
 function buildOrganNodes() {
   const { rows } = graphRows();
   const inner = groups.organs.userData.inner;
@@ -1234,30 +1264,10 @@ function buildOrganNodes() {
       g.userData.radius = R;
       // the node itself: a ball you can see and click, with room inside for whatever it holds
       // unlit on purpose: the ball is a coloured shell, and its colour must read the same at any angle
-      const ball = new THREE.Mesh(
-        new THREE.SphereGeometry(R, 28, 20),
-        new THREE.MeshBasicMaterial({
-          color: row.meta.color, transparent: true, opacity: 0.20, depthWrite: false
-        })
-      );
-      ball.userData.ball = true;
-      g.add(ball);
-      const rim = new THREE.Mesh(
-        new THREE.SphereGeometry(R, 26, 18),
-        new THREE.MeshBasicMaterial({ color: row.meta.color, transparent: true, opacity: 0.55,
-          side: THREE.BackSide, depthWrite: false })
-      );
-      rim.scale.setScalar(1.04);
-      rim.userData.rim = true;
-      g.add(rim);
-      const halo = new THREE.Mesh(
-        new THREE.SphereGeometry(1, 20, 14),
-        new THREE.MeshBasicMaterial({ color: row.meta.color, transparent: true, opacity: 0.05,
-          depthWrite: false })
-      );
-      halo.userData.halo = true;
-      halo.raycast = () => {};
-      g.add(halo);
+      // the cloud: a soft haze, not a plastic sphere. Its organs float inside it.
+      const cloud = makeCloud(row.meta.color, R);
+      g.add(cloud);
+
       const holder = new THREE.Group();
       holder.userData.holder = true;
       g.add(holder);
@@ -1286,28 +1296,47 @@ function buildOrganNodes() {
       /* A sphere is only for a group whose pieces are islands — the spleen, thymus and tonsils are
          nowhere near each other, so without a shell they read as three specks. A lung, a liver or a
          bronchial tree are already one shape: they are drawn as themselves, at their own size. */
-      if (meshes.length >= 2 && meshes.length <= 12) {
-        let biggest = 1e-4;
-        meshes.forEach(p => {
-          if (!p.mesh.geometry.boundingBox) p.mesh.geometry.computeBoundingBox();
-          const bb = p.mesh.geometry.boundingBox.getSize(new THREE.Vector3()).length() * Math.abs(p.mesh.scale.x || 1);
-          biggest = Math.max(biggest, bb);
-        });
-        scattered = s.length() > biggest * 2.0;
+      // the tree says so: a group marked `cloud` is a set of islands with no shape of its own
+      scattered = row.meta.cloud === true;
+      if (!scattered) {
+        const k = (R * 1.75) / Math.max(1e-4, Math.max(s.x, s.y, s.z));
+        holder.scale.setScalar(k);
+        const cl = g.worldToLocal(cw.clone());
+        holder.position.copy(cl.multiplyScalar(-k));
       }
-      const fit = scattered ? R * 0.80 : R * 1.75;
-      const k = fit / Math.max(1e-4, Math.max(s.x, s.y, s.z));
-      holder.scale.setScalar(k);
-      const cl = g.worldToLocal(cw.clone());
-      holder.position.copy(cl.multiplyScalar(-k));
     }
-    const ball = g.children.find(c => c.userData.ball);
-    const rim = g.children.find(c => c.userData.rim);
-    const halo = g.children.find(c => c.userData.halo);
-    if (ball) { ball.visible = scattered; ball.material.color.setHex(row.meta.color); }
-    if (rim) { rim.visible = scattered; rim.material.color.setHex(row.meta.color); }
-    /* no disc behind an organ that is already one shape: the edge can land on the organ itself */
-    if (halo) halo.visible = false;
+    if (scattered && meshes.length) {
+      /* a cloud is not a doll's house: the organs keep their own size and orbit the centre, so the
+         spleen is a spleen and not a speck */
+      holder.updateMatrixWorld(true);
+      const all = new THREE.Box3();
+      meshes.forEach(p => all.expandByObject(p.mesh));
+      const c0 = all.getCenter(new THREE.Vector3());
+      const cloudR = R * 1.5;
+      meshes.forEach((p, i) => {
+        const bb = new THREE.Box3().setFromObject(p.mesh);
+        const c = bb.getCenter(new THREE.Vector3());
+        const sz = bb.getSize(new THREE.Vector3());
+        // up as well as down: a spleen is a few centimetres and would otherwise be a speck
+        const want = Math.max(0.3, Math.min(4, (cloudR * 0.46) / Math.max(1e-4, Math.max(sz.x, sz.y, sz.z))));
+        p.mesh.scale.multiplyScalar(want);
+        p.mesh.updateMatrixWorld(true);
+        const bb2 = new THREE.Box3().setFromObject(p.mesh);
+        const c2 = bb2.getCenter(new THREE.Vector3());
+        const dir = c.clone().sub(c0);
+        if (dir.lengthSq() < 1e-6) dir.set(((i % 3) - 1) || 0.4, (i % 2 ? 0.6 : -0.5), 0.5);
+        dir.normalize();
+        const target = row.pos.clone().add(dir.multiplyScalar(cloudR * (meshes.length === 1 ? 0 : 0.58)));
+        p.mesh.position.add(target.sub(c2));
+      });
+    }
+
+    const cloud = g.children.find(c => c.userData.cloud);
+    if (cloud) {
+      cloud.visible = scattered;                       // only a group marked `cloud`
+      cloud.material.color.setHex(row.meta.color);
+      cloud.scale.setScalar(scattered ? R * 3.0 : R * 2.0);   // diameter: the haze wraps the organs
+    }
     g.userData.scattered = scattered;
 
     g.userData.cLocal = new THREE.Vector3(0, 0, 0);
@@ -1381,16 +1410,17 @@ function buildOrganNodes() {
     });
   });
 
-  /* the set itself: a bare hint of a ball, so the edges have something to land on */
-  let setBall = organRoot.children.find(c => c.userData.setBall);
-  if (!setBall) {
-    setBall = new THREE.Mesh(new THREE.SphereGeometry(1, 26, 18),
-      new THREE.MeshBasicMaterial({ color: 0x8fa0b6, transparent: true, opacity: 0.055, depthWrite: false }));
-    setBall.userData.setBall = true;
-    organRoot.add(setBall);
+  /* the set itself stays on screen: when its organs are out it is the cloud they came from, and the
+     edges land on it. It never disappears. */
+  let setCloud = organRoot.children.find(c => c.userData.setCloud);
+  if (!setCloud) {
+    setCloud = makeCloud(0xb9c6d6, 0.30);
+    setCloud.userData.setCloud = true;
+    setCloud.material.opacity = 0.30;
+    organRoot.add(setCloud);
   }
-  setBall.position.copy(setCentre());
-  setBall.scale.setScalar(0.30);
+  setCloud.position.copy(setCentre());
+  setCloud.scale.setScalar(0.55);
 
   edgePairs = organNodes.map(o => ({
     a: o.node,
