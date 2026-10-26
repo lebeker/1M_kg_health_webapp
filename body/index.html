@@ -268,7 +268,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261028g";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261028m";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -477,7 +477,7 @@ function buildLegend() {
    inside, so the next level down can be reached. */
 function countUnder(n) {
   let c = organParts.filter(p => sexOn(p.sex) && p.node === n).length;
-  n.kids.forEach(k => { c += countUnder(k); });
+  (n.kids || []).forEach(k => { c += countUnder(k); });
   return c;
 }
 
@@ -886,15 +886,46 @@ const ORGAN_TREE = [
 
 /* parents, depths and an index, so anything can find its way up the tree */
 const NODE_BY_ID = {};
-(function indexTree(list, parent, depth) {
+function indexTree(list, parent, depth) {
   list.forEach(n => {
-    n.parent = parent; n.depth = depth; n.kids = n.children || [];
-    if (n.color === undefined) n.color = parent ? parent.color : 0x9a9aa8;   // a child wears its parent's colour
+    n.parent = parent;
+    n.depth = depth;
+    if (!n.kids) n.kids = n.children || [];      // the literal says `children`; the rest of the code says `kids`
+    n.children = n.kids;
+    if (n.color === undefined) n.color = parent ? parent.color : 0x9a9aa8;
     if (n.about === undefined && parent) n.about = parent.about;
     NODE_BY_ID[n.id] = n;
-    indexTree(n.kids, n, depth + 1);
+    if (n.kids.length) indexTree(n.kids, n, depth + 1);
   });
-})(ORGAN_TREE, null, 1);
+}
+indexTree(ORGAN_TREE, null, 1);
+
+/* A gland marked `into` does not live in its system: it moves under the anatomy it sits in, as a
+   child group of its own, so it can be listed, opened and put back like any other organ. */
+(function relocateGlands() {
+  const moves = [];
+  (function walk(list) {
+    list.forEach(n => {
+      if (n.into) moves.push(n);
+      if (n.kids) walk(n.kids);
+    });
+  })(ORGAN_TREE);
+  moves.forEach(n => {
+    const from = n.parent, to = NODE_BY_ID[n.into];
+    if (!to || !from) return;
+    from.kids = from.kids.filter(k => k !== n);
+    from.children = from.kids;
+    to.kids = to.kids || [];
+    to.children = to.kids;
+    to.kids.push(n);
+    n.system = from.id;                 // where it belongs, for the links
+    n.into = null;
+  });
+  // parents and depths have all moved: re-index from the top
+  indexTree(ORGAN_TREE, null, 1);
+})();
+
+/* (the single index above is the only one: a second walk would put a moved gland back) */
 
 /* the deepest node whose test takes the name: lungs beat "other", a lobe beats its lung */
 function classify(name) {
@@ -1162,51 +1193,61 @@ function graphRows() {
   /* the tree is laid out radially: the systems on a sphere round the set, and any node that opens
      puts its children on a smaller sphere round itself. Siblings land on the Fibonacci spiral, so
      they never sit on top of each other and every edge runs outward from the node it belongs to. */
-  /* A ring in a tilted plane, not a sphere: a sphere's back half projects onto its front half, so
-     every node lands on the same few pixels. Tilted, the ring keeps real depth and still reads. */
-  const placeRing = (list, centre, radius, seed) => {
-    const n = new THREE.Vector3(0.30 + 0.10 * Math.sin(seed), 0.20 + 0.10 * Math.cos(seed * 1.7), 0.94).normalize();
-    const u = new THREE.Vector3(1, 0, 0).projectOnPlane(n).normalize();
-    const v = n.clone().cross(u).normalize();
-    const N = list.length;
-    list.forEach((r, i) => {
-      const a = (i / Math.max(1, N)) * Math.PI * 2 + seed;
-      if (N === 1) { r.pos.copy(centre).addScaledVector(u, radius); return; }
-      r.pos.copy(centre).addScaledVector(u, Math.cos(a) * radius).addScaledVector(v, Math.sin(a) * radius);
-    });
-  };
-
-  const roots = rows.filter(r => !r.parent);
-  placeRing(roots, c, 1.16, 0.55);
-  rows.forEach(r => {
-    if (!r.parent) return;
-    const kids = rows.filter(x => x.parent === r);
-    const radius = r.depth === 1 ? 0.60 : r.depth === 2 ? 0.33 : 0.20;
-    placeRing(kids, r.pos, radius, (hashStr(r.key) % 628) / 100);
+  /* A force layout, run to convergence before anything is drawn: springs along the tree, a charge
+     between every pair, a collision radius so nodes cannot overlap, and a wall that keeps the whole
+     graph off the body. Three dimensions, because two of them always end up as one line. */
+  rows.forEach((r, i) => {
+    const h = hashStr(r.key + i);
+    r.pos.set(
+      c.x + (((h % 101) / 101) - 0.5) * 1.2,
+      c.y + ((((h >> 7) % 97) / 97) - 0.5) * 1.4,
+      c.z + ((((h >> 13) % 89) / 89) - 0.5) * 1.2
+    );
   });
 
-  /* a final sweep: nothing may sit inside anything else */
-  const idx = rows.map(r => r.key);
-  const P = new Map(rows.map(r => [r.key, r.pos.clone()]));
-  for (let pass = 0; pass < 80; pass++) {
-    let moved = false;
-    for (let i = 0; i < idx.length; i++) {
-      for (let j = i + 1; j < idx.length; j++) {
-        const a = P.get(idx[i]), b = P.get(idx[j]);
-        const need = (levelR(rows[i].depth) + levelR(rows[j].depth)) * 1.12 + 0.05;
-        const d = a.clone().sub(b);
+  const N = rows.length;
+  const pos = rows.map(r => r.pos.clone());
+  const vel = rows.map(() => new THREE.Vector3());
+  const parentIdx = rows.map(r => r.parent ? rows.findIndex(x => x === r.parent) : -1);
+  const rad = rows.map(r => levelR(r.depth));
+  const REST = d => (d <= 1 ? 1.10 : 0.60 * Math.pow(0.78, d - 2));
+  const BODY_X = 0.95;                                  // the body's right flank, plus a margin
+
+  for (let step = 0; step < 700; step++) {
+    const f = rows.map(() => new THREE.Vector3());
+    // springs: a node is tied to its parent, or to the set it came out of
+    rows.forEach((r, i) => {
+      const pi = parentIdx[i];
+      const target = pi >= 0 ? pos[pi] : c;
+      const d = target.clone().sub(pos[i]);
+      const len = Math.max(1e-4, d.length());
+      f[i].add(d.multiplyScalar((len - REST(r.depth)) * 0.05 / len));
+    });
+    // charge and collision
+    for (let i = 0; i < N; i++) {
+      for (let j = i + 1; j < N; j++) {
+        const d = pos[i].clone().sub(pos[j]);
         let len = d.length();
-        if (len < 1e-4) { d.set(0.31, 0.17, 0.47); len = d.length(); }
-        if (len < need) {
-          const push = d.multiplyScalar((need - len) * 0.5 / len);
-          a.add(push); b.sub(push);
-          moved = true;
-        }
+        if (len < 1e-3) { d.set(0.21, 0.13, 0.31); len = d.length(); }
+        const min = (rad[i] + rad[j]) * 1.30;
+        const repel = 0.020 / (len * len);
+        const collide = len < min ? (min - len) * 0.45 : 0;
+        const push = d.multiplyScalar((repel + collide) / len);
+        f[i].add(push); f[j].sub(push);
       }
     }
-    if (!moved) break;
+    // the wall: nothing may drift into the body
+    rows.forEach((r, i) => {
+      if (pos[i].x < BODY_X) f[i].x += (BODY_X - pos[i].x) * 0.8;
+    });
+    rows.forEach((r, i) => {
+      vel[i].add(f[i].multiplyScalar(0.02)).multiplyScalar(0.85);
+      const v = vel[i].length();
+      if (v > 0.22) vel[i].multiplyScalar(0.22 / v);
+      pos[i].add(vel[i]);
+    });
   }
-  rows.forEach(r => r.pos = P.get(r.key));
+  rows.forEach((r, i) => r.pos.copy(pos[i]));
   return { rows };
 }
 
@@ -1361,12 +1402,26 @@ function buildOrganNodes() {
       g.add(pick);
     }
     pick.visible = shadow || scattered;
-    pick.scale.setScalar(shadow ? 0.26 : (scattered ? R * 1.45 : R));
+    pick.scale.setScalar(shadow ? 0.17 : (scattered ? R * 1.45 : R));
+    if (shadow) { pick.material.opacity = 0; pick.material.depthWrite = false; }   // click target only
+
+    // a shadow system is a small lit sphere: light and shade say "ball", a flat disc says "stain"
+    let sball = g.children.find(c => c.userData.shadowBall);
+    if (!sball) {
+      sball = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 20),
+        new THREE.MeshStandardMaterial({
+          color: row.meta.color, emissive: row.meta.color, emissiveIntensity: 0.55,
+          roughness: 0.28, metalness: 0.12, transparent: true, opacity: 0.75, depthWrite: false
+        }));
+      sball.userData.shadowBall = true;
+      sball.raycast = () => {};
+      g.add(sball);
+    }
+    sball.visible = shadow;
     if (shadow) {
-      // the CSS-shadow look: 10 % of a light tint, so it reads as a sphere and not a hole
-      pick.material.opacity = 0.13;
-      pick.material.color.setHex(row.meta.color).lerp(new THREE.Color(0xffffff), 0.45);
-      pick.material.depthWrite = false;
+      sball.scale.setScalar(0.13);                       // half the old radius
+      sball.material.color.setHex(row.meta.color);
+      sball.material.emissive.setHex(row.meta.color);
     }
     pick.userData.groupId = row.meta.id;
     g.userData.scattered = scattered;
