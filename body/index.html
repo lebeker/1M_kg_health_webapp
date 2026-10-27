@@ -325,7 +325,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261030c";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261030d";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -426,6 +426,8 @@ async function boot() {
   jobs.push(loadFile("cardio", "cardio-female", "female"));
   jobs.push(loadFile("nervous", "nervous", "male"));
   jobs.push(loadFile("nervous", "nervous-female", "female"));
+  jobs.push(loadFile("organs", "heart"));     // the atlas keeps the heart in the cardio collection,
+                                              // exported with its 17 parts so it can be a node of its own
   jobs.push(loadFile("organs", "spleen"));    // the spleen, thymus and tonsils live in the atlas's
                                               // lymphoid collection, so the organs export missed them
   // models/heart.glb is kept for a later "heart" node, but the graph's centre is the organs set      // the graph's centre: the atlas keeps it inside the
@@ -866,6 +868,18 @@ const PART_NODE_SIZE = 0.16; // a part reads a little larger than an organ node,
    Every node in here can be a node in the graph: eye open means it left its parent and stands on
    its own with an edge back, eye shut means it is inside it. Leaves are the atlas meshes. */
 const ORGAN_TREE = [
+  { id:"circulatory", label:"heart", color:0xb33a3a,
+    about:"The pump, as an organ of the set: four chambers, four valves and the papillary muscles that hold the valves shut. It is the same heart the cardio-vascular layer carries, exported on its own so it can be a node like any other organ.",
+    children:[
+      { id:"heart", label:"heart", color:0xb33a3a,
+        about:"Right atrium and ventricle take the venous return, left atrium and ventricle drive the body. The valves are the only part that fails silently until it doesn't.",
+        children:[
+          { id:"heart-papillary", label:"papillary muscles", test:n => /papillary/i.test(n) },
+          { id:"heart-valve", label:"valves", test:n => /leaflet|valve/i.test(n) },
+          { id:"heart-atrium", label:"atria", test:n => /atrium/i.test(n) },
+          { id:"heart-ventricle", label:"ventricles", test:n => /ventricle/i.test(n) },
+        ] },
+    ] },
   { id:"respiratory", label:"airway · lungs", color:0xd08484,
     about:"Gas exchange and the pipes that reach it: trachea, bronchi down to the segmental branches, and both lungs lobe by lobe.",
     children:[
@@ -2155,6 +2169,7 @@ function buildTimeline() {
     if (cls === "m" && hits.length) el.classList.add("has");
     if (state.date === iso(d)) el.classList.add("pick");
     el._date = d; el._hits = hits;
+    if (+d > Date.now()) el.style.background = riskColour(annualRisk(ageAt(d)));
     el.addEventListener("mouseenter", e => tlCard(e, d, hits));
     el.addEventListener("mouseleave", () => { TL.card.hidden = true; });
     el.addEventListener("click", () => { state.date = iso(d); paintFade(); refreshPick(); });
@@ -2273,9 +2288,22 @@ function buildAnalyses() {
   paintFade();
 }
 
+/* the organ itself if it is a node; otherwise the nearest ancestor that is one — an analysis
+   must hang off the thing it is about, not off the set the thing happens to sit in */
+function anchorKeyFor(organ) {
+  let n = NODE_BY_ID[organ];
+  while (n) {
+    if (organNodes.some(o => o.key === n.id)) return n.id;
+    n = n.parent;
+  }
+  return null;
+}
 function anchorFor(a) {
-  const o = organNodes.find(x => x.key === a.organ);       // the organ is out: point at it
-  if (o) return { obj: o.node, r: o.r || 0.2 };
+  const key = anchorKeyFor(a.organ);
+  if (key) {
+    const o = organNodes.find(x => x.key === key);
+    if (o) return { obj: o.node, r: o.r || 0.2 };
+  }
   if (state.organsOut && organGhost) return { obj: organGhost, r: 0.30 };   // the set is the anchor
   return null;                                              // nothing is split: stand beside the body
 }
