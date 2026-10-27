@@ -60,7 +60,7 @@
   .row.folder .nm { font-weight:600; }
   .hint { position:fixed; right:12px; bottom:12px; color:#5f7183; }
   /* the node panel: what a node is, in words — the same chrome as the layer list, on the right */
-  .nodePanel { position:fixed; right:0; top:48px; bottom:0; width:320px; display:flex; flex-direction:column;
+  .nodePanel { position:fixed; right:0; top:122px; bottom:0; width:320px; display:flex; flex-direction:column;
     background:var(--panel); border-top:1px solid var(--line); border-left:1px solid var(--line);
     z-index:2; }
   .nodePanel[hidden] { display:none; }
@@ -123,6 +123,21 @@
 .alabel { position:fixed; z-index:24; font-size:10px; letter-spacing:.02em; color:#d6d6de;
           background:rgba(14,14,19,.78); border:1px solid #30303a; border-radius:5px; padding:2px 6px;
           transform:translate(-50%,-50%); pointer-events:none; white-space:nowrap; }
+
+.nvals { width:100%; border-collapse:collapse; margin:2px 0 10px; font-size:11.5px; }
+.nvals th { text-align:left; font-weight:600; color:#8f8f9c; font-size:10px; letter-spacing:.06em;
+            text-transform:uppercase; padding:0 6px 3px 0; border-bottom:1px solid #2c2c35; }
+.nvals td { padding:3px 6px 3px 0; color:#d8d8e0; border-bottom:1px solid #202028; }
+.nvals td.out { color:#e2725b; }
+.nsec { font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:#7f7f8c; margin:12px 0 4px; }
+.nlist { margin:0; padding:0; list-style:none; }
+.nlist li { padding:2px 0; color:#c9c9d3; font-size:11.5px; }
+.nlist li b { color:#e6e6ee; font-weight:600; }
+.nle { display:flex; gap:10px; align-items:baseline; margin-top:4px; }
+.nle .big { font-size:19px; color:#e6e6ee; }
+.nle .small { font-size:11px; color:#8f8f9c; }
+.nbadge { display:inline-block; padding:1px 6px; border-radius:10px; font-size:10px; margin-left:6px;
+          border:1px solid currentColor; }
 </style>
 </head>
 <body>
@@ -683,6 +698,59 @@ function select(id) {
   if (selChanged) focusOn(objectForSel(id));
 }
 
+
+/* A document, opened: what it measured, what it means, what it touches, what it does to the line. */
+function selectAnalysis(a) {
+  state.sel = "a:" + a.id;
+  const panel = document.getElementById("node");
+  const sup = latestByTrack().get(a.track);
+  const superseded = sup && sup.id !== a.id;
+
+  document.getElementById("npTitle").textContent = a.label;
+  document.getElementById("npSub").textContent =
+    a.at.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) +
+    " · " + (a.panel || a.organ || "analysis") +
+    (superseded ? " · superseded by " + sup.label : "");
+
+  const rows = a.values.map(v => {
+    const out = Array.isArray(v.ref) && (v.value < v.ref[0] || v.value > v.ref[1]);
+    const ref = Array.isArray(v.ref) ? v.ref.join(" – ") : "";
+    return "<tr><td>" + v.name + "</td><td class=\"" + (out ? "out" : "") + "\">" + v.value +
+           "</td><td>" + (v.unit || "") + "</td><td>" + ref + "</td></tr>";
+  }).join("");
+
+  const affects = a.affects.map(x =>
+    "<li><b>" + x.organ + "</b> — " + x.how + "</li>").join("");
+
+  const le = lifeExpectancy(), base = baselineLE(), d = deltaOf(a);
+  const impact = superseded
+    ? "not counted — " + sup.label + " is the newer reading of the same thing"
+    : (d >= 0 ? "+" : "−") + Math.abs(d).toFixed(1) + " years";
+
+  document.getElementById("npDesc").innerHTML =
+    "<table class=\"nvals\"><tr><th>measure</th><th>value</th><th>unit</th><th>reference</th></tr>" +
+    rows + "</table>" +
+    "<div class=\"nsec\">what it says</div><div>" + a.summary + "</div>" +
+    "<div class=\"nsec\">what it touches</div><ul class=\"nlist\">" + affects + "</ul>" +
+    "<div class=\"nsec\">on the line</div>" +
+    "<div class=\"nle\"><span class=\"big\">" + impact + "</span>" +
+    "<span class=\"small\">baseline " + base.toFixed(1) + " → " + le.toFixed(1) + " years" +
+    (superseded ? "" : " (with every current document)") + "</span></div>";
+
+  const acts = document.getElementById("npActs");
+  acts.innerHTML = "";
+  const add = (text, fn) => {
+    const b = document.createElement("button"); b.textContent = text; b.onclick = fn; acts.appendChild(b);
+  };
+  add("point the ruler at this date", () => {
+    state.date = iso(a.at); paintFade(); refreshPick();
+  });
+  if (a.link) add("open the document", () => window.open(a.link, "_blank"));
+  add("frame it", () => focusOn(a.node));
+
+  panel.hidden = false;
+}
+
 document.getElementById("nodeClose").onclick = () => select(null);
 
 /* double-click any node to fly to it: the same framing a selection gets, no second camera path */
@@ -1167,7 +1235,7 @@ function focusOn(obj) {
   if (dir.lengthSq() < 1e-6) dir.set(0, 0.15, 1);
   dir.normalize();
   const now = camera.position.distanceTo(controls.target);
-  const d = Math.min(Math.max(now, r * 2.0), Math.max(r * 4.5, 0.9));
+  const d = Math.max(1.0, Math.min(Math.max(now, r * 2.0), Math.max(r * 4.5, 1.0)));
   camWant.target.copy(c);
   camWant.pos.copy(c).add(dir.multiplyScalar(d));
   camAnim = true;
@@ -1834,6 +1902,7 @@ function pickAt(x, y) {
     if (!shown(h.object)) continue;
     let o = h.object, layerId = null, label = null, groupId = null, setId = null, partName = null;
     while (o) {
+      if (o.userData && o.userData.analysisId) return { analysis: o.userData.analysis, label: o.userData.nodeLabel };
       if (o.userData && o.userData.partName) { partName = o.userData.partName; label = o.userData.nodeLabel; break; }
       if (o.userData && o.userData.groupId) { groupId = o.userData.groupId; label = o.userData.nodeLabel; break; }
       if (o.userData && o.userData.setId) { setId = o.userData.setId; label = o.userData.nodeLabel; break; }
@@ -1875,6 +1944,7 @@ renderer.domElement.addEventListener("pointerup", e => {
   if (moved > 5) return;                       // that was an orbit drag, not a click
   const hit = pickAt(e.clientX, e.clientY);
   if (!hit) { select(null); return; }                       // a click on empty space clears it
+  if (hit.analysis) { selectAnalysis(hit.analysis); return; }    // a document: show what it says
   if (hit.partName) { select(meshKey(hit.partName)); return; }   // a part node: show what it is
   if (hit.groupId) { select(hit.groupId); return; }        // an organ node: show what it is
   if (hit.setId) {                                          // the organs set: select it, say what it is
@@ -1925,11 +1995,53 @@ const KGDATA = (() => {
 /* No graph in the page yet: three documents, so the layer can be seen and argued with. */
 const SAMPLE_ANALYSES = [
   { id:"lab-2019", kind:"analysis", label:"TSH 6.8", date:"2019-04-12", organ:"thyroid", panel:"thyroid",
-    evidence:42, confidence:60, values:[{name:"ТТГ", value:6.8, unit:"мМО/л", ref:[0.4,4.0]}] },
+    track:"thyroid", evidence:42, confidence:60, delta:-0.4,
+    values:[{name:"TSH", value:6.8, unit:"mIU/l", ref:[0.4, 4.0]}],
+    summary:"Thyroid-stimulating hormone above range: the pituitary is pushing a sluggish thyroid. " +
+            "A single reading is not a diagnosis — it needs a free T4 and a repeat in six to eight weeks.",
+    affects:[{organ:"thyroid", how:"under-active: less T3/T4, slower metabolism"},
+             {organ:"heart", how:"a slow thyroid lowers heart rate and raises LDL"},
+             {organ:"nervous system", how:"fatigue, low mood, poor concentration"}] },
   { id:"lab-2022", kind:"analysis", label:"ALT 71", date:"2022-06-03", organ:"liver", panel:"liver",
-    evidence:55, confidence:70, values:[{name:"АЛТ", value:71, unit:"Од/л", ref:[0,41]}] },
-  { id:"lab-2024", kind:"analysis", label:"Глюкоза 4.94", date:"2024-11-07", organ:"pancreas", panel:"carbohydrate",
-    evidence:82, confidence:75, values:[{name:"Глюкоза", value:4.94, unit:"ммоль/л", ref:[4.11,5.89]}] }
+    track:"liver", evidence:55, confidence:70, delta:-0.4,
+    values:[{name:"ALT", value:71, unit:"U/l", ref:[0, 41]}],
+    summary:"Alanine aminotransferase about 1.7× the upper limit. It points at the liver, not at " +
+            "the muscle, but it says nothing about the cause: fat, alcohol, drugs and viral " +
+            "hepatitis all look like this. An ultrasound and a repeat in three months separate them.",
+    affects:[{organ:"liver", how:"hepatocyte injury; if fat-driven, it can progress to fibrosis"},
+             {organ:"cardio-vascular", how:"fatty liver travels with insulin resistance and higher CV risk"}] },
+  { id:"bp-2024-10", kind:"analysis", label:"Blood pressure 135/90", date:"2024-10-15", organ:"heart",
+    panel:"haemodynamics", track:"blood-pressure", evidence:45, confidence:72, delta:-0.9,
+    values:[{name:"Systolic", value:135, unit:"mmHg", ref:[90, 120]},
+            {name:"Diastolic", value:90, unit:"mmHg", ref:[60, 80]},
+            {name:"Pulse", value:78, unit:"bpm", ref:[60, 100]}],
+    summary:"Monthly average of daily home readings: 135/90. That is stage 1 hypertension — the " +
+            "diastolic is the louder number here. Home averages beat a single office reading, " +
+            "which is why this one is kept as a document rather than a note.",
+    affects:[{organ:"heart", how:"higher afterload: left ventricle thickens, then stiffens"},
+             {organ:"kidneys", how:"raised pressure filters harder; nephrons scar silently"},
+             {organ:"brain", how:"small-vessel disease: white-matter change, later vascular dementia"},
+             {organ:"retina", how:"hypertensive retinopathy — the only place the damage is visible"}] },
+  { id:"bp-2026-10", kind:"analysis", label:"Blood pressure 150/110", date:"2026-10-15", organ:"heart",
+    panel:"haemodynamics", track:"blood-pressure", evidence:22, confidence:75, delta:-3.2,
+    values:[{name:"Systolic", value:150, unit:"mmHg", ref:[90, 120]},
+            {name:"Diastolic", value:110, unit:"mmHg", ref:[60, 80]},
+            {name:"Pulse", value:84, unit:"bpm", ref:[60, 100]}],
+    summary:"Monthly average of daily home readings: 150/110. Stage 2 hypertension, and 110 diastolic " +
+            "is the part that buys damage — it is the pressure the heart has to push against between " +
+            "beats. Two years after 135/90 this is progression, not a bad day.",
+    affects:[{organ:"heart", how:"concentric hypertrophy and diastolic dysfunction; LVH on echo"},
+             {organ:"kidneys", how:"glomerular pressure injury; albumin in the urine is the first sign"},
+             {organ:"brain", how:"stroke risk roughly doubles per 20 mmHg systolic"},
+             {organ:"aorta", how:"wall stress: aneurysm and dissection risk climb"},
+             {organ:"retina", how:"flame haemorrhages and papilloedema at this level"}] },
+  { id:"lab-2024", kind:"analysis", label:"Glucose 4.94", date:"2024-11-07", organ:"pancreas", panel:"carbohydrate",
+    track:"glucose", evidence:82, confidence:75, delta:1.2,
+    values:[{name:"Glucose", value:4.94, unit:"mmol/l", ref:[4.11, 5.89]}],
+    summary:"Fasting glucose 4.94 mmol/l, mid-range. It says the pancreas is keeping up today; it " +
+            "does not say what happens after a meal. HbA1c is the number that answers that.",
+    affects:[{organ:"pancreas", how:"beta cells are meeting demand — no sign of strain"},
+             {organ:"cardio-vascular", how:"normal fasting glucose keeps the metabolic CV risk low"}] }
 ];
 
 const TL_META = (KGDATA && KGDATA.meta) || {};
@@ -1940,7 +2052,9 @@ const ANALYSES = (((KGDATA && KGDATA.nodes) || []).filter(n => n.kind === "analy
   ? KGDATA.nodes.filter(n => n.kind === "analysis")
   : SAMPLE_ANALYSES).map(n => ({
     id: n.id, label: n.label || n.id, date: n.date || "", organ: n.organ || "",
-    panel: n.panel || "", values: n.values || [],
+    panel: n.panel || "", values: n.values || [], summary: n.summary || "",
+    affects: n.affects || [], track: n.track || n.id, link: n.link || "",
+    delta: Number.isFinite(Number(n.delta)) ? Number(n.delta) : null,
     evidence: Math.max(0, Math.min(100, Number(n.evidence ?? 50))),
     confidence: Math.max(0, Math.min(100, Number(n.confidence ?? 50))),
     at: n.date ? new Date(n.date) : null,
@@ -1948,10 +2062,24 @@ const ANALYSES = (((KGDATA && KGDATA.nodes) || []).filter(n => n.kind === "analy
   })).filter(a => a.at && !isNaN(+a.at));
 
 /* ---- the projection: a baseline life expectancy, moved by what the documents say */
+function deltaOf(a) {
+  return a.delta !== null ? a.delta : Math.max(-2, Math.min(2, (a.evidence - 50) / 25));
+}
+function latestByTrack() {
+  const m = new Map();
+  ANALYSES.forEach(a => {
+    const cur = m.get(a.track);
+    if (!cur || +a.at > +cur.at) m.set(a.track, a);        // a repeat supersedes the older one
+  });
+  return m;
+}
 function lifeExpectancy() {
   const base = LE_BY_SEX[state.sex] ?? LE_BY_SEX.male ?? 76;
-  return base + ANALYSES.reduce((s, a) => s + Math.max(-2, Math.min(2, (a.evidence - 50) / 25)), 0);
+  let le = base;
+  latestByTrack().forEach(a => { le += deltaOf(a); });
+  return le;
 }
+function baselineLE() { return LE_BY_SEX[state.sex] ?? LE_BY_SEX.male ?? 76; }
 function annualRisk(age) {                       // death in the next year, given you reached it
   const m = lifeExpectancy(), b = 9;
   return 1 - Math.exp(-Math.exp((age - m) / b) / b);
@@ -2119,8 +2247,9 @@ function buildAnalyses() {
   scene.add(analysisRoot);
   ANALYSES.forEach((a, i) => {
     const g = new THREE.Group();
-    g.userData.nodeLabel = a.label;
+    g.userData.nodeLabel = a.label + " · " + (a.organ || "—");
     g.userData.analysis = a;
+    g.userData.analysisId = a.id;
     const mat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(healthColour(a.evidence)), roughness: 0.4, metalness: 0.05,
       transparent: true, opacity: 0.9, emissive: new THREE.Color(healthColour(a.evidence)),
@@ -2179,7 +2308,7 @@ function updateAnalyses() {
     } else {
       const i = ANALYSES.indexOf(a);
       c = set.clone();
-      p = new THREE.Vector3(c.x + 0.72, c.y + 0.30 - i * 0.28, c.z + 0.05);
+      p = new THREE.Vector3(c.x - 0.95, c.y + 0.35 - i * 0.26, c.z + 0.05);
     }
     a.node.position.copy(p);
     const arr = a.line.geometry.attributes.position.array;
