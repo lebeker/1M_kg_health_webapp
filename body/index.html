@@ -325,7 +325,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261030d";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261030e";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1251,7 +1251,8 @@ function focusOn(obj) {
   if (dir.lengthSq() < 1e-6) dir.set(0, 0.15, 1);
   dir.normalize();
   const now = camera.position.distanceTo(controls.target);
-  const d = Math.max(1.0, Math.min(Math.max(now, r * 2.0), Math.max(r * 4.5, 1.0)));
+  // never further than 6 units: the body is 1.8 tall, and a graph framed from 15 units is a postage stamp
+  const d = Math.max(1.0, Math.min(Math.max(now, r * 2.0), Math.min(Math.max(r * 4.5, 1.0), 6.0)));
   camWant.target.copy(c);
   camWant.pos.copy(c).add(dir.multiplyScalar(d));
   camAnim = true;
@@ -1266,7 +1267,7 @@ function focusOn(obj) {
    a spring/repulsion relaxation (edges pull, everything pushes), which spreads the tree through
    space and keeps nodes from landing on top of each other. */
 
-const LEVEL_R = { 1: 0.15, 2: 0.105, 3: 0.073, 4: 0.05 };   // half of what they were: a mark, not a moon
+const LEVEL_R = { 1: 0.30, 2: 0.21, 3: 0.15, 4: 0.10 };  // a node reads at a glance; the body is 1.8 tall
 function levelR(depth) { return LEVEL_R[Math.min(4, Math.max(1, depth))] || 0.06; }
 
 /* the rows that are out, with their meshes assigned to the nearest open ancestor */
@@ -1320,9 +1321,21 @@ function graphRows() {
   let cx = 0, cy = 0, cz = 0;
   simNodes.forEach(n => { cx += n.x; cy += n.y; cz += n.z; });
   cx /= simNodes.length || 1; cy /= simNodes.length || 1; cz /= simNodes.length || 1;
+  simNodes.forEach(n => { n.x += c.x - cx; n.y += c.y - cy; n.z += c.z - cz; });
+
+  /* Fit the solved graph to the space the camera actually gives it. A force cloud has no idea
+     how big the screen is: six nodes can solve into a five-unit sprawl and half of them end up
+     outside the viewport. Scale the whole solution to a fixed span, then stand it beside the body. */
+  const bb = new THREE.Box3();
+  simNodes.forEach(n => bb.expandByPoint(new THREE.Vector3(n.x, n.y, n.z)));
+  const size = bb.getSize(new THREE.Vector3());
+  const span = Math.max(size.x, size.y, size.z);
+  const k = span > 0.6 ? Math.min(2.0, Math.max(0.35, 2.2 / span)) : 1;
+  const mid = bb.getCenter(new THREE.Vector3());
   simNodes.forEach(n => {
-    n.x += c.x - cx; n.y += c.y - cy; n.z += c.z - cz;
-    if (n.x < BODY_X) n.x = BODY_X + (BODY_X - n.x) * 0.25;    // the body is a box, not a line
+    n.x = BODY_X + 0.25 + (n.x - bb.min.x) * k;
+    n.y = c.y + (n.y - mid.y) * k;
+    n.z = c.z + (n.z - mid.z) * k;
     n.row.pos.set(n.x, n.y, n.z);
   });
   return { rows };
@@ -1461,6 +1474,16 @@ function buildOrganNodes() {
         p.mesh.position.add(target.sub(c2));
       });
     }
+
+    meshes.forEach(p => {
+      if (!p.mesh.userData.baseMat) p.mesh.userData.baseMat = p.mesh.material;
+      if (!p.mesh.userData.tintMat) {
+        p.mesh.userData.tintMat = new THREE.MeshStandardMaterial({
+          color: p.gmeta.color, roughness: 0.62, metalness: 0.04
+        });
+      }
+      p.mesh.material = p.mesh.userData.tintMat;      // a node wears the colour of what it is
+    });
 
     const shadow = row.meta.shadow === true;
     const cloud = g.children.find(c => c.userData.cloud);
@@ -1604,11 +1627,13 @@ function buildOrganNodes() {
   partNodes.forEach(pn => edgePairs.push({ a: pn.node, b: pn.parent.node }));
   ensureEdges();
   ensureLinks();
+  if (organGhost) organGhost.visible = organNodes.length === 0;
 }
 
 function disposeOrganNodes() {
   const inner = groups.organs.userData.inner;
   partNodes.forEach(pn => {
+    if (pn.part.mesh.userData.baseMat) pn.part.mesh.material = pn.part.mesh.userData.baseMat;
     inner.add(pn.part.mesh);
     pn.part.mesh.position.copy(pn.part.home.p); pn.part.mesh.quaternion.copy(pn.part.home.q); pn.part.mesh.scale.copy(pn.part.home.s);
     pn.node.removeFromParent();
@@ -1616,6 +1641,7 @@ function disposeOrganNodes() {
   partNodes = [];
   organNodes.forEach(o => {
     o.parts.forEach(p => {
+      if (p.mesh.userData.baseMat) p.mesh.material = p.mesh.userData.baseMat;
       if (p.mesh.parent === inner) return;
       inner.attach(p.mesh);
       p.mesh.position.set(0, 0, 0); p.mesh.scale.setScalar(1); p.mesh.quaternion.set(0, 0, 0, 1);
@@ -1624,6 +1650,7 @@ function disposeOrganNodes() {
   });
   organNodes = [];
   edgePairs = [];
+  if (organGhost) organGhost.visible = true;
   if (organRoot) { organRoot.removeFromParent(); organRoot = null; }
   if (edges) { scene.remove(edges); edges.geometry.dispose(); edges = null; }
 }
@@ -1777,6 +1804,8 @@ function bodyHeadCut() {
 }
 
 function layout() {
+  // the set node exists only while the set is one thing; split it and the ghost has nothing to say
+  if (organGhost) organGhost.visible = !state.organsOut;
   if (!bodyBox) return;
   const width = bodyBox.getSize(new THREE.Vector3()).x;
   const graph = state.organsOut;
@@ -1902,7 +1931,9 @@ function layout() {
   const camKeyNow = [...state.out].sort().join("+") + "|" + [...state.nodeOut].sort().join(",") + "|" + graph + "|" + state.collapsed;
   if (camKeyNow !== camKey) {
     camKey = camKeyNow;
-    camWant.pos.set(cx - dx, d * elev, d);
+    // the overview is a view of the body, not of the whole world: 6 units is as far as it goes
+    const dd = Math.min(d, 6);
+    camWant.pos.set(cx - dx, dd * elev, dd);
     camWant.target.set(cx - dx, 0, 0);
     camAnim = true;
     camUntil = performance.now() + 1400;
@@ -2257,7 +2288,12 @@ function tlCard(e, d, hits) {
 let analysisRoot = null, analysisNodes = [];
 const NODE_R = 0.05;
 
+function disposeAnalysisLabels() {
+  ANALYSES.forEach(a => { if (a.labelEl) { a.labelEl.remove(); a.labelEl = null; } });
+}
+
 function buildAnalyses() {
+  disposeAnalysisLabels();
   if (!ANALYSES.length) return;
   analysisRoot = new THREE.Group();
   analysisRoot.name = "analyses";
@@ -2298,6 +2334,32 @@ function anchorKeyFor(organ) {
   }
   return null;
 }
+
+/* A label is a signpost, not a sticker: it exists only while its node is big enough to be
+   worth naming, in front of the camera, outside the panel, and still solid enough to read. */
+function syncLabel(a, worldPos) {
+  if (!a.labelEl) {
+    a.labelEl = document.createElement("div");
+    a.labelEl.className = "alabel";
+    a.labelEl.textContent = a.label + " · " + (a.organ || "—");
+    document.body.appendChild(a.labelEl);
+  }
+  const el = a.labelEl;
+  const v = worldPos.clone().project(camera);
+  const edge = worldPos.clone().add(
+    new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(NODE_R * 1.6));
+  const ve = edge.project(camera);
+  const px = Math.abs(ve.x - v.x) * 0.5 * window.innerWidth;   // the node's radius, on screen
+  const fade = fadeFor(a);
+  const onScreen = v.z < 1 && v.x > -1 && v.x < 1 && v.y > -1 && v.y < 1;
+  const underPanel = !document.getElementById("node").hidden &&
+                     (v.x * 0.5 + 0.5) * window.innerWidth > window.innerWidth - 336;
+  if (!onScreen || px < 9 || fade < 0.22 || underPanel) { el.style.opacity = 0; return; }
+  el.style.left = ((v.x * 0.5 + 0.5) * window.innerWidth).toFixed(0) + "px";
+  el.style.top = ((-v.y * 0.5 + 0.5) * window.innerHeight - 22).toFixed(0) + "px";
+  el.style.opacity = Math.min(1, 0.35 + fade * 0.65).toFixed(2);
+}
+
 function anchorFor(a) {
   const key = anchorKeyFor(a.organ);
   if (key) {
@@ -2347,19 +2409,7 @@ function updateAnalyses() {
     a.line.geometry.attributes.position.needsUpdate = true;
     a.line.geometry.computeBoundingSphere();
 
-    if (!a.labelEl) {
-      a.labelEl = document.createElement("div");
-      a.labelEl.className = "alabel";
-      a.labelEl.textContent = a.label + " · " + (a.organ || "—");
-      document.body.appendChild(a.labelEl);
-    }
-    const v = p.clone().project(camera);
-    if (v.z > 1) { a.labelEl.style.opacity = 0; }
-    else {
-      a.labelEl.style.left = ((v.x * 0.5 + 0.5) * window.innerWidth).toFixed(0) + "px";
-      a.labelEl.style.top = ((-v.y * 0.5 + 0.5) * window.innerHeight - 24).toFixed(0) + "px";
-      a.labelEl.style.opacity = Math.max(0.10, fadeFor(a)).toFixed(2);
-    }
+    syncLabel(a, p);
   });
 }
 
