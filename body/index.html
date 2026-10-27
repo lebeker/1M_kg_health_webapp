@@ -325,7 +325,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261030e";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261030f";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -2171,7 +2171,7 @@ function buildTimeline() {
   const W = Math.max(560, window.innerWidth - 244 - 14);
   const months = monthDiff(wf, wt) + 1;
   TL.winFrom = wf; TL.winTo = wt;
-  TL.stepM = Math.max(6, Math.min(12, Math.floor((W * 0.45) / months)));
+  TL.stepM = Math.max(4, Math.min(12, Math.floor((W * 0.42) / months)));
   TL.xw0 = monthDiff(BIRTH, wf) * 0;                 // set below from the year run
   const yearsBefore = (+wf - +BIRTH) / (365.25 * 864e5);
   const yearsAfter = 100 - ageAt(wt);
@@ -2225,7 +2225,8 @@ function buildTimeline() {
     el.addEventListener("mouseleave", () => { TL.card.hidden = true; });
     el.addEventListener("click", () => { state.date = iso(d); paintFade(); refreshPick(); });
     T.appendChild(el);
-    if (y % 5 === 0 || y === now.getFullYear()) {
+    const every = Math.max(5, Math.ceil(26 / Math.max(1, TL.stepY)));   // a label needs ~26 px
+    if (y % every === 0 || y === now.getFullYear()) {
       const l = document.createElement("div");
       l.className = "lbl" + (y === now.getFullYear() ? " big" : "");
       l.style.left = xOf(d).toFixed(1) + "px"; l.textContent = y;
@@ -2447,6 +2448,7 @@ function tick() {
     updateLinks();
   }
   updateAnalyses();
+  if (organGhost) organGhost.visible = organNodes.length === 0;   // the set node exists iff the set is one thing
   // the body cloud is the body's shadow, not a snapshot: it follows wherever the body is now
   if (bodyGhost && groups.muscles) {
     bodyGhost.position.copy(groups.muscles.position);
