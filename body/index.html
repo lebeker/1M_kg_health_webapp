@@ -275,7 +275,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261029t";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261029u";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -455,29 +455,6 @@ function buildLegend() {
     if (isOrgans && state.treeOpen) organRows(rows);
   });
 
-  if (state.out.has("organs")) {
-    const sect = document.createElement("div");
-    sect.className = "sect";
-    sect.textContent = "edges";
-    rows.appendChild(sect);
-    [["tree", "organ tree", 0x6b5a78], ["endocrine", "endocrine links", 0xb8a8c8],
-     ["immune", "immune links", 0xd8a8b8]].forEach(([id, label, col]) => {
-      const off = state.edgeOff.has(id);
-      const row = document.createElement("div");
-      row.className = "row" + (off ? " off" : "");
-      row.dataset.edge = id;
-      row.innerHTML =
-        `<span class="chev blank"></span>` +
-        `<span class="dot" style="background:#${col.toString(16).padStart(6, "0")}"></span>` +
-        `<span class="nm">${label}</span><span class="cnt">${id === "tree" ? "structure" : "link"}</span>` +
-        `<button class="eye" title="${off ? "show" : "hide"}">${off ? EYE_SHUT : EYE_OPEN}</button>`;
-      row.onclick = () => {
-        if (off) state.edgeOff.delete(id); else state.edgeOff.add(id);
-        applyEdgeState(); buildLegend();
-      };
-      rows.appendChild(row);
-    });
-  }
 }
 
 /* organs: the tree, any depth. An eye takes a node out of its parent; a chevron opens what is
@@ -492,6 +469,7 @@ function organRows(rows) {
   const render = (list, depth) => {
     const walkAll = (node, out = []) => { (node.kids || []).forEach(k => { out.push(k); walkAll(k, out); }); return out; };
   list.forEach(n => {
+      if (n.hidden) return;                            // a system that owns nothing is not a node
       if (!countUnder(n) && !n.shadow) return;         // nothing under it for this sex
       const out = state.nodeOut.has(n.id);
       const open = state.openGroups.has(n.id);
@@ -714,7 +692,7 @@ function syncOrgans() { syncTree(); }
 
 function openAll() {
   // level one: the systems, and the shadow systems, which have no organs of their own
-  ORGAN_TREE.filter(n => countUnder(n) > 0 || n.shadow).forEach(n => setOut(n.id, true));
+  ORGAN_TREE.filter(n => !n.hidden && (countUnder(n) > 0 || n.shadow)).forEach(n => setOut(n.id, true));
   layout(); buildLegend();
 }
 
@@ -868,7 +846,7 @@ const ORGAN_TREE = [
     ] },
 
   /* a system without a body of its own: a shadow sphere, and its glands living where they sit */
-  { id:"endocrine", label:"endocrine", color:0xb8a8c8, shadow:true,
+  { id:"endocrine", label:"endocrine", color:0xb8a8c8, shadow:true, hidden:true,
     about:"The glands that run the body by hormone. Each one lives with the anatomy it sits in — the adrenals on the kidneys, the thyroid and pituitary in the head and neck.",
     children:[
       { id:"pituitary", label:"pituitary", into:"ent", test:n => /hypophysis|pituitary/i.test(n) },
@@ -878,7 +856,7 @@ const ORGAN_TREE = [
       { id:"adrenals", label:"adrenals", into:"kidneys", test:n => /suprarenal|adrenal/i.test(n) },
     ] },
 
-  { id:"immune", label:"immune", color:0xd8a8b8, shadow:true,
+  { id:"immune", label:"immune", color:0xd8a8b8, shadow:true, hidden:true,
     about:"Lymphoid organs: the spleen, the thymus and the palatine tonsils, each living with the anatomy it sits in.",
     children:[
       { id:"spleen", label:"spleen", into:"digestive", test:n => /spleen/i.test(n) },
@@ -1195,7 +1173,7 @@ function graphRows() {
   (function walk(list, parentRow) {
     list.forEach(n => {
       if (!state.nodeOut.has(n.id)) return;
-      if (!countUnder(n) && !n.shadow) return;
+      if (n.hidden || (!countUnder(n) && !n.shadow)) return;
       const row = { key: n.id, meta: n, parent: parentRow, depth: n.depth, parts: [], leaves: [], pos: new THREE.Vector3() };
       rows.push(row);
       walk(n.kids, row);
