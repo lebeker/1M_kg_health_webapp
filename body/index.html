@@ -275,7 +275,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261029u";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261029v";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -561,14 +561,6 @@ function highlight(obj) {
   });
 }
 
-function selectedObject() {
-  if (!state.sel) return null;
-  if (state.sel === "organs") return organGhost;
-  const n = organNodes.find(o => o.meta.id === state.sel);
-  if (n) return n.node;
-  return groups[state.sel] || null;
-}
-
 function select(id) {
   const before = state.sel;
   state.sel = id || null;
@@ -597,7 +589,7 @@ function select(id) {
     b.classList.add("on");
     b.onclick = () => { toggleKey(id); select(null); };
     acts.appendChild(b);
-    const obj = selectedObject();
+    const obj = objectForSel(state.sel);
     if (obj) highlight(obj); else clearHighlight();
     layout();
     if (selChanged) focusOn(objectForSel(id));
@@ -647,7 +639,7 @@ function select(id) {
   }
 
   panel.hidden = false;
-  const obj = selectedObject();
+  const obj = objectForSel(state.sel);
   if (obj) highlight(obj); else clearHighlight();
   layout();
   if (selChanged) focusOn(objectForSel(id));
@@ -655,23 +647,12 @@ function select(id) {
 
 document.getElementById("nodeClose").onclick = () => select(null);
 
-/* double-click any node to fly to it: the one gesture that answers 'zoom in on this organ' */
+/* double-click any node to fly to it: the same framing a selection gets, no second camera path */
 renderer.domElement.addEventListener("dblclick", e => {
   const hit = pickAt(e.clientX, e.clientY);
   if (!hit) return;
-  let obj = null;
-  if (hit.groupId) { const n = organNodes.find(o => o.meta.id === hit.groupId); obj = n && n.node; }
-  else if (hit.setId) obj = organGhost;
-  else if (hit.layerId) obj = groups[hit.layerId];
-  if (!obj) return;
-  const b = new THREE.Box3().setFromObject(obj);
-  if (b.isEmpty()) return;
-  const c = b.getCenter(new THREE.Vector3()), s = b.getSize(new THREE.Vector3());
-  const r = Math.max(s.x, s.y, s.z, 0.08);
-  camWant.target.copy(c);
-  camWant.pos.copy(c).add(new THREE.Vector3(0, r * 0.35, r * 4.6));   // a frame, not a close-up
-  camAnim = true;
-  camUntil = performance.now() + 1400;
+  const key = hit.groupId || hit.layerId || (hit.setId ? "organs" : null);
+  if (key) focusOn(objectForSel(key));
 });
 
 /* a body layer in or out of the body; the organs layer also opens and closes its tree */
@@ -1132,7 +1113,7 @@ function objectForSel(key) {
   if (isMeshKey(key)) { const pn = partNodes.find(x => x.key === key); return pn ? pn.node : null; }
   const o = organNodes.find(x => x.key === key);
   if (o) return o.node;
-  if (key === "organs") return organGhost;
+  if (key === "organs") return organGhost || groups.organs || null;
   return groups[key] || null;
 }
 
