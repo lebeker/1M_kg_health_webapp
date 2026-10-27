@@ -273,7 +273,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261029n";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261029p";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1675,7 +1675,7 @@ function bodyHeadCut() {
   headCutMeshes.forEach(o => { o.visible = true; });
   headCutMeshes = [];
   if (state.out.has("skin")) return;                 // shell off: the atlas head is all there is
-  const CUT = 0.585;
+  const CUT = 0.585;                                 // the jaw line in scene units
   const shellOf = m => m && (m === groups.skin || (m.parent && m.parent.userData && m.parent.userData.variant === state.sex));
   scene.traverse(o => {
     if (!o.isMesh || !o.visible) return;
@@ -1683,7 +1683,11 @@ function bodyHeadCut() {
     if (/^skinbits/.test(o.name)) { o.visible = false; headCutMeshes.push(o); return; }
     if (/-head$/.test(o.name) || o.name === "skin" || /^skin-female2$/.test(o.name)) return;   // the shell itself
     const b = new THREE.Box3().setFromObject(o);
-    if (b.isEmpty() || b.min.y <= CUT - 0.02) return;
+    if (b.isEmpty()) return;
+    const c = b.getCenter(new THREE.Vector3());
+    // by centre, not by minimum: the skull and the face muscles reach down into the neck, so a
+    // min.y test never catches them
+    if (c.y <= CUT + 0.02) return;
     o.visible = false;
     headCutMeshes.push(o);
   });
