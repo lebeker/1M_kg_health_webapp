@@ -325,7 +325,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261030b";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261030c";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -734,8 +734,10 @@ function selectAnalysis(a) {
     "<div class=\"nsec\">what it touches</div><ul class=\"nlist\">" + affects + "</ul>" +
     "<div class=\"nsec\">on the line</div>" +
     "<div class=\"nle\"><span class=\"big\">" + impact + "</span>" +
-    "<span class=\"small\">baseline " + base.toFixed(1) + " → " + le.toFixed(1) + " years" +
-    (superseded ? "" : " (with every current document)") + "</span></div>";
+    "<span class=\"small\">" + (superseded
+      ? "kept as history — the projection is " + le.toFixed(1) + " years, from the newer reading"
+      : "baseline " + base.toFixed(1) + " → " + le.toFixed(1) + " years with every current document") +
+    "</span></div>";
 
   const acts = document.getElementById("npActs");
   acts.innerHTML = "";
