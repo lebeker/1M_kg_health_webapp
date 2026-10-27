@@ -181,6 +181,7 @@ let edges = null;           // LineSegments organ -> heart
 
 const stage = document.getElementById("stage");
 const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.localClippingEnabled = true;   // a clippingPlane is decoration without this
 const headPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0.585);  // keeps what is below her jaw
 // NOTE: the scene is authored in the r146 default (linear output). Switching to sRGBEncoding
 // brightens the shell but washes the atlas anatomy out, and the anatomy is what has to stay
@@ -254,9 +255,9 @@ function paint(l, root, tag) {
     const isHead = l.id === "skin" && /-head$/.test(o.name);
     const m = new THREE.MeshStandardMaterial({
       color: base, roughness: keep ? 0.6 : 0.72, metalness: 0.02,
-      transparent: l.id === "skin" && !isHead,
-      opacity: l.id === "skin" ? (isHead ? 1 : SHELL_OPACITY) : 1,
-      depthWrite: l.id !== "skin" || isHead,
+      transparent: l.id === "skin",
+      opacity: l.id === "skin" ? SHELL_OPACITY : 1,
+      depthWrite: l.id !== "skin",
       side: l.id === "skin" ? THREE.FrontSide : THREE.DoubleSide
     });
     if (isHead) m.userData.solidHead = true;
@@ -272,7 +273,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261029i";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261029n";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1669,30 +1670,22 @@ let headCutMeshes = [];
    stick out of her face. Cut the atlas layers at her jaw while they sit in the body; taken out as
    nodes they keep everything. The shell's head is drawn opaque (see paint()), so the gap never shows. */
 function bodyHeadCut() {
-  headCutMats.forEach(m => { m.clippingPlanes = null; m.needsUpdate = true; });
-  headCutMats = [];
+  // Anything that lives entirely inside the head is hidden while the shell is on: a transparent head
+  // then shows an empty volume instead of a glass skull, glowing eyes and teeth.
   headCutMeshes.forEach(o => { o.visible = true; });
   headCutMeshes = [];
-  // only while her own shell is the head on screen: with the shell off, the atlas head is all there is
-  if (state.sex !== "female" || state.out.has("skin")) return;
-  ["muscles", "bones", "cardio", "nervous", "lymphoid"].forEach(id => {
-    const g = groups[id];
-    if (!g || state.out.has(id)) return;
-    g.traverse(o => {
-      if (!o.isMesh || !o.material || o.material.userData.solidHead) return;
-      if (headCutMats.includes(o.material)) return;
-      o.material.clippingPlanes = [headPlane];
-      o.material.needsUpdate = true;
-      headCutMats.push(o.material);
-    });
-  });
-  organParts.forEach(p => {
-    if (p.inNode) return;
-    const b = new THREE.Box3().setFromObject(p.mesh);
-    if (!b.isEmpty() && b.getCenter(new THREE.Vector3()).y > 0.585) {
-      p.mesh.visible = false;
-      headCutMeshes.push(p.mesh);
-    }
+  if (state.out.has("skin")) return;                 // shell off: the atlas head is all there is
+  const CUT = 0.585;
+  const shellOf = m => m && (m === groups.skin || (m.parent && m.parent.userData && m.parent.userData.variant === state.sex));
+  scene.traverse(o => {
+    if (!o.isMesh || !o.visible) return;
+    if (o.userData.ball || o.userData.cloudLayer || o.userData.shadowBall || o.userData.ghost) return;
+    if (/^skinbits/.test(o.name)) { o.visible = false; headCutMeshes.push(o); return; }
+    if (/-head$/.test(o.name) || o.name === "skin" || /^skin-female2$/.test(o.name)) return;   // the shell itself
+    const b = new THREE.Box3().setFromObject(o);
+    if (b.isEmpty() || b.min.y <= CUT - 0.02) return;
+    o.visible = false;
+    headCutMeshes.push(o);
   });
 }
 
@@ -1763,7 +1756,7 @@ function layout() {
   const skinG = groups.skin;
   const skinOut = state.out.has("skin");
   if (skinG) skinG.traverse(o => {
-    if (!o.isMesh || !o.material || o.material.userData.solidHead) return;
+    if (!o.isMesh || !o.material) return;
     o.material.transparent = !skinOut;
     o.material.opacity = skinOut ? 1 : SHELL_OPACITY;
     o.material.depthWrite = skinOut;
