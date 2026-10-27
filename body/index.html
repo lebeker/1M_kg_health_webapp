@@ -92,6 +92,37 @@
   .bootbar { height:4px; background:#1b2430; border-radius:3px; overflow:hidden; }
   .bootbar i { display:block; height:100%; width:0; background:#7fb3e0; transition:width .2s ease; }
   .bootnum { color:#5f7183; font-size:11px; margin-top:7px; }
+
+#tl { position:fixed; left:244px; right:14px; top:46px; height:74px; z-index:26;
+      pointer-events:none; }
+#tl .track { position:relative; height:44px; pointer-events:none; }
+#tl .base { position:absolute; left:0; right:0; top:26px; height:1px; background:#3a3a44; }
+#tl .tick { position:absolute; top:16px; width:1px; height:11px; background:#3b3b45; pointer-events:auto;
+            cursor:default; }
+#tl .tick.y5 { height:14px; top:13px; background:#4d4d59; }
+#tl .tick.m { top:20px; height:7px; background:#41414c; }
+#tl .tick.has { background:#d8d8e2; }
+#tl .tick.has::after { content:""; position:absolute; left:-2px; top:-5px; width:5px; height:5px;
+                       border-radius:50%; background:#fff; }
+#tl .tick.pick { background:#fff; height:15px; top:12px; width:2px; }
+#tl .tick:hover { background:#fff; }
+#tl .now { position:absolute; top:8px; width:1px; height:26px; background:#fff; opacity:.55; }
+#tl .lbl { position:absolute; top:30px; font-size:9px; color:#77777f; transform:translateX(-50%);
+           letter-spacing:.04em; }
+#tl .lbl.big { color:#a9a9b4; }
+#tl .band { position:absolute; top:8px; height:26px; background:rgba(255,255,255,.03);
+            border-left:1px solid #2f2f38; border-right:1px solid #2f2f38; }
+#tlCard { position:fixed; z-index:40; min-width:180px; max-width:320px; background:#141419;
+          border:1px solid #33333d; border-radius:8px; padding:8px 10px; font-size:11px;
+          color:#d8d8e0; box-shadow:0 8px 24px rgba(0,0,0,.5); pointer-events:none; }
+#tlCard h6 { margin:0 0 4px; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase;
+             color:#8f8f9c; font-weight:600; }
+#tlCard .it { display:flex; gap:8px; padding:2px 0; color:#cfcfd8; }
+#tlCard .it i { width:7px; height:7px; border-radius:50%; margin-top:4px; flex:0 0 auto; }
+#tlCard .no { color:#6f6f7a; font-style:italic; }
+.alabel { position:fixed; z-index:24; font-size:10px; letter-spacing:.02em; color:#d6d6de;
+          background:rgba(14,14,19,.78); border:1px solid #30303a; border-radius:5px; padding:2px 6px;
+          transform:translate(-50%,-50%); pointer-events:none; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -135,6 +166,9 @@
   <div class="rows" id="rows"></div>
 </aside>
 
+<div id="tl"><div class="track" id="tlTrack"></div></div>
+<div id="tlCard" hidden></div>
+
 <div class="hint">drag to orbit · scroll to zoom · double-click a node to frame it</div>
 <div class="foot" id="foot"></div>
 
@@ -170,7 +204,8 @@ const state = {
   organsOut:false,          // the organs set split into organ nodes
   nodeOut:new Set(),        // anything that left its parent: a group id, or "m:<mesh>"
   treeOpen:false, openGroups:new Set(),
-  edgeOff:new Set()          // edge types the user has hidden
+  edgeOff:new Set(),         // edge types the user has hidden
+  date:null                  // the day the timeline is pointing at: analyses fade with distance
 };
 const EYE_OUT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
 const SHELL_OPACITY = 0.45;
@@ -275,7 +310,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261029v";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261030a";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -388,6 +423,9 @@ async function boot() {
   buildLegend();
   applySex();
   layout();
+  buildTimeline();
+  buildAnalyses();
+  paintFade();
   bootDone();
   if (failedFiles.length) document.getElementById("foot").textContent = `Could not load: ${failedFiles.join(", ")} — reload to retry`;
 }
@@ -1870,6 +1908,302 @@ addEventListener("resize", () => {
 });
 
 const clock = new THREE.Clock();
+
+/* ============================================================== timeline & analyses
+   A life ruler. Years are compressed, the two years either side of today are monthly.
+   The past is grey; the future is painted by the risk the analyses imply.
+   An analysis is a node — a document (the skill's `attach`) with two numbers:
+   `evidence` paints it, `confidence` says how solid it is, and how fast it fades as
+   the chosen day walks away from the analysis's own date. */
+
+const KGDATA = (() => {
+  const el = document.getElementById("kg-graph");
+  if (!el) return null;
+  try { return JSON.parse(el.textContent); } catch (e) { console.warn("kg-graph: bad JSON", e); return null; }
+})();
+
+/* No graph in the page yet: three documents, so the layer can be seen and argued with. */
+const SAMPLE_ANALYSES = [
+  { id:"lab-2019", kind:"analysis", label:"TSH 6.8", date:"2019-04-12", organ:"thyroid", panel:"thyroid",
+    evidence:42, confidence:60, values:[{name:"ТТГ", value:6.8, unit:"мМО/л", ref:[0.4,4.0]}] },
+  { id:"lab-2022", kind:"analysis", label:"ALT 71", date:"2022-06-03", organ:"liver", panel:"liver",
+    evidence:55, confidence:70, values:[{name:"АЛТ", value:71, unit:"Од/л", ref:[0,41]}] },
+  { id:"lab-2024", kind:"analysis", label:"Глюкоза 4.94", date:"2024-11-07", organ:"pancreas", panel:"carbohydrate",
+    evidence:82, confidence:75, values:[{name:"Глюкоза", value:4.94, unit:"ммоль/л", ref:[4.11,5.89]}] }
+];
+
+const TL_META = (KGDATA && KGDATA.meta) || {};
+const BIRTH = new Date(TL_META.birth || "1984-03-01");
+const LE_BY_SEX = TL_META.life_expectancy || { male: 74, female: 80 };
+
+const ANALYSES = (((KGDATA && KGDATA.nodes) || []).filter(n => n.kind === "analysis").length
+  ? KGDATA.nodes.filter(n => n.kind === "analysis")
+  : SAMPLE_ANALYSES).map(n => ({
+    id: n.id, label: n.label || n.id, date: n.date || "", organ: n.organ || "",
+    panel: n.panel || "", values: n.values || [],
+    evidence: Math.max(0, Math.min(100, Number(n.evidence ?? 50))),
+    confidence: Math.max(0, Math.min(100, Number(n.confidence ?? 50))),
+    at: n.date ? new Date(n.date) : null,
+    node: null, line: null
+  })).filter(a => a.at && !isNaN(+a.at));
+
+/* ---- the projection: a baseline life expectancy, moved by what the documents say */
+function lifeExpectancy() {
+  const base = LE_BY_SEX[state.sex] ?? LE_BY_SEX.male ?? 76;
+  return base + ANALYSES.reduce((s, a) => s + Math.max(-2, Math.min(2, (a.evidence - 50) / 25)), 0);
+}
+function annualRisk(age) {                       // death in the next year, given you reached it
+  const m = lifeExpectancy(), b = 9;
+  return 1 - Math.exp(-Math.exp((age - m) / b) / b);
+}
+const HEALTH_STOPS = [[0, [192, 57, 43]], [50, [216, 195, 63]], [100, [63, 174, 122]]];
+const RISK_STOPS = [[0, [63, 127, 208]], [0.02, [63, 174, 122]], [0.08, [201, 194, 63]],
+                    [0.22, [204, 106, 47]], [0.45, [0, 0, 0]], [1, [0, 0, 0]]];
+function grad(stops, v) {
+  for (let i = 1; i < stops.length; i++) {
+    if (v <= stops[i][0]) {
+      const [a, ca] = stops[i - 1], [b, cb] = stops[i];
+      const t = (v - a) / (b - a || 1);
+      const c = ca.map((x, k) => Math.round(x + (cb[k] - x) * t));
+      return "#" + c.map(x => x.toString(16).padStart(2, "0")).join("");
+    }
+  }
+  return "#000000";
+}
+const healthColour = ev => grad(HEALTH_STOPS, ev);
+const riskColour = r => grad(RISK_STOPS, r);
+const ageAt = d => (+d - +BIRTH) / (365.25 * 864e5);
+
+/* ---- the ruler: piecewise, so the two years around today can be read month by month */
+const TL = { track: document.getElementById("tlTrack"), card: document.getElementById("tlCard"),
+             winFrom: null, winTo: null, xw0: 0, xw1: 0, stepY: 7, stepM: 9, endYear: 0 };
+
+function monthDiff(a, b) { return (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()); }
+function xOf(d) {
+  if (+d < +TL.winFrom) return (+d - +BIRTH) / (365.25 * 864e5) * TL.stepY;
+  if (+d <= +TL.winTo) return TL.xw0 + monthDiff(TL.winFrom, d) * TL.stepM;
+  return TL.xw1 + (+d - +TL.winTo) / (365.25 * 864e5) * TL.stepY;
+}
+function iso(d) { return d.toISOString().slice(0, 10); }
+
+function buildTimeline() {
+  const T = TL.track;
+  if (!T) return;
+  T.innerHTML = "";
+  const now = new Date();
+  const wf = new Date(now.getFullYear() - 2, now.getMonth(), 1);
+  const wt = new Date(now.getFullYear() + 2, now.getMonth() + 1, 0);
+  const W = Math.max(560, window.innerWidth - 244 - 14);
+  const months = monthDiff(wf, wt) + 1;
+  TL.winFrom = wf; TL.winTo = wt;
+  TL.stepM = Math.max(6, Math.min(12, Math.floor((W * 0.45) / months)));
+  TL.xw0 = monthDiff(BIRTH, wf) * 0;                 // set below from the year run
+  const yearsBefore = (+wf - +BIRTH) / (365.25 * 864e5);
+  const yearsAfter = 100 - ageAt(wt);
+  TL.stepY = Math.max(3.2, (W - months * TL.stepM) / Math.max(1, yearsBefore + yearsAfter));
+  TL.xw0 = yearsBefore * TL.stepY;
+  TL.xw1 = TL.xw0 + months * TL.stepM;
+  TL.endYear = Math.max(BIRTH.getFullYear() + 100, now.getFullYear() + 40);
+
+  const base = document.createElement("div"); base.className = "base"; T.appendChild(base);
+  const band = document.createElement("div"); band.className = "band";
+  band.style.left = TL.xw0 + "px"; band.style.width = (TL.xw1 - TL.xw0) + "px"; T.appendChild(band);
+
+  const perMonth = new Map(), perYear = new Map();
+  ANALYSES.forEach(a => {
+    const k = a.at.getFullYear() + "-" + String(a.at.getMonth() + 1).padStart(2, "0");
+    if (!perMonth.has(k)) perMonth.set(k, []);
+    perMonth.get(k).push(a);
+  });
+
+  const tick = (d, cls, label, big) => {
+    const el = document.createElement("div");
+    el.className = "tick " + cls;
+    el.style.left = xOf(d).toFixed(1) + "px";
+    const k = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+    const hits = perMonth.get(k) || [];
+    if (cls === "m" && hits.length) el.classList.add("has");
+    if (state.date === iso(d)) el.classList.add("pick");
+    el._date = d; el._hits = hits;
+    el.addEventListener("mouseenter", e => tlCard(e, d, hits));
+    el.addEventListener("mouseleave", () => { TL.card.hidden = true; });
+    el.addEventListener("click", () => { state.date = iso(d); paintFade(); refreshPick(); });
+    if (label) {
+      const l = document.createElement("div");
+      l.className = "lbl" + (big ? " big" : "");
+      l.style.left = xOf(d).toFixed(1) + "px"; l.textContent = label;
+      T.appendChild(l);
+    }
+    T.appendChild(el);
+  };
+
+  for (let y = BIRTH.getFullYear(); y <= TL.endYear; y++) {
+    const d = new Date(y, 0, 1);
+    if (+d >= +TL.winFrom && +d <= +TL.winTo) continue;
+    const hits = ANALYSES.filter(a => a.at.getFullYear() === y);
+    const el = document.createElement("div");
+    el.className = "tick" + (y % 5 === 0 ? " y5" : "") + (hits.length ? " has" : "");
+    el.style.left = xOf(d).toFixed(1) + "px";
+    el._date = d; el._hits = hits;
+    el.addEventListener("mouseenter", e => tlCard(e, d, hits));
+    el.addEventListener("mouseleave", () => { TL.card.hidden = true; });
+    el.addEventListener("click", () => { state.date = iso(d); paintFade(); refreshPick(); });
+    T.appendChild(el);
+    if (y % 5 === 0 || y === now.getFullYear()) {
+      const l = document.createElement("div");
+      l.className = "lbl" + (y === now.getFullYear() ? " big" : "");
+      l.style.left = xOf(d).toFixed(1) + "px"; l.textContent = y;
+      T.appendChild(l);
+    }
+  }
+  for (let i = 0; i < months; i++) {
+    const d = new Date(wf.getFullYear(), wf.getMonth() + i, 1);
+    if (+d < +BIRTH) continue;
+    tick(d, "m", d.getMonth() === 0 ? String(d.getFullYear()) : null, false);
+  }
+
+  // the future, painted by the risk at that age
+  for (let y = now.getFullYear(); y <= TL.endYear; y++) {
+    const d = new Date(y, 0, 1);
+    if (+d <= +now) continue;
+    const c = riskColour(annualRisk(ageAt(d)));
+    const el = [...T.children].find(e => e._date && +e._date === +d);
+    if (el) el.style.background = c;
+  }
+
+  const nw = document.createElement("div"); nw.className = "now";
+  nw.style.left = xOf(now).toFixed(1) + "px"; T.appendChild(nw);
+}
+
+function refreshPick() {
+  [...TL.track.children].forEach(el => {
+    if (!el._date) return;
+    el.classList.toggle("pick", state.date === iso(el._date));
+  });
+}
+
+function tlCard(e, d, hits) {
+  const C = TL.card;
+  const list = hits.length ? hits : ANALYSES.filter(a => a.at.getFullYear() === d.getFullYear() &&
+                                                         a.at.getMonth() === d.getMonth());
+  C.innerHTML = "";
+  const h = document.createElement("h6");
+  h.textContent = d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
+  C.appendChild(h);
+  if (!list.length) {
+    const p = document.createElement("div"); p.className = "no";
+    p.textContent = "no analyses"; C.appendChild(p);
+  } else {
+    list.forEach(a => {
+      const row = document.createElement("div"); row.className = "it";
+      const dot = document.createElement("i"); dot.style.background = healthColour(a.evidence);
+      const t = document.createElement("span");
+      t.textContent = a.label + " · " + a.organ;
+      row.appendChild(dot); row.appendChild(t); C.appendChild(row);
+    });
+  }
+  C.hidden = false;
+  const r = C.getBoundingClientRect();
+  C.style.left = Math.min(window.innerWidth - r.width - 12, e.clientX - r.width / 2) + "px";
+  C.style.top = "118px";
+}
+
+/* ---- an analysis on the graph: a node, an edge, two numbers */
+let analysisRoot = null, analysisNodes = [];
+const NODE_R = 0.05;
+
+function buildAnalyses() {
+  if (!ANALYSES.length) return;
+  analysisRoot = new THREE.Group();
+  analysisRoot.name = "analyses";
+  scene.add(analysisRoot);
+  ANALYSES.forEach((a, i) => {
+    const g = new THREE.Group();
+    g.userData.nodeLabel = a.label;
+    g.userData.analysis = a;
+    const mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(healthColour(a.evidence)), roughness: 0.4, metalness: 0.05,
+      transparent: true, opacity: 0.9, emissive: new THREE.Color(healthColour(a.evidence)),
+      emissiveIntensity: 0.25
+    });
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(NODE_R, 20, 14), mat);
+    g.add(ball);
+    g.userData.cLocal = new THREE.Vector3(0, 0, 0);
+    analysisRoot.add(g);
+    const lineMat = new THREE.LineBasicMaterial({ color: new THREE.Color(healthColour(a.evidence)),
+      transparent: true, opacity: 0.6, depthWrite: false });
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(6), 3));
+    const line = new THREE.Line(geo, lineMat);
+    scene.add(line);
+    a.node = g; a.line = line; a.angle = -1.15 + i * 0.72;
+    analysisNodes.push(g);
+  });
+  paintFade();
+}
+
+function anchorFor(a) {
+  const o = organNodes.find(x => x.key === a.organ);       // the organ is out: point at it
+  if (o) return { obj: o.node, r: o.r || 0.2 };
+  if (state.organsOut && organGhost) return { obj: organGhost, r: 0.30 };   // the set is the anchor
+  return null;                                              // nothing is split: stand beside the body
+}
+
+function fadeFor(a) {
+  if (!state.date) return 1;
+  const yrs = Math.abs((+new Date(state.date) - +a.at) / (365.25 * 864e5));
+  return Math.max(0.07, Math.exp(-yrs / 2));
+}
+
+function paintFade() {
+  ANALYSES.forEach(a => {
+    if (!a.node) return;
+    const f = fadeFor(a), k = a.confidence / 100;
+    a.node.children[0].material.opacity = Math.max(0.06, k * f);
+    a.line.material.opacity = Math.max(0.05, k * f * 0.85);
+  });
+}
+
+function updateAnalyses() {
+  if (!analysisRoot) return;
+  const set = setCentre();
+  ANALYSES.forEach(a => {
+    if (!a.node) return;
+    const an = anchorFor(a);
+    let c, p;
+    if (an) {
+      c = an.obj.localToWorld((an.obj.userData.cLocal || new THREE.Vector3()).clone());
+      const rad = an.r + 0.62;
+      p = new THREE.Vector3(c.x + Math.cos(a.angle) * rad, c.y + Math.sin(a.angle) * rad,
+                            c.z + Math.sin(a.angle * 1.7) * 0.18);
+    } else {
+      const i = ANALYSES.indexOf(a);
+      c = set.clone();
+      p = new THREE.Vector3(c.x + 0.72, c.y + 0.30 - i * 0.28, c.z + 0.05);
+    }
+    a.node.position.copy(p);
+    const arr = a.line.geometry.attributes.position.array;
+    arr[0] = c.x; arr[1] = c.y; arr[2] = c.z;
+    arr[3] = p.x; arr[4] = p.y; arr[5] = p.z;
+    a.line.geometry.attributes.position.needsUpdate = true;
+    a.line.geometry.computeBoundingSphere();
+
+    if (!a.labelEl) {
+      a.labelEl = document.createElement("div");
+      a.labelEl.className = "alabel";
+      a.labelEl.textContent = a.label + " · " + (a.organ || "—");
+      document.body.appendChild(a.labelEl);
+    }
+    const v = p.clone().project(camera);
+    if (v.z > 1) { a.labelEl.style.opacity = 0; }
+    else {
+      a.labelEl.style.left = ((v.x * 0.5 + 0.5) * window.innerWidth).toFixed(0) + "px";
+      a.labelEl.style.top = ((-v.y * 0.5 + 0.5) * window.innerHeight - 24).toFixed(0) + "px";
+      a.labelEl.style.opacity = Math.max(0.10, fadeFor(a)).toFixed(2);
+    }
+  });
+}
+
 function tick() {
   requestAnimationFrame(tick);
   const dt = Math.min(0.05, clock.getDelta());
@@ -1903,6 +2237,7 @@ function tick() {
     updateEdges();
     updateLinks();
   }
+  updateAnalyses();
   // the body cloud is the body's shadow, not a snapshot: it follows wherever the body is now
   if (bodyGhost && groups.muscles) {
     bodyGhost.position.copy(groups.muscles.position);
@@ -1920,6 +2255,7 @@ buildLegend();
 tick();
 boot();
 
+window.addEventListener("resize", () => { if (bodyBox) { buildTimeline(); refreshPick(); } });
 window.__ready = () => pending === 0 && !!bodyBox && failedFiles.length === 0;
 window.__loadErrors = () => failedFiles.slice();
 window.__layer = id => toggleLayer(id);
