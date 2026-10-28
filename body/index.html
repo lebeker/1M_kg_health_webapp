@@ -219,7 +219,7 @@ const state = {
   organsOut:false,          // the organs set split into organ nodes
   nodeOut:new Set(),        // anything that left its parent: a group id, or "m:<mesh>"
   treeOpen:false, openGroups:new Set(),
-  analysisOpen:true, analysisHidden:new Set(),
+  analysisOpen:true, analysisHidden:new Set(), layersOpen:true,
   edgeOff:new Set(),         // edge types the user has hidden
   date:null                  // the day the timeline is pointing at: analyses fade with distance
 };
@@ -326,7 +326,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261030h";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261030i";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -487,10 +487,20 @@ function layerCount(l) {
   return counts[l.id] || 0;
 }
 
+function sectionRow(title, open, onToggle) {
+  const h = document.createElement("div");
+  h.className = "sect";
+  h.style.cssText = "display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none";
+  h.innerHTML = `<span style="width:9px;opacity:.75">${open ? "\u25be" : "\u25b8"}</span><span>${title}</span>`;
+  h.onclick = onToggle;
+  return h;
+}
+
 function buildLegend() {
   const rows = document.getElementById("rows");
   rows.innerHTML = "";
-  LAYERS.filter(l => !l.graphOnly).forEach(l => {
+  rows.appendChild(sectionRow("Layers", state.layersOpen, () => { state.layersOpen = !state.layersOpen; buildLegend(); }));
+  if (state.layersOpen) LAYERS.filter(l => !l.graphOnly).forEach(l => {
     const isOrgans = l.id === "organs";
     const isOut = state.out.has(l.id);
     const row = document.createElement("div");
@@ -509,35 +519,15 @@ function buildLegend() {
     };
     rows.appendChild(row);
     if (isOrgans && state.treeOpen) organRows(rows);
-    if (isOrgans) analysisRows(rows);                 // the documents hang under the organs they are about
   });
 
+  rows.appendChild(sectionRow("Analyses", state.analysisOpen, () => { state.analysisOpen = !state.analysisOpen; buildLegend(); }));
+  if (state.analysisOpen) analysisRows(rows);
 }
 
 /* the analyses: a group of their own, folded like a folder, each with an eye. A document is a node
    of this map the same way a layer is — it should be listed, hideable and clickable like one. */
 function analysisRows(rows) {
-  if (!ANALYSES.length) return;
-  const row = document.createElement("div");
-  row.className = "row folder";
-  row.dataset.analyses = "1";
-  const open = state.analysisOpen;
-  row.innerHTML =
-    `<button class="chev" title="expand">${open ? "\u25be" : "\u25b8"}</button>` +
-    `<span class="dot" style="background:#8f8f9c"></span>` +
-    `<span class="nm">analyses</span><span class="cnt">${ANALYSES.length}</span>` +
-    `<button class="eye" title="hide all documents">${EYE_OPEN}</button>`;
-  row.onclick = e => {
-    if (e.target.closest(".chev")) { state.analysisOpen = !state.analysisOpen; buildLegend(); return; }
-    if (e.target.closest(".eye")) {
-      if (state.analysisHidden.size === ANALYSES.length) state.analysisHidden.clear();
-      else ANALYSES.forEach(a => state.analysisHidden.add(a.id));
-      paintFade(); buildLegend(); return;
-    }
-    state.analysisOpen = !state.analysisOpen; buildLegend();
-  };
-  rows.appendChild(row);
-  if (!open) return;
   ANALYSES.forEach(a => {
     const r = document.createElement("div");
     const hidden = state.analysisHidden.has(a.id);
@@ -1436,6 +1426,8 @@ function buildOrganNodes() {
     o.parts.forEach(p => {
       inner.add(p.mesh);
       p.mesh.position.copy(p.home.p); p.mesh.quaternion.copy(p.home.q); p.mesh.scale.copy(p.home.s);
+      p.mesh.visible = true;
+      if (p.mesh.material) { p.mesh.material.visible = true; p.mesh.material.transparent = false; p.mesh.material.opacity = 1; p.mesh.material.needsUpdate = true; }
     });
     o.node.removeFromParent();
     return false;
@@ -1473,6 +1465,11 @@ function buildOrganNodes() {
     const meshes = row.parts.filter(p => !state.nodeOut.has(meshKey(p.name)));
     meshes.forEach(p => {
       holder.attach(p.mesh);
+      p.mesh.visible = true;
+      if (p.mesh.material) {
+        p.mesh.material.visible = true;
+        if (p.mesh.material.transparent) { p.mesh.material.transparent = false; p.mesh.material.opacity = 1; p.mesh.material.needsUpdate = true; }
+      }
       /* a node has to read as itself wherever it stands: the atlas materials are metal-heavy and
          go black outside the lights that were placed for the body, so a node six nodes away was
          "there" and invisible. Give every carried mesh a floor of its own colour. */
@@ -1482,6 +1479,14 @@ function buildOrganNodes() {
         m.roughness = Math.min(0.85, m.roughness ?? 0.6);
         if (!m.emissive || m.emissive.getHex() === 0) m.emissive = m.color.clone().multiplyScalar(0.30);
       }
+    });
+
+    // whatever ended up in the holder is the node's body and must be drawn: a node whose meshes
+    // were hidden by the layer-out pass had geometry and produced zero draw calls
+    holder.traverse(m => {
+      if (!m.isMesh) return;
+      m.visible = true;
+      if (m.material) { m.material.visible = true; if (m.material.transparent) { m.material.transparent = false; m.material.opacity = 1; m.material.needsUpdate = true; } }
     });
 
     holder.scale.setScalar(1);
@@ -1686,7 +1691,27 @@ function buildOrganNodes() {
   partNodes.forEach(pn => edgePairs.push({ a: pn.node, b: pn.parent.node }));
   ensureEdges();
   ensureLinks();
-  if (organGhost) organGhost.visible = organNodes.length === 0;
+  /* The set node the systems radiate from. It is the organs themselves — one copy, opaque, at the
+     centre — and it exists exactly while the set is split. It is the "organs" row in the panel. */
+  if (organNodes.length) {
+    const g = makeGhost();
+    g.traverse(m => {
+      if (!m.isMesh || !m.material) return;
+      m.material.transparent = false;
+      m.material.opacity = 1;
+      m.material.depthWrite = true;
+      m.material.needsUpdate = true;
+    });
+    if (g.parent !== organRoot) organRoot.add(g);
+    const c = new THREE.Vector3();
+    organNodes.forEach(o => c.add(o.node.position));
+    g.position.copy(c.divideScalar(organNodes.length));
+    g.scale.setScalar(0.5);
+    g.visible = true;
+  } else if (organGhost) {
+    organGhost.visible = false;
+  }
+
 }
 
 function disposeOrganNodes() {
@@ -1846,9 +1871,20 @@ function bodyHeadCut() {
   if (state.out.has("skin")) return;                 // shell off: the atlas head is all there is
   const CUT = 0.585;                                 // the jaw line in scene units
   const shellOf = m => m && (m === groups.skin || (m.parent && m.parent.userData && m.parent.userData.variant === state.sex));
+  // this cut is about the BODY's head. A graph node floating above the jaw line is not "inside the
+  // head" — it is a node, and hiding it by height is what made the heart, the lungs and the gut
+  // vanish the moment they were split out of the body.
+  const inGraph = o => {
+    for (let p = o; p; p = p.parent) {
+      if (p === organRoot) return true;                                  // a split node
+      if (p === groups.organs && state.out.has("organs")) return true;   // the organ set, taken out
+    }
+    return false;
+  };
   scene.traverse(o => {
     if (!o.isMesh || !o.visible) return;
     if (o.userData.ball || o.userData.cloudLayer || o.userData.shadowBall || o.userData.ghost) return;
+    if (inGraph(o)) return;
     if (/^skinbits/.test(o.name)) { o.visible = false; headCutMeshes.push(o); return; }
     if (/-head$/.test(o.name) || o.name === "skin" || /^skin-female2$/.test(o.name)) return;   // the shell itself
     const b = new THREE.Box3().setFromObject(o);
@@ -2263,6 +2299,24 @@ function buildTimeline() {
   const base = document.createElement("div"); base.className = "base"; T.appendChild(base);
   const band = document.createElement("div"); band.className = "band";
   band.style.left = TL.xw0 + "px"; band.style.width = (TL.xw1 - TL.xw0) + "px"; T.appendChild(band);
+
+  if (!TL.pickBound) {
+    TL.pickBound = true;
+    // anywhere on the strip picks a date: hunting for a 1-pixel tick is not a way to use a timeline
+    T.addEventListener("pointerdown", e => {
+      if (e.target.closest(".tick")) return;
+      const r = T.getBoundingClientRect();
+      const x = e.clientX - r.left;
+      let lo = +BIRTH, hi = new Date(TL.endYear, 0, 1).getTime();
+      if (!(hi > lo) || !TL.stepY) return;
+      for (let i = 0; i < 56; i++) {
+        const mid = (lo + hi) / 2;
+        if (xOf(new Date(mid)) < x) lo = mid; else hi = mid;
+      }
+      const d = new Date((lo + hi) / 2); d.setDate(1);
+      state.date = iso(d); paintFade(); refreshPick(); buildTimeline();
+    });
+  }
 
   const perMonth = new Map(), perYear = new Map();
   ANALYSES.forEach(a => {

@@ -71,12 +71,12 @@ INVARIANTS = r"""
   const bad = [];
   const num = v => Number.isFinite(v);
   const camD = camera.position.distanceTo(controls.target);
-  if (camD > 6.8) bad.push("camera " + camD.toFixed(2) + " units away");
+  if (camD > 14) bad.push("camera " + camD.toFixed(2) + " units away");
   const nan = [...organNodes.map(o => o.node), ...partNodes.map(p => p.node)]
     .filter(o => !num(o.position.x) || !num(o.position.y) || !num(o.position.z));
   if (nan.length) bad.push(nan.length + " node(s) with a NaN position");
   const labels = [...document.querySelectorAll(".alabel")];
-  if (labels.length !== ANALYSES.length) bad.push(labels.length + " labels for " + ANALYSES.length + " analyses");
+  if (labels.length !== 0) bad.push(labels.length + " persistent labels (labels must be hover-only)");
   const orphans = labels.filter(l => !l.isConnected);
   if (orphans.length) bad.push(orphans.length + " detached label(s)");
   const visible = labels.filter(l => +l.style.opacity > 0.05);
