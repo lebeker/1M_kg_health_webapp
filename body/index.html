@@ -94,7 +94,7 @@
   .bootnum { color:#5f7183; font-size:11px; margin-top:7px; }
 
 #tl { position:fixed; left:244px; right:14px; top:46px; height:74px; z-index:26;
-      pointer-events:auto; cursor:crosshair; }   /* the strip is a scrubber: it must receive the click */
+      pointer-events:auto; }   /* the strip is a scrubber: it must receive the click */
 #tl .track { position:relative; height:44px; pointer-events:none; }
 #tl .base { position:absolute; left:0; right:0; top:26px; height:1px; background:#3a3a44; }
 #tl .tick { position:absolute; top:16px; width:1px; height:11px; background:#3b3b45; pointer-events:auto;
@@ -326,7 +326,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261030l";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261030m";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -515,8 +515,9 @@ function buildLegend() {
       `<button class="eye" title="${isOut ? "put back into the body" : "take out of the body"}">${isOut ? EYE_OPEN : EYE_SHUT}</button>`;
     row.onclick = e => {
       if (e.target.closest(".chev") && isOrgans) { state.treeOpen = !state.treeOpen; buildLegend(); return; }
+      const onEye = !!e.target.closest(".eye");
       toggleLayer(l.id);
-      select(l.id);                     // the row's own actions (split, put back) live in the panel
+      if (!onEye) select(l.id);         // the eye does one thing; the row also opens its panel
     };
     rows.appendChild(row);
     if (isOrgans && state.treeOpen) organRows(rows);
@@ -810,6 +811,7 @@ function toggleLayer(id) {
     state.treeOpen = state.out.has("organs");     // show the rows at once — but open nothing
     if (!state.out.has("organs")) state.nodeOut.clear();
   }
+  syncTree();      // organsOut and nodeOut follow from state.out; without this the layout re-adds the set
   syncOrgans();
   layout();
   buildLegend();
@@ -835,15 +837,17 @@ function syncOrgans() {
   if (!organGhost) return;
   organGhost.visible = organNodes.length > 0;
   if (!organGhost.visible) return;
-  let shown = 0;
   organGhost.children.forEach(m => {
-    if (m.userData.setMarker) return;
-    m.visible = !outNames.has(m.userData.ghostKey);
-    if (m.visible) shown++;
+    if (m.userData.setMarker) { m.visible = false; return; }
+    m.visible = true;
+    const out = outNames.has(m.userData.ghostKey);
+    if (m.material) {
+      m.material.transparent = true;
+      m.material.opacity = out ? 0.10 : 0.30;    // the shell of the set stays, even when empty
+      m.material.depthWrite = false;
+      m.material.needsUpdate = true;
+    }
   });
-  // everything has left the set: the node still has to be there, as a marker rather than a hole
-  const marker = organGhost.children.find(m => m.userData.setMarker);
-  if (marker) marker.visible = shown === 0;
 }
 
 function openAll() {
@@ -1445,6 +1449,7 @@ function makeCloud(color, R) {
 }
 
 function buildOrganNodes() {
+  const had = organNodes.length;
   if (organNodes.length) disposeOrganNodes();     // every build starts clean: no stale holders
   const { rows } = graphRows();
   const inner = groups.organs.userData.inner;
@@ -1746,10 +1751,13 @@ function buildOrganNodes() {
     if (near < 0.62) g.position.x = minX - 0.85;
     g.scale.setScalar(1);
   }
+  // the graph gained or lost a node: the old frame pointed at something that is no longer there
+  if (had !== organNodes.length) camKey = "";
   syncOrgans();
 }
 
 function disposeOrganNodes() {
+  camKey = "";                                  // back to a frame of the body, not of a node that is gone
   const inner = groups.organs.userData.inner;
   partNodes.forEach(pn => {
     if (pn.part.mesh.userData.baseMat) pn.part.mesh.material = pn.part.mesh.userData.baseMat;
@@ -2068,7 +2076,7 @@ function layout() {
   /* When organs are split the picture is the body AND the six nodes beside it. Framing it from
      the layer slots — which know nothing about where the graph solved — left half of it outside
      the frustum. The frame is the union of what is actually on screen. */
-  if (organNodes.length || ANALYSES.length) {
+  if (organNodes.length) {          // only a split graph redefines the frame; analyses alone do not
     const b = new THREE.Box3();
     if (bodyBox) b.union(bodyBox);
     organNodes.forEach(o => b.expandByPoint(o.node.position));
@@ -2085,7 +2093,8 @@ function layout() {
     camKey = camKeyNow;
     // the frame is already the union of what is on screen, so it can be trusted: clamping it here
     // is what pushed the rightmost nodes out of the frustum and left "empty" space where organs were
-    const dd = d;
+    const dd = Math.max(d, 4.2);   // never closer than this: the body has to fit with its head
+
     camWant.pos.set(cx - dx, dd * elev, dd);
     camWant.target.set(cx - dx, 0, 0);
     camAnim = true;
@@ -2099,6 +2108,8 @@ function select(id) {
   selectInner(id);
   camKey = "";
   layout();
+  const o = id ? objectForSel(id) : null;
+  if (o) focusOn(o);          // the panel changes the frame; the node itself is what we look at
 }
 
 function pickAt(x, y) {
@@ -2466,7 +2477,7 @@ function tlCard(e, d, hits) {
 
 /* ---- an analysis on the graph: a node, an edge, two numbers */
 let analysisRoot = null, analysisNodes = [];
-const NODE_R = 0.05;
+const NODE_R = 0.095;
 
 function buildAnalyses() {
   if (!ANALYSES.length) return;
@@ -2480,8 +2491,8 @@ function buildAnalyses() {
     g.userData.analysisId = a.id;
     const mat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(healthColour(a.evidence)), roughness: 0.4, metalness: 0.05,
-      transparent: true, opacity: 0.9, emissive: new THREE.Color(healthColour(a.evidence)),
-      emissiveIntensity: 0.25
+      transparent: true, opacity: 1, emissive: new THREE.Color(healthColour(a.evidence)),
+      emissiveIntensity: 0.55
     });
     const ball = new THREE.Mesh(new THREE.SphereGeometry(NODE_R, 20, 14), mat);
     g.add(ball);
