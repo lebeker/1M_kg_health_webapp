@@ -219,6 +219,7 @@ const state = {
   organsOut:false,          // the organs set split into organ nodes
   nodeOut:new Set(),        // anything that left its parent: a group id, or "m:<mesh>"
   treeOpen:false, openGroups:new Set(),
+  analysisOpen:true, analysisHidden:new Set(),
   edgeOff:new Set(),         // edge types the user has hidden
   date:null                  // the day the timeline is pointing at: analyses fade with distance
 };
@@ -325,7 +326,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261030f";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261030g";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -508,8 +509,54 @@ function buildLegend() {
     };
     rows.appendChild(row);
     if (isOrgans && state.treeOpen) organRows(rows);
+    if (isOrgans) analysisRows(rows);                 // the documents hang under the organs they are about
   });
 
+}
+
+/* the analyses: a group of their own, folded like a folder, each with an eye. A document is a node
+   of this map the same way a layer is — it should be listed, hideable and clickable like one. */
+function analysisRows(rows) {
+  if (!ANALYSES.length) return;
+  const row = document.createElement("div");
+  row.className = "row folder";
+  row.dataset.analyses = "1";
+  const open = state.analysisOpen;
+  row.innerHTML =
+    `<button class="chev" title="expand">${open ? "\u25be" : "\u25b8"}</button>` +
+    `<span class="dot" style="background:#8f8f9c"></span>` +
+    `<span class="nm">analyses</span><span class="cnt">${ANALYSES.length}</span>` +
+    `<button class="eye" title="hide all documents">${EYE_OPEN}</button>`;
+  row.onclick = e => {
+    if (e.target.closest(".chev")) { state.analysisOpen = !state.analysisOpen; buildLegend(); return; }
+    if (e.target.closest(".eye")) {
+      if (state.analysisHidden.size === ANALYSES.length) state.analysisHidden.clear();
+      else ANALYSES.forEach(a => state.analysisHidden.add(a.id));
+      paintFade(); buildLegend(); return;
+    }
+    state.analysisOpen = !state.analysisOpen; buildLegend();
+  };
+  rows.appendChild(row);
+  if (!open) return;
+  ANALYSES.forEach(a => {
+    const r = document.createElement("div");
+    const hidden = state.analysisHidden.has(a.id);
+    r.className = "row" + (hidden ? " out" : "");
+    r.dataset.analysis = a.id;
+    r.style.paddingLeft = "26px";
+    r.innerHTML =
+      `<span class="dot" style="background:${healthColour(a.evidence)}"></span>` +
+      `<span class="nm">${a.label}</span><span class="cnt">${a.organ}</span>` +
+      `<button class="eye" title="${hidden ? "show" : "hide"}">${hidden ? EYE_SHUT : EYE_OPEN}</button>`;
+    r.onclick = e => {
+      if (e.target.closest(".eye")) {
+        if (hidden) state.analysisHidden.delete(a.id); else state.analysisHidden.add(a.id);
+        paintFade(); buildLegend(); return;
+      }
+      selectAnalysis(a);
+    };
+    rows.appendChild(r);
+  });
 }
 
 /* organs: the tree, any depth. An eye takes a node out of its parent; a chevron opens what is
@@ -823,7 +870,7 @@ function applySex() {
   organParts.forEach(p => { p.mesh.visible = partShown(p); });
   bodyHeadCut();
   if (organGhost) { organGhost.removeFromParent(); organGhost = null; }   // rebuild for the new sex
-  makeGhost().visible = state.organsOut;
+  // no separate 'all organs' copy: the organs group itself is the node
   const anyBodyOut = LAYERS.some(l => l.id !== "organs" && state.out.has(l.id));
   if (bodyGhost || anyBodyOut) { makeBodyGhost(); if (bodyGhost) bodyGhost.visible = anyBodyOut; }
   // teeth and nails show on both sexes; the hair cap was stripped from the model (strip_hair.py)
@@ -1471,7 +1518,12 @@ function buildOrganNodes() {
         if (dir.lengthSq() < 1e-6) dir.set(0.4, 0.5, 0.6);
         dir.normalize();
         const target = row.pos.clone().add(dir.multiplyScalar(cloudR * (N === 1 ? 0 : 0.60)));
-        p.mesh.position.add(target.sub(c2));
+        // both are world points; the mesh lives inside the node, so subtract them in the node's
+        // space. Mixing the two adds the node's own offset twice and the organs land off-node —
+        // which is what "empty nodes beside a body full of organs" was.
+        const tl = p.mesh.parent.worldToLocal(target.clone());
+        const cl = p.mesh.parent.worldToLocal(c2.clone());
+        p.mesh.position.add(tl.sub(cl));
       });
     }
 
@@ -1599,10 +1651,6 @@ function buildOrganNodes() {
 
   /* the set itself is a semi-transparent copy of the whole organ model, standing at the centre the
      expanded organs radiate from — never inside the body, never a dot */
-  const ghost = makeGhost();
-  if (ghost.parent !== organRoot) organRoot.add(ghost);
-  ghost.position.copy(setCentre());
-  ghost.visible = organNodes.length > 0;     // only when the set really is split: after a merge the real organs are the set
 
   /* a shadow system is not a container: it is bound by links to the nodes that hold its organs */
   const rowByKey = new Map(rows.map(r => [r.key, r]));
@@ -1909,7 +1957,12 @@ function layout() {
   } else {
     const left = lc - width * 0.30;
     let right = rc + width * 0.30;
-    if (organsOut) right = Math.max(right, slot.organs.x + (organSize.x / 2) * 1.2);
+    if (organsOut) {
+      right = Math.max(right, slot.organs.x + (organSize.x / 2) * 1.2);
+      // the split graph is part of the picture: a camera framed on the body alone leaves half of
+      // it outside the frustum, which is what "where are the organs" looked like
+      organNodes.forEach(o => { right = Math.max(right, o.node.position.x + 0.55); });
+    }
     spanW = Math.max(width * 1.1, right - left);
     spanH = 1.8;
     cx = (left + right) / 2;
@@ -1928,6 +1981,21 @@ function layout() {
   // somewhere, must not snap the view back to the overview
   // the selection is not part of this: opening the panel must not move the camera the user has
   // just zoomed
+  /* When organs are split the picture is the body AND the six nodes beside it. Framing it from
+     the layer slots — which know nothing about where the graph solved — left half of it outside
+     the frustum. The frame is the union of what is actually on screen. */
+  if (organNodes.length || ANALYSES.length) {
+    const b = new THREE.Box3();
+    if (bodyBox) b.union(bodyBox);
+    organNodes.forEach(o => b.expandByPoint(o.node.position));
+    ANALYSES.forEach(a => { if (a.node && a.node.visible) b.expandByPoint(a.node.position); });
+    if (!b.isEmpty()) {
+      const sz = b.getSize(new THREE.Vector3()), ct = b.getCenter(new THREE.Vector3());
+      spanW = Math.max(sz.x, 1.8); spanH = Math.max(sz.y, 1.8);
+      cx = ct.x;
+    }
+  }
+
   const camKeyNow = [...state.out].sort().join("+") + "|" + [...state.nodeOut].sort().join(",") + "|" + graph + "|" + state.collapsed;
   if (camKeyNow !== camKey) {
     camKey = camKeyNow;
@@ -2289,12 +2357,7 @@ function tlCard(e, d, hits) {
 let analysisRoot = null, analysisNodes = [];
 const NODE_R = 0.05;
 
-function disposeAnalysisLabels() {
-  ANALYSES.forEach(a => { if (a.labelEl) { a.labelEl.remove(); a.labelEl = null; } });
-}
-
 function buildAnalyses() {
-  disposeAnalysisLabels();
   if (!ANALYSES.length) return;
   analysisRoot = new THREE.Group();
   analysisRoot.name = "analyses";
@@ -2336,31 +2399,17 @@ function anchorKeyFor(organ) {
   return null;
 }
 
-/* A label is a signpost, not a sticker: it exists only while its node is big enough to be
-   worth naming, in front of the camera, outside the panel, and still solid enough to read. */
-function syncLabel(a, worldPos) {
-  if (!a.labelEl) {
-    a.labelEl = document.createElement("div");
-    a.labelEl.className = "alabel";
-    a.labelEl.textContent = a.label + " · " + (a.organ || "—");
-    document.body.appendChild(a.labelEl);
+function anchorKeyFor(organ) {
+  let n = NODE_BY_ID[organ];
+  while (n) {
+    if (organNodes.some(o => o.key === n.id)) return n.id;
+    n = n.parent;
   }
-  const el = a.labelEl;
-  const v = worldPos.clone().project(camera);
-  const edge = worldPos.clone().add(
-    new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(NODE_R * 1.6));
-  const ve = edge.project(camera);
-  const px = Math.abs(ve.x - v.x) * 0.5 * window.innerWidth;   // the node's radius, on screen
-  const fade = fadeFor(a);
-  const onScreen = v.z < 1 && v.x > -1 && v.x < 1 && v.y > -1 && v.y < 1;
-  const underPanel = !document.getElementById("node").hidden &&
-                     (v.x * 0.5 + 0.5) * window.innerWidth > window.innerWidth - 336;
-  if (!onScreen || px < 9 || fade < 0.22 || underPanel) { el.style.opacity = 0; return; }
-  el.style.left = ((v.x * 0.5 + 0.5) * window.innerWidth).toFixed(0) + "px";
-  el.style.top = ((-v.y * 0.5 + 0.5) * window.innerHeight - 22).toFixed(0) + "px";
-  el.style.opacity = Math.min(1, 0.35 + fade * 0.65).toFixed(2);
+  return null;
 }
 
+/* A label is a signpost, not a sticker: it exists only while its node is big enough to be
+   worth naming, in front of the camera, outside the panel, and still solid enough to read. */
 function anchorFor(a) {
   const key = anchorKeyFor(a.organ);
   if (key) {
@@ -2380,6 +2429,10 @@ function fadeFor(a) {
 function paintFade() {
   ANALYSES.forEach(a => {
     if (!a.node) return;
+    const shown = !state.analysisHidden.has(a.id);
+    a.node.visible = shown;
+    a.line.visible = shown;
+    if (!shown) return;
     const f = fadeFor(a), k = a.confidence / 100;
     a.node.children[0].material.opacity = Math.max(0.06, k * f);
     a.line.material.opacity = Math.max(0.05, k * f * 0.85);
@@ -2410,7 +2463,6 @@ function updateAnalyses() {
     a.line.geometry.attributes.position.needsUpdate = true;
     a.line.geometry.computeBoundingSphere();
 
-    syncLabel(a, p);
   });
 }
 
@@ -2448,7 +2500,7 @@ function tick() {
     updateLinks();
   }
   updateAnalyses();
-  if (organGhost) organGhost.visible = organNodes.length === 0;   // the set node exists iff the set is one thing
+  // (the all-organs copy is gone: two nodes for one thing was the bug)
   // the body cloud is the body's shadow, not a snapshot: it follows wherever the body is now
   if (bodyGhost && groups.muscles) {
     bodyGhost.position.copy(groups.muscles.position);
