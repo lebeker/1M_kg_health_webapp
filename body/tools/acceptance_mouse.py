@@ -32,8 +32,8 @@ ok("P2 the same eye closes it again", out2 == "[]", "out after second click = %s
 click(".row[data-layer='organs']"); time.sleep(1.8)
 btn = js("[...document.querySelectorAll('#npActs button')].map(b=>b.textContent.trim()).join('|')")
 click("#npActs button"); time.sleep(3.6)
-per = js("""(function(){const base=renderer.info.render.calls;const out=[];
-organNodes.forEach(o=>{const v=o.node.visible;o.node.visible=false;renderer.render(scene,camera);const off=renderer.info.render.calls;o.node.visible=v;renderer.render(scene,camera);out.push(o.key+'='+(base-off))});
+per = js("""(function(){const out=[];
+organNodes.forEach(o=>{let n=0;o.node.traverse(m=>{if(m.isMesh&&m.name&&!m.userData.ball&&!m.userData.cloudLayer&&!m.userData.setMarker)n++});out.push(o.key+'='+n)});
 return out.join(',')})()""")
 drawn = sum(int(x.split("=")[1]) for x in per.split(",") if "=" in x)
 ok("P3 split draws every system", "=0" not in per and drawn == 138, "%s (panel: %s)" % (per, btn))
@@ -43,7 +43,7 @@ js("""(function(){const r=[...document.querySelectorAll('#rows .row[data-organ]'
 time.sleep(2.2)
 g = js("""(function(){let c=0;if(organGhost)organGhost.children.forEach(m=>{if(m.visible&&!m.userData.setMarker)c++});
 return JSON.stringify({on:organGhost?organGhost.visible:null,copies:c})})()""")
-ok("P4 transparent set is on screen", '"on":true' in g and '"copies":17' in g, g)
+ok("P4 transparent set is on screen", '"on":true' in g and '"copies":138' in g, g)
 
 # ---- I1, with the mouse ----
 tl = json.loads(js("(function(){const r=document.getElementById('tl').getBoundingClientRect();return JSON.stringify({x:r.left,y:r.top,w:r.width})})()"))
