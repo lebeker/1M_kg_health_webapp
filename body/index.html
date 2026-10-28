@@ -326,7 +326,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261030i";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261030j";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -816,7 +816,26 @@ function toggleLayer(id) {
 }
 
 /* every eye in the legend goes through here: take it out of its parent, or put it back */
-function syncOrgans() { syncTree(); }
+/* THE RULE, in one place:
+     - nothing has left the set  → the organs themselves are the node (solid)
+     - something has left        → a transparent copy of the whole set stands in the middle,
+                                   minus the organs that are out; those are their own nodes
+     - an organ is never drawn twice: a copy whose organ is out is switched off
+   Everything that changes an eye goes through here, so the picture cannot disagree with the panel. */
+function syncOrgans() {
+  if (!groups || !groups.organs || !groups.organs.userData) return;   // called from the first frame, before the body exists
+  const inner = groups.organs.userData.inner;
+  // what is out is decided by where the real mesh lives right now, not by bookkeeping that can lag.
+  // Meshes sit in nested groups, so "inside the set" is an ancestor test, not a parent test.
+  const inSet = m => { for (let q = m; q; q = q.parent) if (q === inner) return true; return false; };
+  const outNames = new Set();
+  organParts.forEach(p => { if (!inSet(p.mesh)) outNames.add(meshKey(p.mesh.name)); });
+  if (groups.organs) groups.organs.visible = organNodes.length === 0;
+  if (!organGhost) return;
+  organGhost.visible = organNodes.length > 0;
+  if (!organGhost.visible) return;
+  organGhost.children.forEach(m => { m.visible = !outNames.has(m.userData.ghostKey); });
+}
 
 function openAll() {
   // level one: the systems, and the shadow systems, which have no organs of their own
@@ -1131,6 +1150,7 @@ function setOut(key, out) {
   }
   syncTree();
   layout();
+  syncOrgans();
   buildLegend();
   if (state.sel) select(state.sel);
 }
@@ -1416,6 +1436,7 @@ function makeCloud(color, R) {
 }
 
 function buildOrganNodes() {
+  if (organNodes.length) disposeOrganNodes();     // every build starts clean: no stale holders
   const { rows } = graphRows();
   const inner = groups.organs.userData.inner;
   if (!organRoot) { organRoot = new THREE.Group(); organRoot.name = "organGraph"; scene.add(organRoot); }
@@ -1691,27 +1712,22 @@ function buildOrganNodes() {
   partNodes.forEach(pn => edgePairs.push({ a: pn.node, b: pn.parent.node }));
   ensureEdges();
   ensureLinks();
-  /* The set node the systems radiate from. It is the organs themselves — one copy, opaque, at the
-     centre — and it exists exactly while the set is split. It is the "organs" row in the panel. */
+  /* the set node the systems radiate from: a transparent copy of the whole set, standing where
+     the expansion starts. syncOrgans() decides which of its organs are visible. */
   if (organNodes.length) {
     const g = makeGhost();
-    g.traverse(m => {
-      if (!m.isMesh || !m.material) return;
-      m.material.transparent = false;
-      m.material.opacity = 1;
-      m.material.depthWrite = true;
-      m.material.needsUpdate = true;
-    });
     if (g.parent !== organRoot) organRoot.add(g);
     const c = new THREE.Vector3();
     organNodes.forEach(o => c.add(o.node.position));
-    g.position.copy(c.divideScalar(organNodes.length));
-    g.scale.setScalar(0.5);
-    g.visible = true;
-  } else if (organGhost) {
-    organGhost.visible = false;
+    c.divideScalar(organNodes.length);
+    // the set stands beside its own organs, never on top of one: with a single organ out the mean
+    // of the nodes IS that node, and the transparent set disappeared inside it
+    let minX = Infinity;
+    organNodes.forEach(o => { minX = Math.min(minX, o.node.position.x); });
+    g.position.set(Math.min(c.x, minX - 0.85), c.y, c.z);
+    g.scale.setScalar(1);
   }
-
+  syncOrgans();
 }
 
 function disposeOrganNodes() {
@@ -1837,6 +1853,8 @@ function makeGhost() {
     // the geometry is already in body coordinates: identity transform, wherever the real organ is now
     m.userData.kind = "organSet";
     m.userData.ghost = true;
+    m.userData.ghostKey = meshKey(p.mesh.name);
+    m.userData.systemId = p.node ? p.node.id : null;
     organGhost.add(m);
   });
   /* the geometry sits in body coordinates, so the copy is re-centred on its own origin: this node
@@ -2541,6 +2559,8 @@ function tick() {
     g.position.lerp(t.p, a);
     g.scale.lerp(new THREE.Vector3(t.s,t.s,t.s), a);
   });
+  // whatever changed an eye, the picture follows the same rule; it is 138 parent checks, not work
+  syncOrgans();
   if (partNodes.length) {
     partNodes.forEach(pn => {
       pn.node.position.lerp(pn.node.userData.wantPos, a);
