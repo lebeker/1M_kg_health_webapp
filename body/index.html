@@ -326,7 +326,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261030g";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261030h";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1471,7 +1471,18 @@ function buildOrganNodes() {
     const R = g.userData.radius;
 
     const meshes = row.parts.filter(p => !state.nodeOut.has(meshKey(p.name)));
-    meshes.forEach(p => holder.attach(p.mesh));
+    meshes.forEach(p => {
+      holder.attach(p.mesh);
+      /* a node has to read as itself wherever it stands: the atlas materials are metal-heavy and
+         go black outside the lights that were placed for the body, so a node six nodes away was
+         "there" and invisible. Give every carried mesh a floor of its own colour. */
+      const m = p.mesh.material;
+      if (m && m.color) {
+        m.metalness = 0;
+        m.roughness = Math.min(0.85, m.roughness ?? 0.6);
+        if (!m.emissive || m.emissive.getHex() === 0) m.emissive = m.color.clone().multiplyScalar(0.30);
+      }
+    });
 
     holder.scale.setScalar(1);
     holder.position.set(0, 0, 0);
@@ -1999,8 +2010,9 @@ function layout() {
   const camKeyNow = [...state.out].sort().join("+") + "|" + [...state.nodeOut].sort().join(",") + "|" + graph + "|" + state.collapsed;
   if (camKeyNow !== camKey) {
     camKey = camKeyNow;
-    // the overview is a view of the body, not of the whole world: 6 units is as far as it goes
-    const dd = Math.min(d, 6);
+    // the frame is already the union of what is on screen, so it can be trusted: clamping it here
+    // is what pushed the rightmost nodes out of the frustum and left "empty" space where organs were
+    const dd = d;
     camWant.pos.set(cx - dx, dd * elev, dd);
     camWant.target.set(cx - dx, 0, 0);
     camAnim = true;
