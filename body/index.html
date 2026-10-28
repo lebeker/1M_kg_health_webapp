@@ -326,7 +326,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261030m";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261030n";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -500,6 +500,15 @@ function buildLegend() {
   const rows = document.getElementById("rows");
   rows.innerHTML = "";
   rows.appendChild(sectionRow("Layers", state.layersOpen, () => { state.layersOpen = !state.layersOpen; buildLegend(); }));
+  if (state.layersOpen) {
+    const br = document.createElement("div");
+    br.className = "row" + (state.sel === "body" ? " out" : "");
+    br.dataset.layer = "body";
+    br.innerHTML = `<span class="chev blank"></span><span class="dot" style="background:#c98d94"></span>` +
+      `<span class="nm">body</span><span class="cnt">${LAYERS.filter(l => !l.graphOnly).length}</span><span class="chev blank"></span>`;
+    br.onclick = () => select("body");
+    rows.appendChild(br);
+  }
   if (state.layersOpen) LAYERS.filter(l => !l.graphOnly).forEach(l => {
     const isOrgans = l.id === "organs";
     const isOut = state.out.has(l.id);
@@ -664,6 +673,18 @@ function selectInner(id) {
     panel.hidden = true; clearHighlight();
     if (selChanged) camKey = "";          // back to the overview the layout would have framed
     layout();
+    return;
+  }
+
+  if (id === "body") {
+    panel.hidden = false;
+    document.getElementById("npTitle").textContent = "body";
+    document.getElementById("npSub").textContent = "the whole atlas body · " + LAYERS.filter(l => !l.graphOnly).length + " layers";
+    document.getElementById("npDesc").textContent =
+      "Every layer of the model as one node. Select it to frame the whole body, or open a layer below to work with one system.";
+    document.getElementById("npActs").innerHTML = "";
+    layout();
+    if (selChanged) focusOn(objectForSel("body"));
     return;
   }
 
@@ -1186,6 +1207,7 @@ function setOutDeep(id, out) {
 }
 
 /* the organ graph's own state: the nodes that are out, the root that holds them, and the edges */
+let bodyProxy = null;
 let organRoot = null;
 let organNodes = [];
 let partNodes = [];
@@ -1306,6 +1328,19 @@ function objectForSel(key) {
   const o = organNodes.find(x => x.key === key);
   if (o) return o.node;
   if (key === "organs") return organGhost || groups.organs || null;
+  if (key === "body") {
+    if (!bodyProxy) {
+      bodyProxy = new THREE.Group();
+      bodyProxy.userData.nodeLabel = "body";
+      const b = bodyBox || new THREE.Box3(new THREE.Vector3(-0.3, 0, -0.2), new THREE.Vector3(0.3, 1.8, 0.2));
+      const sz = b.getSize(new THREE.Vector3()), ct = b.getCenter(new THREE.Vector3());
+      const m = new THREE.Mesh(new THREE.BoxGeometry(sz.x, sz.y, sz.z), new THREE.MeshBasicMaterial({ visible: false }));
+      m.position.copy(ct);
+      bodyProxy.add(m);
+      scene.add(bodyProxy);
+    }
+    return bodyProxy;
+  }
   return groups[key] || null;
 }
 
@@ -1737,18 +1772,8 @@ function buildOrganNodes() {
       mk.userData.setMarker = true;
       g.add(mk);
     }
-    const c = new THREE.Vector3();
-    organNodes.forEach(o => c.add(o.node.position));
-    c.divideScalar(organNodes.length);
-    // the set belongs at the centre the edges radiate from — unless an organ is standing exactly
-    // there (one organ out), in which case it steps aside instead of disappearing inside it
-    let near = Infinity, minX = Infinity;
-    organNodes.forEach(o => {
-      near = Math.min(near, o.node.position.distanceTo(c));
-      minX = Math.min(minX, o.node.position.x);
-    });
-    g.position.copy(c);
-    if (near < 0.62) g.position.x = minX - 0.85;
+    // exactly where the edges radiate from: the set and the lines that point at it must agree
+    g.position.copy(setCentre());
     g.scale.setScalar(1);
   }
   // the graph gained or lost a node: the old frame pointed at something that is no longer there
@@ -2171,8 +2196,7 @@ renderer.domElement.addEventListener("pointerup", e => {
     return;
   }
   if (hit.layerId) {
-    if (state.out.has(hit.layerId)) select(hit.layerId);   // an out layer is a node: select it
-    else toggleLayer(hit.layerId);                          // one still in the body comes out
+    select(hit.layerId);                                    // the body and its layers are nodes: select them
   }
 });
 
@@ -2477,7 +2501,7 @@ function tlCard(e, d, hits) {
 
 /* ---- an analysis on the graph: a node, an edge, two numbers */
 let analysisRoot = null, analysisNodes = [];
-const NODE_R = 0.095;
+const NODE_R = 0.055;
 
 function buildAnalyses() {
   if (!ANALYSES.length) return;
@@ -2556,8 +2580,11 @@ function paintFade() {
     a.line.visible = shown;
     if (!shown) return;
     const f = fadeFor(a), k = a.confidence / 100;
-    a.node.children[0].material.opacity = Math.max(0.06, k * f);
-    a.line.material.opacity = Math.max(0.05, k * f * 0.85);
+    // distance changes how solid a document looks, never whether it exists: a node you can see an
+    // edge to must be a node you can see
+    const op = Math.max(0.35, Math.min(1, 0.35 + 0.65 * k * f));
+    a.node.children[0].material.opacity = op;
+    a.line.material.opacity = op * 0.8;
   });
 }
 
@@ -2599,6 +2626,14 @@ function tick() {
   });
   // whatever changed an eye, the picture follows the same rule; it is 138 parent checks, not work
   syncOrgans();
+  // a document is a mark on the map, not an organ: keep it a constant, small size on screen
+  if (analysisRoot) {
+    ANALYSES.forEach(a => {
+      if (!a.node || !a.node.visible) return;
+      const d = camera.position.distanceTo(a.node.position);
+      a.node.scale.setScalar(Math.max(0.35, Math.min(2.2, d * 0.085)));
+    });
+  }
   if (partNodes.length) {
     partNodes.forEach(pn => {
       pn.node.position.lerp(pn.node.userData.wantPos, a);
