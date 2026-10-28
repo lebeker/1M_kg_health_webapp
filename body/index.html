@@ -326,7 +326,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261030j";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261030k";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -834,7 +834,15 @@ function syncOrgans() {
   if (!organGhost) return;
   organGhost.visible = organNodes.length > 0;
   if (!organGhost.visible) return;
-  organGhost.children.forEach(m => { m.visible = !outNames.has(m.userData.ghostKey); });
+  let shown = 0;
+  organGhost.children.forEach(m => {
+    if (m.userData.setMarker) return;
+    m.visible = !outNames.has(m.userData.ghostKey);
+    if (m.visible) shown++;
+  });
+  // everything has left the set: the node still has to be there, as a marker rather than a hole
+  const marker = organGhost.children.find(m => m.userData.setMarker);
+  if (marker) marker.visible = shown === 0;
 }
 
 function openAll() {
@@ -1717,14 +1725,24 @@ function buildOrganNodes() {
   if (organNodes.length) {
     const g = makeGhost();
     if (g.parent !== organRoot) organRoot.add(g);
+    if (!g.children.some(c => c.userData.setMarker)) {
+      const mk = new THREE.Mesh(new THREE.SphereGeometry(0.17, 24, 16),
+        new THREE.MeshStandardMaterial({ color: 0xb0728c, roughness: 0.6, metalness: 0, transparent: true, opacity: 0.45 }));
+      mk.userData.setMarker = true;
+      g.add(mk);
+    }
     const c = new THREE.Vector3();
     organNodes.forEach(o => c.add(o.node.position));
     c.divideScalar(organNodes.length);
-    // the set stands beside its own organs, never on top of one: with a single organ out the mean
-    // of the nodes IS that node, and the transparent set disappeared inside it
-    let minX = Infinity;
-    organNodes.forEach(o => { minX = Math.min(minX, o.node.position.x); });
-    g.position.set(Math.min(c.x, minX - 0.85), c.y, c.z);
+    // the set belongs at the centre the edges radiate from — unless an organ is standing exactly
+    // there (one organ out), in which case it steps aside instead of disappearing inside it
+    let near = Infinity, minX = Infinity;
+    organNodes.forEach(o => {
+      near = Math.min(near, o.node.position.distanceTo(c));
+      minX = Math.min(minX, o.node.position.x);
+    });
+    g.position.copy(c);
+    if (near < 0.62) g.position.x = minX - 0.85;
     g.scale.setScalar(1);
   }
   syncOrgans();
