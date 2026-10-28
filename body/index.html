@@ -94,7 +94,7 @@
   .bootnum { color:#5f7183; font-size:11px; margin-top:7px; }
 
 #tl { position:fixed; left:244px; right:14px; top:46px; height:74px; z-index:26;
-      pointer-events:none; }
+      pointer-events:auto; cursor:crosshair; }   /* the strip is a scrubber: it must receive the click */
 #tl .track { position:relative; height:44px; pointer-events:none; }
 #tl .base { position:absolute; left:0; right:0; top:26px; height:1px; background:#3a3a44; }
 #tl .tick { position:absolute; top:16px; width:1px; height:11px; background:#3b3b45; pointer-events:auto;
@@ -326,7 +326,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261030k";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261030l";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -516,6 +516,7 @@ function buildLegend() {
     row.onclick = e => {
       if (e.target.closest(".chev") && isOrgans) { state.treeOpen = !state.treeOpen; buildLegend(); return; }
       toggleLayer(l.id);
+      select(l.id);                     // the row's own actions (split, put back) live in the panel
     };
     rows.appendChild(row);
     if (isOrgans && state.treeOpen) organRows(rows);
@@ -653,7 +654,7 @@ function highlight(obj) {
   });
 }
 
-function select(id) {
+function selectInner(id) {
   const before = state.sel;
   state.sel = id || null;
   const selChanged = before !== state.sel;
@@ -2092,6 +2093,14 @@ function layout() {
   }
 }
 
+/* selecting changes the width the scene has to live in (the panel takes 320 px), so the frame is
+   recomputed once, after the panel is in place — this is why nodes used to end up under the panel */
+function select(id) {
+  selectInner(id);
+  camKey = "";
+  layout();
+}
+
 function pickAt(x, y) {
   const ray = new THREE.Raycaster();
   ray.setFromCamera(new THREE.Vector2((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1), camera);
@@ -2339,7 +2348,7 @@ function buildTimeline() {
   if (!TL.pickBound) {
     TL.pickBound = true;
     // anywhere on the strip picks a date: hunting for a 1-pixel tick is not a way to use a timeline
-    T.addEventListener("pointerdown", e => {
+    document.getElementById("tl").addEventListener("pointerdown", e => {
       if (e.target.closest(".tick")) return;
       const r = T.getBoundingClientRect();
       const x = e.clientX - r.left;
