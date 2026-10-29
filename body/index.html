@@ -327,7 +327,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261030r";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261031a";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -2004,24 +2004,27 @@ function layout() {
     slot.organs = { x: width * 0.5 + (graph ? ORGAN_R + 0.15 : 0) + organSize.x * 0.5 + width * 0.22, z: 0 };
   }
 
+  const hiddenLayers = LAYERS.filter(l => !l.graphOnly && state.out.has(l.id)).length;
   LAYERS.forEach(l => {
     if (l.graphOnly) return;
     const t = targets[l.id];
-    const s = slot[l.id];
-    if (s) t.p.set(s.x, -(layerMid[l.id] ? layerMid[l.id].y : 0), s.z);
-    else t.p.set(0, 0, 0);
-    // the organs are what makes the body the body; with them out, the remainder is a node among
-    // nodes, so it shrinks to roughly the size of the organs set
-    t.s = (slot[l.id] === undefined && organsOut) ? bodyShrink() : 1;
+    // a layer that leaves the body is not put on a ring: it goes inside the transparent body node,
+    // which stays at the centre. This is the rule the panel eyes promise.
+    t.p.set(0, 0, 0);
+    t.s = state.out.has(l.id) ? 0.5 : 1;
   });
 
   if (graph) buildOrganNodes(); else disposeOrganNodes();
   const ghost = null;               // no copy in the body: a second set of organs reads as organs that never left
 
-  // the body cloud: a copy of the skin, a little more opaque than the organs copy, so the layers
-  // that left are visibly circling something
-  if (bodyOut.length && !bodyGhost) makeBodyGhost();
-  if (bodyGhost) bodyGhost.visible = bodyOut.length > 0;
+  // the transparent body is the centre node, always: hidden layers live inside it, and it shrinks
+  // as they pile up instead of turning into one more model on the ring
+  if (!bodyGhost) makeBodyGhost();
+  if (bodyGhost) {
+    bodyGhost.visible = true;
+    bodyGhost.position.set(setCentre().x - setCentre().x, 0, 0);   // the graph's origin
+    bodyGhost.scale.setScalar(Math.max(0.42, 1 - 0.07 * hiddenLayers));
+  }
 
   LAYERS.forEach(l => {
     const g = groups[l.id];
@@ -2644,6 +2647,11 @@ function tick() {
   });
   // whatever changed an eye, the picture follows the same rule; it is 138 parent checks, not work
   syncOrgans();
+  if (bodyGhost && bodyGhost.visible) {
+    const hid = LAYERS.filter(l => !l.graphOnly && state.out.has(l.id)).length;
+    bodyGhost.scale.setScalar(Math.max(0.55, 1 - 0.07 * hid));   // the body shrinks as layers go inside
+    bodyGhost.position.set(0, 0, 0);                             // and it never leaves the centre
+  }
   // a document is a mark on the map, not an organ: keep it a constant, small size on screen
   if (analysisRoot) {
     ANALYSES.forEach(a => {
@@ -2678,11 +2686,6 @@ function tick() {
   }
   updateAnalyses();
   // (the all-organs copy is gone: two nodes for one thing was the bug)
-  // the body cloud is the body's shadow, not a snapshot: it follows wherever the body is now
-  if (bodyGhost && groups.muscles) {
-    bodyGhost.position.copy(groups.muscles.position);
-    bodyGhost.scale.copy(groups.muscles.scale);
-  }
   if (camAnim) {
     camera.position.lerp(camWant.pos, a);
     controls.target.lerp(camWant.target, a);
