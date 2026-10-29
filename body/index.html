@@ -326,7 +326,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261030o";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261030p";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -812,6 +812,7 @@ function selectAnalysis(a) {
   if (a.link) add("open the document", () => window.open(a.link, "_blank"));
 
   panel.hidden = false;
+  if (a.node) focusOn(a.node);
 }
 
 document.getElementById("nodeClose").onclick = () => select(null);
@@ -2604,16 +2605,22 @@ function updateAnalyses() {
     if (!a.node) return;
     const an = anchorFor(a);
     let c, p;
-    if (an) {
+    const onNode = an && organNodes.some(o => o.node === an.obj);
+    if (onNode) {
       c = an.obj.localToWorld((an.obj.userData.cLocal || new THREE.Vector3()).clone());
-      const rad = an.r + 0.62;
+      const rad = Math.max(0.9, an.r + 0.62);
       p = new THREE.Vector3(c.x + Math.cos(a.angle) * rad, c.y + Math.sin(a.angle) * rad,
                             c.z + Math.sin(a.angle * 1.7) * 0.18);
     } else {
-      const i = ANALYSES.indexOf(a);
+      // the organ is inside the body: the document still has to stand on the map, on its own place
+      // around the set, never buried in the transparent organs
+      const i = ANALYSES.indexOf(a), ang = -1.05 + i * 0.63;
       c = set.clone();
-      p = new THREE.Vector3(c.x - 0.95, c.y + 0.35 - i * 0.26, c.z + 0.05);
+      p = new THREE.Vector3(c.x + Math.cos(ang) * 1.45, c.y + Math.sin(ang) * 1.15, c.z + 0.12);
     }
+    // a mark never leaves the map: keep it inside the box the camera is framing around the set
+    p.x = Math.min(set.x + 1.9, Math.max(set.x - 1.9, p.x));
+    p.y = Math.min(set.y + 1.9, Math.max(set.y - 1.9, p.y));
     a.node.position.copy(p);
     const arr = a.line.geometry.attributes.position.array;
     arr[0] = c.x; arr[1] = c.y; arr[2] = c.z;
