@@ -326,7 +326,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261030n";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261030o";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -807,10 +807,9 @@ function selectAnalysis(a) {
     const b = document.createElement("button"); b.textContent = text; b.onclick = fn; acts.appendChild(b);
   };
   add("point the ruler at this date", () => {
-    state.date = iso(a.at); paintFade(); refreshPick();
+    state.date = iso(a.at); paintFade(); buildTimeline(); refreshPick();
   });
   if (a.link) add("open the document", () => window.open(a.link, "_blank"));
-  add("frame it", () => focusOn(a.node));
 
   panel.hidden = false;
 }
@@ -2464,13 +2463,22 @@ function buildTimeline() {
 
   const nw = document.createElement("div"); nw.className = "now";
   nw.style.left = xOf(now).toFixed(1) + "px"; T.appendChild(nw);
+  refreshPick();          // the ruler always shows where it is pointing, not only after a click
 }
 
 function refreshPick() {
+  // the marker sits on the tick nearest the chosen date: a document dated April must light 2019,
+  // not vanish because no tick carries that exact day
+  if (!state.date) state.date = iso(new Date());
+  const want = Date.parse(state.date);
+  let best = null, bestD = Infinity;
   [...TL.track.children].forEach(el => {
-    if (!el._date) return;
-    el.classList.toggle("pick", state.date === iso(el._date));
+    if (!el._date) { el.classList.remove("pick"); return; }
+    const d = Math.abs(el._date.getTime() - want);
+    if (d < bestD) { bestD = d; best = el; }
+    el.classList.remove("pick");
   });
+  if (best) best.classList.add("pick");
 }
 
 function tlCard(e, d, hits) {
@@ -2516,10 +2524,11 @@ function buildAnalyses() {
     const mat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(healthColour(a.evidence)), roughness: 0.4, metalness: 0.05,
       transparent: true, opacity: 1, emissive: new THREE.Color(healthColour(a.evidence)),
-      emissiveIntensity: 0.55
+      emissiveIntensity: 0.55, depthTest: false, depthWrite: false
     });
     const ball = new THREE.Mesh(new THREE.SphereGeometry(NODE_R, 20, 14), mat);
     g.add(ball);
+    g.renderOrder = 20;
     g.userData.cLocal = new THREE.Vector3(0, 0, 0);
     analysisRoot.add(g);
     const lineMat = new THREE.LineBasicMaterial({ color: new THREE.Color(healthColour(a.evidence)),
