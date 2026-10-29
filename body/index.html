@@ -233,7 +233,8 @@ let edges = null;           // LineSegments organ -> heart
 const stage = document.getElementById("stage");
 const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.localClippingEnabled = true;   // a clippingPlane is decoration without this
-const headPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0.585);  // keeps what is below her jaw
+const JAW_Y = 0.585;   // the one jaw line: the head cut and the clip plane read the same number
+const headPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), JAW_Y);   // keeps what is below her jaw
 // NOTE: the scene is authored in the r146 default (linear output). Switching to sRGBEncoding
 // brightens the shell but washes the atlas anatomy out, and the anatomy is what has to stay
 // legible, so the shell gets its own lift in paint() instead.
@@ -326,7 +327,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261030q";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261030r";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -385,8 +386,7 @@ function loadFile(id, file, variant) {
         vg.add(gltf.scene);
         gltf.scene.userData.variant = variant;   // every part can tell which sex it belongs to
         const on = variant === state.sex;        // a file that lands late must obey the switch already made
-        vg.visible = on;
-        vg.traverse(o => { o.visible = on; });
+        vg.visible = on;         // a hidden group hides its subtree: no per-child writes
       } else {
         g.userData.inner.add(gltf.scene);
       }
@@ -437,6 +437,7 @@ async function boot() {
   bootUI("organs", 0);
   await Promise.all(jobs);
   normalise();
+  bodyMeshes = null;          // the body exists now: next cut collects it
   collectOrgans();
   buildLegend();
   applySex();
@@ -905,10 +906,10 @@ function applySex() {
     if (!gr || !gr.userData.variants) return;
     Object.entries(gr.userData.variants).forEach(([sex, obj]) => {
       const on = sexOn(sex);
-      obj.visible = on;
-      obj.traverse(o => { o.visible = on; });
+      obj.visible = on;          // the group is the switch
     });
   });
+  bodyMeshes = null;          // variants come and go: recollect before the next cut
   // the organs set carries both tracts as variants; every part knows which sex it belongs to
   organParts.forEach(p => { p.mesh.visible = partShown(p); });
   bodyHeadCut();
@@ -1920,6 +1921,7 @@ function makeGhost() {
   }
   (organRoot || scene).add(organGhost);
   organGhost.position.copy(setCentre());
+  syncOrgans();          // a fresh copy obeys the rule at once, not on the next frame
   return organGhost;
 }
 
@@ -1933,45 +1935,41 @@ let headCutMeshes = [];
 /* Her head is a different skull from the atlas one: his muscles, teeth and eyeballs are bigger and
    stick out of her face. Cut the atlas layers at her jaw while they sit in the body; taken out as
    nodes they keep everything. The shell's head is drawn opaque (see paint()), so the gap never shows. */
+let bodyMeshes = null;        // every mesh that is part of the atlas body, collected once
+function collectBodyMeshes() {
+  // The head cut is a property of the BODY. It used to walk the whole scene and hide anything above
+  // the jaw, which is how split organs and then documents disappeared. It now only ever sees the
+  // list below, and nothing added to the graph later can enter it.
+  const out = [];
+  Object.entries(groups).forEach(([id, g]) => {
+    if (!g || id === "organs") return;               // organs are not head geometry either
+    g.traverse(o => { if (o.isMesh) out.push(o); });
+  });
+  return out;
+}
+
 function bodyHeadCut() {
   // Anything that lives entirely inside the head is hidden while the shell is on: a transparent head
   // then shows an empty volume instead of a glass skull, glowing eyes and teeth.
-  headCutMeshes.forEach(o => { o.visible = true; });
+  headCutMeshes.forEach(o => { o.visible = true; });   // only what this cut hid is restored
   headCutMeshes = [];
-  if (state.out.has("skin")) return;                 // shell off: the atlas head is all there is
-  const CUT = 0.585;                                 // the jaw line in scene units
-  const shellOf = m => m && (m === groups.skin || (m.parent && m.parent.userData && m.parent.userData.variant === state.sex));
-  // this cut is about the BODY's head. A graph node floating above the jaw line is not "inside the
-  // head" — it is a node, and hiding it by height is what made the heart, the lungs and the gut
-  // vanish the moment they were split out of the body.
-  const inGraph = o => {
-    for (let p = o; p; p = p.parent) {
-      if (p === organRoot) return true;                                  // a split node
-      if (analysisRoot && p === analysisRoot) return true;              // a document: never body geometry
-      if (p === groups.organs && state.out.has("organs")) return true;   // the organ set, taken out
-    }
-    return false;
-  };
-  scene.traverse(o => {
-    if (!o.isMesh || !o.visible) return;
-    if (o.userData.ball || o.userData.cloudLayer || o.userData.shadowBall || o.userData.ghost) return;
-    if (inGraph(o)) return;
+  if (state.out.has("skin")) return;                   // shell off: the atlas head is all there is
+  if (!bodyMeshes) bodyMeshes = collectBodyMeshes();
+  bodyMeshes.forEach(o => {
+    if (!o.visible) return;                            // hidden by a layer or a variant: not ours
     if (/^skinbits/.test(o.name)) { o.visible = false; headCutMeshes.push(o); return; }
-    if (/-head$/.test(o.name) || o.name === "skin" || /^skin-female2$/.test(o.name)) return;   // the shell itself
+    if (/-head$/.test(o.name) || o.name === "skin" || /^skin-female2$/.test(o.name)) return;
     const b = new THREE.Box3().setFromObject(o);
     if (b.isEmpty()) return;
-    const c = b.getCenter(new THREE.Vector3());
-    // by centre, not by minimum: the skull and the face muscles reach down into the neck, so a
-    // min.y test never catches them
-    if (c.y <= CUT + 0.02) return;
+    // by centre, not by minimum: the skull and the face muscles reach down into the neck
+    if (b.getCenter(new THREE.Vector3()).y <= JAW_Y + 0.02) return;
     o.visible = false;
     headCutMeshes.push(o);
   });
 }
 
 function layout() {
-  // the set node exists only while the set is one thing; split it and the ghost has nothing to say
-  if (organGhost) organGhost.visible = !state.organsOut;
+  // the ghost's visibility belongs to syncOrgans(); layout only places things
   if (!bodyBox) return;
   const width = bodyBox.getSize(new THREE.Vector3()).x;
   const graph = state.organsOut;

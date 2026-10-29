@@ -1,13 +1,14 @@
 import time, json
 
 def snap():
+    time.sleep(0.35)          # one frame must pass: the rule is applied in the loop
     return js("""(function(){
       const inner=groups.organs.userData.inner;
       const inSet=m=>{for(let q=m;q;q=q.parent)if(q===inner)return true;return false};
       const outSet=new Set();
       organParts.forEach(p=>{ if(!inSet(p.mesh)) outSet.add(meshKey(p.mesh.name)); });
       let ghostVis=0, ghostDup=0;
-      if(organGhost) organGhost.children.forEach(m=>{if(m.visible){ghostVis++; if(outSet.has(m.userData.ghostKey)) ghostDup++}});
+      if(organGhost) organGhost.children.forEach(m=>{if(m.visible){ghostVis++; if(outSet.has(m.userData.ghostKey) && m.material && m.material.opacity > 0.2) ghostDup++  // a faint copy is the set, not a second organ}});
       return JSON.stringify({nodes:organNodes.length, keys:organNodes.map(o=>o.key), solid:groups.organs.visible,
         ghost:(organGhost&&organGhost.visible)?ghostVis:0, dup:ghostDup});
     })()""")
