@@ -327,7 +327,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261031a";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261031b";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -505,12 +505,16 @@ function buildLegend() {
     const br = document.createElement("div");
     br.className = "row" + (state.sel === "body" ? " out" : "");
     br.dataset.layer = "body";
-    br.innerHTML = `<span class="chev blank"></span><span class="dot" style="background:#c98d94"></span>` +
+    const bodyOpen = state.bodyOpen !== false;      // the body starts expanded
+    br.innerHTML = `<span class="chev">${bodyOpen ? "▾" : "▸"}</span><span class="dot" style="background:#c98d94"></span>` +
       `<span class="nm">body</span><span class="cnt">${LAYERS.filter(l => !l.graphOnly).length}</span><span class="chev blank"></span>`;
-    br.onclick = () => select("body");
+    br.onclick = e => {
+      if (e.target.closest(".chev")) { state.bodyOpen = !bodyOpen; buildLegend(); return; }
+      select("body");
+    };
     rows.appendChild(br);
   }
-  if (state.layersOpen) LAYERS.filter(l => !l.graphOnly).forEach(l => {
+  if (state.layersOpen && state.bodyOpen !== false) LAYERS.filter(l => !l.graphOnly).forEach(l => {
     const isOrgans = l.id === "organs";
     const isOut = state.out.has(l.id);
     const row = document.createElement("div");
@@ -2004,14 +2008,14 @@ function layout() {
     slot.organs = { x: width * 0.5 + (graph ? ORGAN_R + 0.15 : 0) + organSize.x * 0.5 + width * 0.22, z: 0 };
   }
 
-  const hiddenLayers = LAYERS.filter(l => !l.graphOnly && state.out.has(l.id)).length;
   LAYERS.forEach(l => {
     if (l.graphOnly) return;
     const t = targets[l.id];
-    // a layer that leaves the body is not put on a ring: it goes inside the transparent body node,
-    // which stays at the centre. This is the rule the panel eyes promise.
-    t.p.set(0, 0, 0);
-    t.s = state.out.has(l.id) ? 0.5 : 1;
+    const s = slot[l.id];
+    // an eye that is on means the layer stands outside the body, at its own size
+    if (s) t.p.set(s.x, -(layerMid[l.id] ? layerMid[l.id].y : 0), s.z);
+    else t.p.set(0, 0, 0);
+    t.s = 1;                       // never resize a layer or the body
   });
 
   if (graph) buildOrganNodes(); else disposeOrganNodes();
@@ -2022,8 +2026,8 @@ function layout() {
   if (!bodyGhost) makeBodyGhost();
   if (bodyGhost) {
     bodyGhost.visible = true;
-    bodyGhost.position.set(setCentre().x - setCentre().x, 0, 0);   // the graph's origin
-    bodyGhost.scale.setScalar(Math.max(0.42, 1 - 0.07 * hiddenLayers));
+    bodyGhost.position.set(0, 0, 0);
+    bodyGhost.scale.setScalar(1);        // the body is the same size as every layer in it
   }
 
   LAYERS.forEach(l => {
@@ -2031,7 +2035,7 @@ function layout() {
     if (!g) return;
     if (l.graphOnly) { g.visible = false; return; }
     const isOut = state.out.has(l.id);
-    g.visible = true;          // the skin is a layer like any other: in the body, or a node.
+    g.visible = (l.id === "skin") ? isOut : true;   // textured skin only when it stands outside
   });
   organParts.forEach(p => { p.mesh.visible = partShown(p); });
   bodyHeadCut();
@@ -2647,11 +2651,6 @@ function tick() {
   });
   // whatever changed an eye, the picture follows the same rule; it is 138 parent checks, not work
   syncOrgans();
-  if (bodyGhost && bodyGhost.visible) {
-    const hid = LAYERS.filter(l => !l.graphOnly && state.out.has(l.id)).length;
-    bodyGhost.scale.setScalar(Math.max(0.55, 1 - 0.07 * hid));   // the body shrinks as layers go inside
-    bodyGhost.position.set(0, 0, 0);                             // and it never leaves the centre
-  }
   // a document is a mark on the map, not an organ: keep it a constant, small size on screen
   if (analysisRoot) {
     ANALYSES.forEach(a => {
