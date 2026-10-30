@@ -327,7 +327,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261031g";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261031h";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1498,6 +1498,50 @@ function makeCloud(color, R) {
   return g;
 }
 
+/* (b) additive shell of a split organ: only the parts that are OUT are drawn, faint, where they
+   sit inside the organ. With every part out the whole organ shows faint. Nothing else is touched. */
+function underNode(node, meta) {
+  for (let n = node; n; n = n.parent) if (n === meta) return true;
+  return false;
+}
+
+function buildShell(o, row) {
+  const shell = o.node.userData.shell;
+  if (!shell || shell.userData.total) return;
+  const inv = new THREE.Matrix4().makeTranslation(-row.pos.x, -row.pos.y, -row.pos.z);
+  organParts.filter(p => p.node && underNode(p.node, row.meta)).forEach(p => {
+    p.mesh.updateWorldMatrix(true, false);
+    const m = new THREE.Mesh(p.mesh.geometry, new THREE.MeshStandardMaterial({
+      color: (p.mesh.material && p.mesh.material.color) ? p.mesh.material.color.clone() : new THREE.Color(0xc8a8c0),
+      transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide
+    }));
+    m.matrixAutoUpdate = false;
+    m.matrix.copy(p.mesh.matrixWorld).premultiply(inv);
+    m.userData.shellPart = meshKey(p.name);
+    m.visible = false;
+    shell.add(m);
+  });
+  shell.userData.total = shell.children.length;
+}
+
+function syncShells() {
+  organNodes.forEach(o => {
+    const shell = o.node.userData.shell;
+    if (!shell || !shell.userData.total) return;
+    const outSet = new Set(state.nodeOut);
+    let out = 0;
+    shell.children.forEach(m => { if (outSet.has(m.userData.shellPart)) out++; });
+    shell.visible = out > 0;
+    if (!shell.visible) return;
+    const all = out >= shell.userData.total;
+    shell.children.forEach(m => {
+      const isOut = outSet.has(m.userData.shellPart);
+      m.visible = all || isOut;
+      m.material.opacity = all ? 0.10 : 0.16;
+    });
+  });
+}
+
 function buildOrganNodes() {
   const had = organNodes.length;
   if (organNodes.length) disposeOrganNodes();     // every build starts clean: no stale holders
@@ -1536,6 +1580,14 @@ function buildOrganNodes() {
       const holder = new THREE.Group();
       holder.userData.holder = true;
       g.add(holder);
+      // additive shell: faint copies of the parts that have left, at their anatomical places, so a
+      // split organ reads as a whole organ with ghosts where the parts went. It never touches the
+      // holder and never hides anything that the rest of the code draws.
+      const shell = new THREE.Group();
+      shell.userData.shell = true;
+      shell.visible = false;
+      g.add(shell);
+      g.userData.shell = shell;
       g.position.copy(row.pos);
       organRoot.add(g);
       o = { key: row.key, node: g, parts: [], meta: row.meta };
@@ -1684,6 +1736,7 @@ function buildOrganNodes() {
     g.userData.wantScale = 1;
     o.parts = row.parts;
     o.target = row.pos;
+    if (state.nodeOut.size) buildShell(o, row);
     o.parentKey = row.parent ? row.parent.key : null;
   });
 
