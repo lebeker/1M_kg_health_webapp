@@ -327,7 +327,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261031d";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261031e";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -863,13 +863,18 @@ function syncOrgans() {
   if (!organGhost) return;
   organGhost.visible = organNodes.length > 0;
   if (!organGhost.visible) return;
+  // an organ that is out has its own node: its copy in the set is switched off, so nothing is drawn
+  // twice. The one exception is the empty set — with every organ out the set would vanish, and the
+  // user asked for it to stay as a faint, clickable body.
+  const copies = organGhost.children.filter(m => !m.userData.setMarker).length;
+  const allOut = outNames.size >= copies;
   organGhost.children.forEach(m => {
     if (m.userData.setMarker) { m.visible = false; return; }
-    m.visible = true;
     const out = outNames.has(m.userData.ghostKey);
+    m.visible = !out || allOut;
     if (m.material) {
       m.material.transparent = true;
-      m.material.opacity = out ? 0.10 : 0.30;    // the shell of the set stays, even when empty
+      m.material.opacity = out ? 0.10 : 0.30;
       m.material.depthWrite = false;
       m.material.needsUpdate = true;
     }
