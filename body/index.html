@@ -327,7 +327,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261031e";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261031f";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -2061,38 +2061,21 @@ function layout() {
     mus.traverse(o => { if (o.isMesh && o.material) { o.material.transparent = see; o.material.opacity = see ? 0.38 : 1; o.material.depthWrite = !see; } });
   }
 
-  // what the camera frames: once the organs are split they are the work surface, and fitting the
-  // whole ring plus the fan at once made every organ a speck. Splitting now flies to the fan; the
-  // ring is still there, a zoom-out away
+  // What the camera frames. Two rules and only two: a split graph is the union of everything that is
+  // on screen (body, organ nodes, documents); otherwise it is the body plus the ring of layers.
+  // The old code computed the union twice and the first answer was always thrown away.
   let spanW, spanH, cx;
-  if (graph) {
-    // frame the body and the nodes that are out together: the body is the anchor that says what
-    // left it, and framing the tree alone pushes the body behind the panel
-    const c = setCentre();
-    let rad = 0.4;
-    organNodes.forEach(o => {
-      const p = o.target || o.node.position;
-      rad = Math.max(rad, p.distanceTo(c) + organMaxNode * 0.55 + 0.08);
-    });
-    partNodes.forEach(pn => {
-      const p = pn.target || pn.node.position;
-      rad = Math.max(rad, p.distanceTo(c) + PART_NODE_SIZE * 0.9);
-    });
-    let minX = c.x - rad, maxX = c.x + rad, minY = -rad, maxY = rad;
-    if (bodyBox && !bodyBox.isEmpty()) {
-      minX = Math.min(minX, bodyBox.min.x - 0.12); maxX = Math.max(maxX, bodyBox.max.x + 0.12);
-      minY = Math.min(minY, bodyBox.min.y - 0.06); maxY = Math.max(maxY, bodyBox.max.y + 0.06);
-    }
-    spanW = Math.max(0.8, maxX - minX); spanH = Math.max(0.8, maxY - minY); cx = (minX + maxX) / 2;
+  if (organNodes.length) {
+    const b = new THREE.Box3();
+    if (bodyBox) b.union(bodyBox);
+    organNodes.forEach(o => b.expandByPoint(o.node.position));
+    ANALYSES.forEach(a => { if (a.node && a.node.visible) b.expandByPoint(a.node.position); });
+    const sz = b.getSize(new THREE.Vector3()), ct = b.getCenter(new THREE.Vector3());
+    spanW = Math.max(sz.x, 1.8); spanH = Math.max(sz.y, 1.8); cx = ct.x;
   } else {
     const left = lc - width * 0.30;
     let right = rc + width * 0.30;
-    if (organsOut) {
-      right = Math.max(right, slot.organs.x + (organSize.x / 2) * 1.2);
-      // the split graph is part of the picture: a camera framed on the body alone leaves half of
-      // it outside the frustum, which is what "where are the organs" looked like
-      organNodes.forEach(o => { right = Math.max(right, o.node.position.x + 0.55); });
-    }
+    if (organsOut) right = Math.max(right, slot.organs.x + (organSize.x / 2) * 1.2);
     spanW = Math.max(width * 1.1, right - left);
     spanH = 1.8;
     cx = (left + right) / 2;
