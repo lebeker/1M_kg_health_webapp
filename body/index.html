@@ -327,7 +327,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261031b";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261031c";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -2003,9 +2003,11 @@ function layout() {
     slot[l.id] = { x: Math.cos(a) * ringR, z: Math.sin(a) * ringR };
   });
   if (organsOut) {
-    // out has to be visible: the set leaves the body and stands beside it, far enough that the tree
-    // that fans out around it never reaches back into the body
-    slot.organs = { x: width * 0.5 + (graph ? ORGAN_R + 0.15 : 0) + organSize.x * 0.5 + width * 0.22, z: 0 };
+    // the layers sit on a hexagon of side a; the set takes the corner that closes an equilateral
+    // triangle with the two nearest layers: 3a/2 to the right, sqrt(3)a/2 forward
+    const n = Math.max(bodyOut.length, 3);
+    const a = 2 * ringR * Math.sin(Math.PI / n);
+    slot.organs = { x: (3 * a) / 2, z: -(Math.sqrt(3) * a) / 2 };
   }
 
   LAYERS.forEach(l => {
@@ -2099,7 +2101,7 @@ function layout() {
   const dx = ((panelL + visW / 2) / innerWidth - 0.5) * spanW * grow;
   // once the layers are on the ring the camera has to look slightly down, or a ring seen edge-on
   // is just a pile of overlapping bodies
-  const elev = (!graph && bodyOut.length > 1) ? 0.45 : 0.06;
+  const elev = (bodyOut.length > 1) ? 0.45 : 0.06;   // a ring seen head-on is a row: tilt for the hexagon
   // re-frame only when the scene itself changed: selecting a node, or the user having zoomed
   // somewhere, must not snap the view back to the overview
   // the selection is not part of this: opening the panel must not move the camera the user has
