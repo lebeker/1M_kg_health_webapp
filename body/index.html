@@ -327,7 +327,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261031f";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261031g";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1225,6 +1225,7 @@ let edgePairs = [];
 let linkPairs = [];               // shadow system -> the node that hosts its organs
 let organGhost = null;
 let bodyGhost = null;
+let graphSeq = 0;     // bumped whenever the organ graph is rebuilt, so the camera reframes
 
 let organCentre = new THREE.Vector3(0, 0.15, 0);   // where the organs sit in the body
 let organSize = new THREE.Vector3(0.3, 0.6, 0.25); // how big the set is
@@ -1424,19 +1425,23 @@ function graphRows() {
       y: c.y + ((((h >> 7) % 97) / 97) - 0.5) * 2.0,
       z: c.z + ((((h >> 13) % 89) / 89) - 0.5) * 1.8 };
   });
+  // The set is the root of this tree, so it belongs in the simulation. Without it the six systems
+  // have no parent and no link: they only repel each other and the cloud drifts to one side, which
+  // is what "fixed coordinates" looked like. The root is pinned at the origin.
+  const rootNode = { id: "__set__", row: { key: "__set__", parent: null, depth: 1 }, r: 0.001,
+                     x: 0, y: 0, z: 0, fx: 0, fy: 0, fz: 0 };
+  simNodes.push(rootNode);
   const simById = new Map(simNodes.map(n => [n.id, n]));
-  const simLinks = simNodes.filter(n => n.row.parent && simById.has(n.row.parent.key))
-    .map(n => ({ source: simById.get(n.row.parent.key), target: n }));
+  const simLinks = simNodes.filter(n => n !== rootNode)
+    .map(n => ({ source: (n.row.parent && simById.get(n.row.parent.key)) || rootNode, target: n }));
   const sim = d3.forceSimulation(simNodes, 3)
     .force("link", d3.forceLink(simLinks).distance(l => l.source.r + l.target.r + 0.34).strength(0.7))
     .force("charge", d3.forceManyBody().strength(-0.055).distanceMax(4))
     .force("collide", d3.forceCollide().radius(n => n.r * 1.25).iterations(3))
     .stop();
   for (let i = 0; i < 420; i++) sim.tick();
-  let cx = 0, cy = 0, cz = 0;
-  simNodes.forEach(n => { cx += n.x; cy += n.y; cz += n.z; });
-  cx /= simNodes.length || 1; cy /= simNodes.length || 1; cz /= simNodes.length || 1;
-  simNodes.forEach(n => { n.x += c.x - cx; n.y += c.y - cy; n.z += c.z - cz; });
+  const root = rootNode;
+  simNodes.forEach(n => { n.x -= root.x; n.y -= root.y; n.z -= root.z; });
 
   /* Fit the solved graph to the space the camera actually gives it. A force cloud has no idea
      how big the screen is: six nodes can solve into a five-unit sprawl and half of them end up
@@ -1446,12 +1451,12 @@ function graphRows() {
   const size = bb.getSize(new THREE.Vector3());
   const span = Math.max(size.x, size.y, size.z);
   const k = span > 0.6 ? Math.min(2.0, Math.max(0.35, 2.2 / span)) : 1;
-  const mid = bb.getCenter(new THREE.Vector3());
+  const A = (targets.organs && targets.organs.p) ? targets.organs.p : new THREE.Vector3(BODY_X + 0.45, c.y, c.z);
   simNodes.forEach(n => {
-    n.x = BODY_X + 0.25 + (n.x - bb.min.x) * k;
-    n.y = c.y + (n.y - mid.y) * k;
-    n.z = c.z + (n.z - mid.z) * k;
-    n.row.pos.set(n.x, n.y, n.z);
+    n.x = A.x + n.x * k;
+    n.y = A.y + n.y * k;
+    n.z = A.z + n.z * k;
+    if (n.row.pos) n.row.pos.set(n.x, n.y, n.z);   // the pinned root has no row to place
   });
   return { rows };
 }
@@ -2025,7 +2030,7 @@ function layout() {
     t.s = 1;                       // never resize a layer or the body
   });
 
-  if (graph) buildOrganNodes(); else disposeOrganNodes();
+  if (graph) { buildOrganNodes(); graphSeq++; } else disposeOrganNodes();
   const ghost = null;               // no copy in the body: a second set of organs reads as organs that never left
 
   // the transparent body is the centre node, always: hidden layers live inside it, and it shrinks
@@ -2109,7 +2114,7 @@ function layout() {
     }
   }
 
-  const camKeyNow = [...state.out].sort().join("+") + "|" + [...state.nodeOut].sort().join(",") + "|" + graph + "|" + state.collapsed;
+  const camKeyNow = graphSeq + "|" + [...state.out].sort().join("+") + "|" + [...state.nodeOut].sort().join(",") + "|" + graph + "|" + state.collapsed;
   if (camKeyNow !== camKey) {
     camKey = camKeyNow;
     // the frame is already the union of what is on screen, so it can be trusted: clamping it here
