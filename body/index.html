@@ -327,7 +327,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261031i";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261031j";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1533,11 +1533,13 @@ function syncShells() {
     shell.children.forEach(m => { if (outSet.has(m.userData.shellPart)) out++; });
     shell.visible = out > 0;
     if (!shell.visible) return;
-    const all = out >= shell.userData.total;
+    // (c) the node always keeps the WHOLE organ, faint: that is the model you put the parts back
+    // into, and it is what an edge attaches to, so no edge starts in empty space. A part that is out
+    // is fainter still, so you can see where it came from.
     shell.children.forEach(m => {
       const isOut = outSet.has(m.userData.shellPart);
-      m.visible = all || isOut;
-      m.material.opacity = all ? 0.10 : 0.16;
+      m.visible = true;
+      m.material.opacity = isOut ? 0.06 : 0.12;
     });
   });
 }
@@ -2654,9 +2656,56 @@ function paintFade() {
   });
 }
 
+/* (a) the documents are nodes of the same force graph as the organs: each one is tied to the organ
+   it belongs to, pushed off the other documents and off the organ nodes, and solved in 3D. No slot
+   arithmetic, no left-margin box — the shape comes out of the forces. */
+let analysisKey = "", analysisSolved = false;
+
+function solveAnalyses() {
+  const anchors = ANALYSES.map(a => {
+    const an = anchorFor(a);
+    const onNode = an && organNodes.some(o => o.node === an.obj);
+    if (onNode) return an.obj.localToWorld((an.obj.userData.cLocal || new THREE.Vector3()).clone());
+    return setCentre().clone();
+  });
+
+  const fixed = [], free = [], links = [];
+  organNodes.forEach(o => {
+    const p = o.node.position;
+    fixed.push({ id: "o:" + o.key, x: p.x, y: p.y, z: p.z, fx: p.x, fy: p.y, fz: p.z, r: 0.32 });
+  });
+  ANALYSES.forEach((a, i) => {
+    const p = anchors[i];
+    const anchorId = "an:" + i;
+    fixed.push({ id: anchorId, x: p.x, y: p.y, z: p.z, fx: p.x, fy: p.y, fz: p.z, r: 0.01 });
+    const seed = a.node ? a.node.position : p;
+    free.push({ id: "a:" + i, i, x: seed.x, y: seed.y, z: seed.z, r: 0.26 });
+    links.push({ source: anchorId, target: "a:" + i, d: 1.35 });
+  });
+
+  const nodes = fixed.concat(free);
+  const sim = d3.forceSimulation(nodes, 3)
+    .force("link", d3.forceLink(links).id(n => n.id).distance(l => l.d).strength(0.55))
+    .force("charge", d3.forceManyBody().strength(-0.09).distanceMax(4.5))
+    .force("collide", d3.forceCollide().radius(n => n.r * 1.9))
+    .stop();
+  for (let i = 0; i < 260; i++) sim.tick();
+
+  free.forEach(n => { ANALYSES[n.i].solved = new THREE.Vector3(n.x, n.y, n.z); });
+  analysisSolved = true;
+}
+
+function analysesNeedSolve() {
+  // positions lerp every frame, so the key must only hold things that mean "the graph was rebuilt"
+  const key = [...state.nodeOut].sort().join(",") + "#" + organNodes.map(o => o.key).join(",");
+  if (key !== analysisKey) { analysisKey = key; return true; }
+  return false;
+}
+
 function updateAnalyses() {
   if (!analysisRoot) return;
   const set = setCentre();
+  if (analysesNeedSolve()) solveAnalyses();
   ANALYSES.forEach(a => {
     if (!a.node) return;
     const an = anchorFor(a);
@@ -2674,10 +2723,7 @@ function updateAnalyses() {
       c = set.clone();
       p = new THREE.Vector3(c.x + Math.cos(ang) * 1.45, c.y + Math.sin(ang) * 1.15, c.z + 0.12);
     }
-    // documents live on the left margin of the map, clear of the node panel that covers the right
-    // third of the screen; their position never depends on where the panel happens to be
-    p.x = Math.min(set.x - 0.25, Math.max(set.x - 2.2, p.x));
-    p.y = Math.min(set.y + 1.7, Math.max(set.y - 1.7, p.y));
+    if (a.solved) p = a.solved.clone();
     a.node.position.copy(p);
     const arr = a.line.geometry.attributes.position.array;
     arr[0] = c.x; arr[1] = c.y; arr[2] = c.z;
