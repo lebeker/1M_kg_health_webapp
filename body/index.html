@@ -327,7 +327,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261031c";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261031d";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -2007,7 +2007,7 @@ function layout() {
     // triangle with the two nearest layers: 3a/2 to the right, sqrt(3)a/2 forward
     const n = Math.max(bodyOut.length, 3);
     const a = 2 * ringR * Math.sin(Math.PI / n);
-    slot.organs = { x: (3 * a) / 2, z: -(Math.sqrt(3) * a) / 2 };
+    slot.organs = { x: (3 * a) / 2, z: (Math.sqrt(3) * a) / 2 };   // +z is towards the camera: in front, not behind
   }
 
   LAYERS.forEach(l => {
