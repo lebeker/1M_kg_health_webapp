@@ -327,7 +327,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261031j";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261031k";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1505,11 +1505,19 @@ function underNode(node, meta) {
   return false;
 }
 
+function shownInScene(obj) {
+  for (let n = obj; n; n = n.parent) if (n.visible === false) return false;
+  return true;
+}
+
 function buildShell(o, row) {
   const shell = o.node.userData.shell;
   if (!shell || shell.userData.total) return;
   const inv = new THREE.Matrix4().makeTranslation(-row.pos.x, -row.pos.y, -row.pos.z);
-  organParts.filter(p => p.node && underNode(p.node, row.meta)).forEach(p => {
+  const seen = new Set();
+  organParts.filter(p => p.node && underNode(p.node, row.meta) && shownInScene(p.mesh)).forEach(p => {
+    if (seen.has(p.name)) return;      // male and female copies share a name: one shell, not two
+    seen.add(p.name);
     p.mesh.updateWorldMatrix(true, false);
     const m = new THREE.Mesh(p.mesh.geometry, new THREE.MeshStandardMaterial({
       color: (p.mesh.material && p.mesh.material.color) ? p.mesh.material.color.clone() : new THREE.Color(0xc8a8c0),
@@ -1521,13 +1529,32 @@ function buildShell(o, row) {
     m.visible = false;
     shell.add(m);
   });
+  // the copy is centred on the node origin: that origin is what the edges attach to, so the organ
+  // has to sit on it, not float somewhere beside it
+  const box = new THREE.Box3();
+  const v = new THREE.Vector3();
+  shell.children.forEach(m => {
+    const g = m.geometry;
+    if (!g.boundingBox) g.computeBoundingBox();
+    const b = g.boundingBox.clone().applyMatrix4(m.matrix);
+    box.union(b);
+  });
+  const mid = box.getCenter(new THREE.Vector3());
+  shell.children.forEach(m => { m.matrix.premultiply(new THREE.Matrix4().makeTranslation(-mid.x, -mid.y, -mid.z)); });
   shell.userData.total = shell.children.length;
 }
 
 function syncShells() {
   organNodes.forEach(o => {
     const shell = o.node.userData.shell;
-    if (!shell || !shell.userData.total) return;
+    if (!shell) return;
+    if (!shell.userData.total) {
+      const parts = organParts.filter(p => p.node && underNode(p.node, o.meta));
+      const any = parts.some(p => state.nodeOut.has(meshKey(p.name)));
+      if (!any) return;
+      buildShell(o, { pos: o.node.position, meta: o.meta });
+      if (!shell.userData.total) return;
+    }
     const outSet = new Set(state.nodeOut);
     let out = 0;
     shell.children.forEach(m => { if (outSet.has(m.userData.shellPart)) out++; });
