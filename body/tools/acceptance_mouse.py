@@ -42,8 +42,11 @@ ok("P3 split draws every system", "=0" not in per and drawn == 138, "%s (panel: 
 js("""(function(){const r=[...document.querySelectorAll('#rows .row[data-organ]')].find(x=>x.querySelector('.nm').textContent.trim()==='heart');if(r)r.querySelector('.eye').click()})()""")
 time.sleep(2.2)
 g = js("""(function(){let c=0;if(organGhost)organGhost.children.forEach(m=>{if(m.visible&&!m.userData.setMarker)c++});
-return JSON.stringify({on:organGhost?organGhost.visible:null,copies:c})})()""")
-ok("P4 transparent set is on screen", '"on":true' in g and '"copies":138' in g, g)
+const inner=groups.organs.userData.inner;const inSet=m=>{for(let q=m;q;q=q.parent)if(q===inner)return true;return false};
+const inside=organParts.filter(p=>inSet(p.mesh)&&sexOn(p.sex)).length;
+return JSON.stringify({on:organGhost?organGhost.visible:null,copies:c,expected:inside})})()""")
+_g = __import__('json').loads(g)
+ok("P4 transparent set is on screen", _g["on"] is True and _g["copies"] == _g["expected"], g)
 
 # ---- I1, with the mouse ----
 tl = json.loads(js("(function(){const r=document.getElementById('tl').getBoundingClientRect();return JSON.stringify({x:r.left,y:r.top,w:r.width})})()"))
