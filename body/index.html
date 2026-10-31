@@ -327,7 +327,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261031o";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261031d";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -863,18 +863,13 @@ function syncOrgans() {
   if (!organGhost) return;
   organGhost.visible = organNodes.length > 0;
   if (!organGhost.visible) return;
-  // an organ that is out has its own node: its copy in the set is switched off, so nothing is drawn
-  // twice. The one exception is the empty set — with every organ out the set would vanish, and the
-  // user asked for it to stay as a faint, clickable body.
-  const copies = organGhost.children.filter(m => !m.userData.setMarker).length;
-  const allOut = outNames.size >= copies;
   organGhost.children.forEach(m => {
     if (m.userData.setMarker) { m.visible = false; return; }
+    m.visible = true;
     const out = outNames.has(m.userData.ghostKey);
-    m.visible = !out || allOut;
     if (m.material) {
       m.material.transparent = true;
-      m.material.opacity = out ? 0.10 : 0.30;
+      m.material.opacity = out ? 0.10 : 0.30;    // the shell of the set stays, even when empty
       m.material.depthWrite = false;
       m.material.needsUpdate = true;
     }
@@ -1225,7 +1220,6 @@ let edgePairs = [];
 let linkPairs = [];               // shadow system -> the node that hosts its organs
 let organGhost = null;
 let bodyGhost = null;
-let graphSeq = 0;     // bumped whenever the organ graph is rebuilt, so the camera reframes
 
 let organCentre = new THREE.Vector3(0, 0.15, 0);   // where the organs sit in the body
 let organSize = new THREE.Vector3(0.3, 0.6, 0.25); // how big the set is
@@ -1425,23 +1419,19 @@ function graphRows() {
       y: c.y + ((((h >> 7) % 97) / 97) - 0.5) * 2.0,
       z: c.z + ((((h >> 13) % 89) / 89) - 0.5) * 1.8 };
   });
-  // The set is the root of this tree, so it belongs in the simulation. Without it the six systems
-  // have no parent and no link: they only repel each other and the cloud drifts to one side, which
-  // is what "fixed coordinates" looked like. The root is pinned at the origin.
-  const rootNode = { id: "__set__", row: { key: "__set__", parent: null, depth: 1 }, r: 0.001,
-                     x: 0, y: 0, z: 0, fx: 0, fy: 0, fz: 0 };
-  simNodes.push(rootNode);
   const simById = new Map(simNodes.map(n => [n.id, n]));
-  const simLinks = simNodes.filter(n => n !== rootNode)
-    .map(n => ({ source: (n.row.parent && simById.get(n.row.parent.key)) || rootNode, target: n }));
+  const simLinks = simNodes.filter(n => n.row.parent && simById.has(n.row.parent.key))
+    .map(n => ({ source: simById.get(n.row.parent.key), target: n }));
   const sim = d3.forceSimulation(simNodes, 3)
     .force("link", d3.forceLink(simLinks).distance(l => l.source.r + l.target.r + 0.34).strength(0.7))
     .force("charge", d3.forceManyBody().strength(-0.055).distanceMax(4))
     .force("collide", d3.forceCollide().radius(n => n.r * 1.25).iterations(3))
     .stop();
   for (let i = 0; i < 420; i++) sim.tick();
-  const root = rootNode;
-  simNodes.forEach(n => { n.x -= root.x; n.y -= root.y; n.z -= root.z; });
+  let cx = 0, cy = 0, cz = 0;
+  simNodes.forEach(n => { cx += n.x; cy += n.y; cz += n.z; });
+  cx /= simNodes.length || 1; cy /= simNodes.length || 1; cz /= simNodes.length || 1;
+  simNodes.forEach(n => { n.x += c.x - cx; n.y += c.y - cy; n.z += c.z - cz; });
 
   /* Fit the solved graph to the space the camera actually gives it. A force cloud has no idea
      how big the screen is: six nodes can solve into a five-unit sprawl and half of them end up
@@ -1451,12 +1441,12 @@ function graphRows() {
   const size = bb.getSize(new THREE.Vector3());
   const span = Math.max(size.x, size.y, size.z);
   const k = span > 0.6 ? Math.min(2.0, Math.max(0.35, 2.2 / span)) : 1;
-  const A = (targets.organs && targets.organs.p) ? targets.organs.p : new THREE.Vector3(BODY_X + 0.45, c.y, c.z);
+  const mid = bb.getCenter(new THREE.Vector3());
   simNodes.forEach(n => {
-    n.x = A.x + n.x * k;
-    n.y = A.y + n.y * k;
-    n.z = A.z + n.z * k;
-    if (n.row.pos) n.row.pos.set(n.x, n.y, n.z);   // the pinned root has no row to place
+    n.x = BODY_X + 0.25 + (n.x - bb.min.x) * k;
+    n.y = c.y + (n.y - mid.y) * k;
+    n.z = c.z + (n.z - mid.z) * k;
+    n.row.pos.set(n.x, n.y, n.z);
   });
   return { rows };
 }
@@ -1498,83 +1488,6 @@ function makeCloud(color, R) {
   return g;
 }
 
-/* (b) additive shell of a split organ: only the parts that are OUT are drawn, faint, where they
-   sit inside the organ. With every part out the whole organ shows faint. Nothing else is touched. */
-function underNode(node, meta) {
-  for (let n = node; n; n = n.parent) if (n === meta) return true;
-  return false;
-}
-
-function shownInScene(obj) {
-  for (let n = obj; n; n = n.parent) if (n.visible === false) return false;
-  return true;
-}
-
-function buildShell(o, row) {
-  const shell = o.node.userData.shell;
-  if (!shell || shell.userData.total) return;
-  const inv = new THREE.Matrix4().makeTranslation(-row.pos.x, -row.pos.y, -row.pos.z);
-  const seen = new Set();
-  organParts.filter(p => p.node && underNode(p.node, row.meta) && shownInScene(p.mesh)).forEach(p => {
-    if (seen.has(p.name)) return;      // male and female copies share a name: one shell, not two
-    seen.add(p.name);
-    p.mesh.updateWorldMatrix(true, false);
-    const m = new THREE.Mesh(p.mesh.geometry, new THREE.MeshStandardMaterial({
-      color: (p.mesh.material && p.mesh.material.color) ? p.mesh.material.color.clone() : new THREE.Color(0xc8a8c0),
-      transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide
-    }));
-    m.matrixAutoUpdate = false;
-    m.matrix.copy(p.mesh.matrixWorld).premultiply(inv);
-    m.userData.shellPart = meshKey(p.name);
-    m.visible = false;
-    shell.add(m);
-  });
-  // the copy is centred on the node origin: that origin is what the edges attach to, so the organ
-  // has to sit on it, not float somewhere beside it
-  const box = new THREE.Box3();
-  const v = new THREE.Vector3();
-  shell.children.forEach(m => {
-    const g = m.geometry;
-    if (!g.boundingBox) g.computeBoundingBox();
-    const b = g.boundingBox.clone().applyMatrix4(m.matrix);
-    box.union(b);
-  });
-  const mid = box.getCenter(new THREE.Vector3());
-  shell.children.forEach(m => { m.matrix.premultiply(new THREE.Matrix4().makeTranslation(-mid.x, -mid.y, -mid.z)); });
-  shell.userData.total = shell.children.length;
-  o.node.userData.cLocal = new THREE.Vector3();   // the shell is centred on the origin by construction
-}
-
-function syncShells() {
-  organNodes.forEach(o => {
-    const shell = o.node.userData.shell;
-    if (!shell) return;
-    if (!shell.userData.total) {
-      const parts = organParts.filter(p => p.node && underNode(p.node, o.meta));
-      const any = parts.some(p => state.nodeOut.has(meshKey(p.name)));
-      if (!any) return;
-      buildShell(o, { pos: o.node.position, meta: o.meta });
-      if (!shell.userData.total) return;
-    }
-    const outSet = new Set(state.nodeOut);
-    let out = 0;
-    shell.children.forEach(m => { if (outSet.has(m.userData.shellPart)) out++; });
-    shell.visible = out > 0;
-    if (!shell.visible) return;
-    // (c) the node always keeps the WHOLE organ, faint: that is the model you put the parts back
-    // into, and it is what an edge attaches to, so no edge starts in empty space. A part that is out
-    // is fainter still, so you can see where it came from.
-    let shown = 0;
-    shell.children.forEach(m => {
-      const isOut = outSet.has(m.userData.shellPart);
-      m.visible = isOut;                       // the parent shows what has left; the rest is solid in it
-      m.material.opacity = 0.18;
-      if (isOut) shown++;
-    });
-    shell.visible = shown > 0;
-  });
-}
-
 function buildOrganNodes() {
   const had = organNodes.length;
   if (organNodes.length) disposeOrganNodes();     // every build starts clean: no stale holders
@@ -1613,14 +1526,6 @@ function buildOrganNodes() {
       const holder = new THREE.Group();
       holder.userData.holder = true;
       g.add(holder);
-      // additive shell: faint copies of the parts that have left, at their anatomical places, so a
-      // split organ reads as a whole organ with ghosts where the parts went. It never touches the
-      // holder and never hides anything that the rest of the code draws.
-      const shell = new THREE.Group();
-      shell.userData.shell = true;
-      shell.visible = false;
-      g.add(shell);
-      g.userData.shell = shell;
       g.position.copy(row.pos);
       organRoot.add(g);
       o = { key: row.key, node: g, parts: [], meta: row.meta };
@@ -1769,7 +1674,6 @@ function buildOrganNodes() {
     g.userData.wantScale = 1;
     o.parts = row.parts;
     o.target = row.pos;
-    if (state.nodeOut.size) buildShell(o, row);
     o.parentKey = row.parent ? row.parent.key : null;
   });
 
@@ -1855,15 +1759,9 @@ function buildOrganNodes() {
     hosts.forEach(hid => linkPairs.push({ a: sh.key, b: hid, type: sh.key }));
   });
 
-  organNodes.forEach(o => { o.node.userData.cLocal = hubLocal(o.node); });
-  const setObj = (organGhost && organGhost.visible) ? organGhost : groups.organs;
-  if (setObj) setObj.userData.cLocal = new THREE.Vector3();
-  // every edge has a node at each end: a top-level system connects to the set node, a split part to
-  // its parent. Nothing is ever drawn to a bare point.
   edgePairs = organNodes.map(o => ({
     a: o.node,
-    b: o.parentKey ? ((organNodes.find(x => x.key === o.parentKey) || {}).node || setObj)
-                   : setObj
+    b: o.parentKey ? (organNodes.find(x => x.key === o.parentKey) || {}).node || null : null
   }));
   partNodes.forEach(pn => edgePairs.push({ a: pn.node, b: pn.parent.node }));
   ensureEdges();
@@ -1963,23 +1861,6 @@ function applyEdgeState() {
   Object.entries(linkObjs).forEach(([t, o]) => { o.visible = !state.edgeOff.has(t); });
 }
 
-/* the point an edge must start from: the centre of what the node actually shows. A split organ's
-   meshes sit at their anatomical offsets, so the group origin is beside the organ, not on it. */
-function hubLocal(g) {
-  const box = new THREE.Box3();
-  let any = false;
-  [g.children.find(c => c.userData.holder), g.userData.shell].forEach(grp => {
-    if (!grp || grp.visible === false) return;
-    grp.traverse(m => {
-      if (!m.isMesh || m.userData.pickSphere || m.userData.cloud || m.visible === false) return;
-      if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
-      box.union(m.geometry.boundingBox.clone().applyMatrix4(m.matrix));
-      any = true;
-    });
-  });
-  return any ? box.getCenter(new THREE.Vector3()) : new THREE.Vector3();
-}
-
 function ensureEdges() {
   if (edges) {
     const need = edgePairs.length * 6;
@@ -2005,7 +1886,7 @@ function updateEdges() {
     e.a.updateMatrixWorld(true);
     const a = e.a.localToWorld(e.a.userData.cLocal.clone());
     let b = set;
-    if (e.b) { e.b.updateMatrixWorld(true); b = e.b.localToWorld((e.b.userData.cLocal || new THREE.Vector3()).clone()); }
+    if (e.b) { e.b.updateMatrixWorld(true); b = e.b.localToWorld(e.b.userData.cLocal.clone()); }
     arr[i * 6] = a.x; arr[i * 6 + 1] = a.y; arr[i * 6 + 2] = a.z;
     arr[i * 6 + 3] = b.x; arr[i * 6 + 4] = b.y; arr[i * 6 + 5] = b.z;
   });
@@ -2139,7 +2020,7 @@ function layout() {
     t.s = 1;                       // never resize a layer or the body
   });
 
-  if (graph) { buildOrganNodes(); graphSeq++; } else disposeOrganNodes();
+  if (graph) buildOrganNodes(); else disposeOrganNodes();
   const ghost = null;               // no copy in the body: a second set of organs reads as organs that never left
 
   // the transparent body is the centre node, always: hidden layers live inside it, and it shrinks
@@ -2175,26 +2056,38 @@ function layout() {
     mus.traverse(o => { if (o.isMesh && o.material) { o.material.transparent = see; o.material.opacity = see ? 0.38 : 1; o.material.depthWrite = !see; } });
   }
 
-  // What the camera frames. Two rules and only two: a split graph is the union of everything that is
-  // on screen (body, organ nodes, documents); otherwise it is the body plus the ring of layers.
-  // The old code computed the union twice and the first answer was always thrown away.
+  // what the camera frames: once the organs are split they are the work surface, and fitting the
+  // whole ring plus the fan at once made every organ a speck. Splitting now flies to the fan; the
+  // ring is still there, a zoom-out away
   let spanW, spanH, cx;
-  if (organNodes.length) {
-    const b = new THREE.Box3();
-    if (bodyBox) b.union(bodyBox);
-    organNodes.forEach(o => b.expandByPoint(o.node.position));
-    b.expandByPoint(setCentre());          // the set node the systems radiate from is on screen too
-    ANALYSES.forEach(a => { if (a.node && a.node.visible) b.expandByPoint(a.node.position); });
-    const sz = b.getSize(new THREE.Vector3()), ct = b.getCenter(new THREE.Vector3());
-    // a perspective frame is not a box: points nearer the camera project wider, so the depth of the
-    // scene has to be paid for on both axes or the closest model falls off the edge
-    spanW = Math.max(sz.x + sz.z * 0.55, 1.8);
-    spanH = Math.max(sz.y * 1.15 + sz.z * 0.40, 1.8);
-    cx = ct.x;
+  if (graph) {
+    // frame the body and the nodes that are out together: the body is the anchor that says what
+    // left it, and framing the tree alone pushes the body behind the panel
+    const c = setCentre();
+    let rad = 0.4;
+    organNodes.forEach(o => {
+      const p = o.target || o.node.position;
+      rad = Math.max(rad, p.distanceTo(c) + organMaxNode * 0.55 + 0.08);
+    });
+    partNodes.forEach(pn => {
+      const p = pn.target || pn.node.position;
+      rad = Math.max(rad, p.distanceTo(c) + PART_NODE_SIZE * 0.9);
+    });
+    let minX = c.x - rad, maxX = c.x + rad, minY = -rad, maxY = rad;
+    if (bodyBox && !bodyBox.isEmpty()) {
+      minX = Math.min(minX, bodyBox.min.x - 0.12); maxX = Math.max(maxX, bodyBox.max.x + 0.12);
+      minY = Math.min(minY, bodyBox.min.y - 0.06); maxY = Math.max(maxY, bodyBox.max.y + 0.06);
+    }
+    spanW = Math.max(0.8, maxX - minX); spanH = Math.max(0.8, maxY - minY); cx = (minX + maxX) / 2;
   } else {
     const left = lc - width * 0.30;
     let right = rc + width * 0.30;
-    if (organsOut) right = Math.max(right, slot.organs.x + (organSize.x / 2) * 1.2);
+    if (organsOut) {
+      right = Math.max(right, slot.organs.x + (organSize.x / 2) * 1.2);
+      // the split graph is part of the picture: a camera framed on the body alone leaves half of
+      // it outside the frustum, which is what "where are the organs" looked like
+      organNodes.forEach(o => { right = Math.max(right, o.node.position.x + 0.55); });
+    }
     spanW = Math.max(width * 1.1, right - left);
     spanH = 1.8;
     cx = (left + right) / 2;
@@ -2203,8 +2096,8 @@ function layout() {
   // being centred on the window (which pushed the leftmost layer behind the panel)
   const panelL = state.collapsed ? 28 : 236, panelR = state.sel ? 320 : 0;
   const visW = Math.max(320, innerWidth - panelL - panelR);
-  const grow = (innerWidth / visW) * 1.10;   // a margin: the outermost model must not sit on the cut
-  const d = fitDistance(spanW * grow, spanH * 1.15);
+  const grow = innerWidth / visW;
+  const d = fitDistance(spanW * grow, spanH);
   const dx = ((panelL + visW / 2) / innerWidth - 0.5) * spanW * grow;
   // once the layers are on the ring the camera has to look slightly down, or a ring seen edge-on
   // is just a pile of overlapping bodies
@@ -2228,7 +2121,7 @@ function layout() {
     }
   }
 
-  const camKeyNow = graphSeq + "|" + [...state.out].sort().join("+") + "|" + [...state.nodeOut].sort().join(",") + "|" + graph + "|" + state.collapsed;
+  const camKeyNow = [...state.out].sort().join("+") + "|" + [...state.nodeOut].sort().join(",") + "|" + graph + "|" + state.collapsed;
   if (camKeyNow !== camKey) {
     camKey = camKeyNow;
     // the frame is already the union of what is on screen, so it can be trusted: clamping it here
@@ -2715,57 +2608,9 @@ function paintFade() {
   });
 }
 
-/* (a) the documents are nodes of the same force graph as the organs: each one is tied to the organ
-   it belongs to, pushed off the other documents and off the organ nodes, and solved in 3D. No slot
-   arithmetic, no left-margin box — the shape comes out of the forces. */
-let analysisKey = "", analysisSolved = false;
-
-function solveAnalyses() {
-  const anchors = ANALYSES.map(a => {
-    const an = anchorFor(a);
-    const onNode = an && organNodes.some(o => o.node === an.obj);
-    if (onNode) return an.obj.localToWorld((an.obj.userData.cLocal || new THREE.Vector3()).clone());
-    return setCentre().clone();
-  });
-  const pts = ANALYSES.map((a, i) => a.node ? a.node.position.clone() : anchors[i].clone());
-
-  // relaxation: a spring holds each document 1.35 from its organ, every other document and every
-  // organ node pushes it away. 60 passes, no fixed slots, no clamping box.
-  const SPRING = 1.35, ITER = 60;
-  for (let it = 0; it < ITER; it++) {
-    for (let i = 0; i < pts.length; i++) {
-      const p = pts[i], home = anchors[i];
-      const f = new THREE.Vector3();
-      const d0 = home.clone().sub(p);
-      const len = d0.length() || 1e-4;
-      f.addScaledVector(d0, ((len - SPRING) / len) * 0.35);
-      pts.forEach((q, j) => {
-        if (j === i) return;
-        const dv = p.clone().sub(q), dd = dv.length() || 1e-4;
-        if (dd < 0.95) f.addScaledVector(dv, ((0.95 - dd) / dd) * 0.5);
-      });
-      organNodes.forEach(o => {
-        const dv = p.clone().sub(o.node.position), dd = dv.length() || 1e-4;
-        if (dd < 0.85) f.addScaledVector(dv, ((0.85 - dd) / dd) * 0.45);
-      });
-      p.add(f);
-    }
-  }
-  pts.forEach((p, i) => { ANALYSES[i].solved = p; });
-  analysisSolved = true;
-}
-
-function analysesNeedSolve() {
-  // positions lerp every frame, so the key must only hold things that mean "the graph was rebuilt"
-  const key = [...state.nodeOut].sort().join(",") + "#" + organNodes.map(o => o.key).join(",");
-  if (key !== analysisKey) { analysisKey = key; return true; }
-  return false;
-}
-
 function updateAnalyses() {
   if (!analysisRoot) return;
   const set = setCentre();
-  if (analysesNeedSolve()) solveAnalyses();
   ANALYSES.forEach(a => {
     if (!a.node) return;
     const an = anchorFor(a);
@@ -2783,7 +2628,10 @@ function updateAnalyses() {
       c = set.clone();
       p = new THREE.Vector3(c.x + Math.cos(ang) * 1.45, c.y + Math.sin(ang) * 1.15, c.z + 0.12);
     }
-    if (a.solved) p = a.solved.clone();
+    // documents live on the left margin of the map, clear of the node panel that covers the right
+    // third of the screen; their position never depends on where the panel happens to be
+    p.x = Math.min(set.x - 0.25, Math.max(set.x - 2.2, p.x));
+    p.y = Math.min(set.y + 1.7, Math.max(set.y - 1.7, p.y));
     a.node.position.copy(p);
     const arr = a.line.geometry.attributes.position.array;
     arr[0] = c.x; arr[1] = c.y; arr[2] = c.z;
@@ -2805,7 +2653,6 @@ function tick() {
   });
   // whatever changed an eye, the picture follows the same rule; it is 138 parent checks, not work
   syncOrgans();
-  syncShells();
   // a document is a mark on the map, not an organ: keep it a constant, small size on screen
   if (analysisRoot) {
     ANALYSES.forEach(a => {
