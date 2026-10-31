@@ -327,7 +327,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261031q";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261031r";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1567,7 +1567,18 @@ function buildOrganNodes() {
     holder.scale.setScalar(1);
     holder.position.set(0, 0, 0);
     holder.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(holder);
+    // the size is measured over EVERY part of this organ, not over the ones that happen to be in:
+    // with only the liver and the pancreas left the box shrank, so they were blown up to fill the
+    // node and nothing else could be reached
+    const box = new THREE.Box3();
+    let measured = false;
+    row.parts.forEach(p => {
+      if (!p.geometry || !p.home) return;
+      if (!p.geometry.boundingBox) p.geometry.computeBoundingBox();
+      box.union(p.geometry.boundingBox.clone().applyMatrix4(new THREE.Matrix4().compose(p.home.p, p.home.q, p.home.s)));
+      measured = true;
+    });
+    if (!measured) box.copy(new THREE.Box3().setFromObject(holder));
     let scattered = false;
     if (!box.isEmpty()) {
       const s = box.getSize(new THREE.Vector3());
@@ -1764,7 +1775,7 @@ function buildOrganNodes() {
      read as a single organ model. */
   if (organNodes.length > 1) {
     const c0 = setCentre();
-    const N = organNodes.length, R = 2.6;
+    const N = organNodes.length, R = 1.65;
     organNodes.forEach((o, i) => {
       const y = 1 - (i + 0.5) * 2 / N;
       const r = Math.sqrt(Math.max(0, 1 - y * y));
@@ -1775,6 +1786,9 @@ function buildOrganNodes() {
     for (let it = 0; it < 40; it++) {
       organNodes.forEach(o => {
         const f = new THREE.Vector3();
+        const toSet = setCentre().clone().sub(o.node.position);
+        const len = toSet.length() || 1e-4;
+        f.addScaledVector(toSet, ((len - 1.65) / len) * 0.35);
         organNodes.forEach(q => {
           if (q === o) return;
           const dv = o.node.position.clone().sub(q.node.position), dd = dv.length() || 1e-4;
@@ -1785,6 +1799,30 @@ function buildOrganNodes() {
       });
     }
   }
+
+  /* a splittable organ keeps a transparent copy of its whole self at the node, so its edges start on
+     an organ and not in the air; the parts that are out are fainter still. */
+  organNodes.forEach(o => {
+    const row = rows.find(r => r.key === o.key);
+    if (!row || !row.leaves.length) { if (o.ghost) o.ghost.visible = false; return; }
+    if (!o.ghost) { o.ghost = new THREE.Group(); o.ghost.userData.parentGhost = true; o.node.add(o.ghost); }
+    if (!o.ghost.userData.built) {
+      row.parts.forEach(p => {
+        if (!p.geometry || !p.home) return;
+        const m = new THREE.Mesh(p.geometry, new THREE.MeshStandardMaterial({
+          color: (p.mesh.material && p.mesh.material.color) ? p.mesh.material.color.clone() : new THREE.Color(0xc8a8c0),
+          transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide
+        }));
+        m.matrixAutoUpdate = false;
+        m.matrix.copy(new THREE.Matrix4().compose(p.home.p, p.home.q, p.home.s));
+        m.userData.partKey = meshKey(p.name);
+        o.ghost.add(m);
+      });
+      o.ghost.userData.built = true;
+    }
+    o.ghost.visible = true;
+    o.ghost.children.forEach(m => { m.visible = true; m.material.opacity = 0.22; });
+  });
 
   edgePairs = organNodes.map(o => ({
     a: o.node,
