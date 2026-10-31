@@ -327,7 +327,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261031d";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261031p";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1697,9 +1697,10 @@ function buildOrganNodes() {
   byParent.forEach((list, parentRow) => {
     const N = list.length;
     list.forEach((l, i) => {
+      // seeded on a sphere, then settled by the sibling forces below — never a fixed slot
       const h = hashStr(l.part.name + i);
       const u = new THREE.Vector3(((h % 97) / 97) - 0.5, (((h >> 7) % 89) / 89) - 0.5, (((h >> 13) % 83) / 83) - 0.5).normalize();
-      const t = parentRow.pos.clone().add(u.multiplyScalar(levelR(parentRow.depth) * 3.2));
+      const t = parentRow.pos.clone().add(u.multiplyScalar(levelR(parentRow.depth) * 2.4));
       let pn = partNodes.find(x => x.key === meshKey(l.part.name));
       if (!pn) {
         const g = new THREE.Group();
@@ -1740,6 +1741,54 @@ function buildOrganNodes() {
     });
   });
 
+  /* the sub-organs settle by force: a spring back to the parent organ, repulsion from every other
+     sub-organ. Seeded on a sphere above, never placed on a slot. */
+  for (let it = 0; it < 50; it++) {
+    partNodes.forEach(pn => {
+      const hp = pn.parent.pos;
+      const R = Math.max(0.22, levelR(pn.parent.depth) * 2.6);
+      const f = new THREE.Vector3();
+      const d0 = hp.clone().sub(pn.node.position);
+      const len = d0.length() || 1e-4;
+      f.addScaledVector(d0, ((len - R) / len) * 0.22);
+      partNodes.forEach(q => {
+        if (q === pn) return;
+        const dv = pn.node.position.clone().sub(q.node.position), dd = dv.length() || 1e-4;
+        const want = (pn.node.userData.radius + q.node.userData.radius) * 2.2;
+        if (dd < want) f.addScaledVector(dv, ((want - dd) / dd) * 0.35);
+      });
+      pn.node.position.add(f);
+    });
+  }
+
+  /* a parent organ keeps a transparent copy of whatever has been taken out of it, so the centre is
+     never an empty node and a part always has somewhere to be put back into */
+  organNodes.forEach(o => {
+    const outHere = partNodes.filter(pn => pn.parent.key === o.key);
+    if (!outHere.length) { if (o.ghost) o.ghost.visible = false; return; }
+    if (!o.ghost) {
+      o.ghost = new THREE.Group();
+      o.ghost.userData.parentGhost = true;
+      o.node.add(o.ghost);
+    }
+    const have = new Set(o.ghost.children.map(c => c.userData.partKey));
+    outHere.forEach(pn => {
+      const k = pn.key;
+      if (have.has(k)) return;
+      const p = pn.part;
+      const m = new THREE.Mesh(p.mesh.geometry, new THREE.MeshStandardMaterial({
+        color: (p.mesh.material && p.mesh.material.color) ? p.mesh.material.color.clone() : new THREE.Color(0xc8a8c0),
+        transparent: true, opacity: 0.20, depthWrite: false, side: THREE.DoubleSide
+      }));
+      m.matrixAutoUpdate = false;
+      const M = new THREE.Matrix4().compose(p.home.p.clone().sub(o.node.position), p.home.q, p.home.s);
+      m.matrix.copy(M);
+      m.userData.partKey = k;
+      o.ghost.add(m);
+    });
+    o.ghost.visible = true;
+  });
+
   /* the set itself is a semi-transparent copy of the whole organ model, standing at the centre the
      expanded organs radiate from — never inside the body, never a dot */
 
@@ -1759,11 +1808,13 @@ function buildOrganNodes() {
     hosts.forEach(hid => linkPairs.push({ a: sh.key, b: hid, type: sh.key }));
   });
 
-  edgePairs = organNodes.map(o => ({
-    a: o.node,
-    b: o.parentKey ? (organNodes.find(x => x.key === o.parentKey) || {}).node || null : null
-  }));
-  partNodes.forEach(pn => edgePairs.push({ a: pn.node, b: pn.parent.node }));
+  // an edge has a node at each end, always. A top-level system connects to the set node; a sub-organ
+  // to its parent row's node. A row is not a node — looking up `pn.parent.node` gave undefined and the
+  // line then fell back to a bare point, which is what "edges start at other edges" looked like.
+  const nodeOfRow = row => row ? (organNodes.find(x => x.key === row.key) || {}).node || null : null;
+  const setNode = (organGhost && organGhost.visible) ? organGhost : null;
+  edgePairs = organNodes.map(o => ({ a: o.node, b: o.parentKey ? nodeOfRow({ key: o.parentKey }) : setNode }));
+  partNodes.forEach(pn => edgePairs.push({ a: pn.node, b: nodeOfRow(pn.parent) || setNode }));
   ensureEdges();
   ensureLinks();
   /* the set node the systems radiate from: a transparent copy of the whole set, standing where
@@ -2611,34 +2662,42 @@ function paintFade() {
 function updateAnalyses() {
   if (!analysisRoot) return;
   const set = setCentre();
-  ANALYSES.forEach(a => {
-    if (!a.node) return;
+  const list = ANALYSES.filter(a => a.node);
+  const homes = new Map(), pts = new Map();
+  list.forEach(a => {
     const an = anchorFor(a);
-    let c, p;
     const onNode = an && organNodes.some(o => o.node === an.obj);
-    if (onNode) {
-      c = an.obj.localToWorld((an.obj.userData.cLocal || new THREE.Vector3()).clone());
-      const rad = Math.max(0.9, an.r + 0.62);
-      p = new THREE.Vector3(c.x + Math.cos(a.angle) * rad, c.y + Math.sin(a.angle) * rad,
-                            c.z + Math.sin(a.angle * 1.7) * 0.18);
-    } else {
-      // the organ is inside the body: the document still has to stand on the map, on its own place
-      // around the set, never buried in the transparent organs
-      const i = ANALYSES.indexOf(a), ang = -1.05 + i * 0.63;
-      c = set.clone();
-      p = new THREE.Vector3(c.x + Math.cos(ang) * 1.45, c.y + Math.sin(ang) * 1.15, c.z + 0.12);
-    }
-    // documents live on the left margin of the map, clear of the node panel that covers the right
-    // third of the screen; their position never depends on where the panel happens to be
-    p.x = Math.min(set.x - 0.25, Math.max(set.x - 2.2, p.x));
-    p.y = Math.min(set.y + 1.7, Math.max(set.y - 1.7, p.y));
+    homes.set(a, onNode ? an.obj.localToWorld((an.obj.userData.cLocal || new THREE.Vector3()).clone())
+                        : set.clone());
+    pts.set(a, a.node.position.clone());
+  });
+  // a spring holds every document on its organ, every other document and every organ node pushes it
+  // away. The shape is the answer of those forces; there is no angle, no slot and no margin box.
+  for (let it = 0; it < 90; it++) {
+    list.forEach(a => {
+      const p = pts.get(a), home = homes.get(a), f = new THREE.Vector3();
+      const d0 = home.clone().sub(p), len = d0.length() || 1e-4;
+      f.addScaledVector(d0, ((len - 1.25) / len) * 0.85);
+      list.forEach(b => {
+        if (b === a) return;
+        const dv = p.clone().sub(pts.get(b)), dd = dv.length() || 1e-4;
+        if (dd < 0.85) f.addScaledVector(dv, ((0.85 - dd) / dd) * 0.45);
+      });
+      organNodes.forEach(o => {
+        const dv = p.clone().sub(o.node.position), dd = dv.length() || 1e-4;
+        if (dd < 0.60) f.addScaledVector(dv, ((0.60 - dd) / dd) * 0.15);
+      });
+      p.add(f);
+    });
+  }
+  list.forEach(a => {
+    const c = homes.get(a), p = pts.get(a);
     a.node.position.copy(p);
     const arr = a.line.geometry.attributes.position.array;
     arr[0] = c.x; arr[1] = c.y; arr[2] = c.z;
     arr[3] = p.x; arr[4] = p.y; arr[5] = p.z;
     a.line.geometry.attributes.position.needsUpdate = true;
     a.line.geometry.computeBoundingSphere();
-
   });
 }
 
