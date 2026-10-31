@@ -327,7 +327,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261031m";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261031n";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -2183,9 +2183,14 @@ function layout() {
     const b = new THREE.Box3();
     if (bodyBox) b.union(bodyBox);
     organNodes.forEach(o => b.expandByPoint(o.node.position));
+    b.expandByPoint(setCentre());          // the set node the systems radiate from is on screen too
     ANALYSES.forEach(a => { if (a.node && a.node.visible) b.expandByPoint(a.node.position); });
     const sz = b.getSize(new THREE.Vector3()), ct = b.getCenter(new THREE.Vector3());
-    spanW = Math.max(sz.x, 1.8); spanH = Math.max(sz.y, 1.8); cx = ct.x;
+    // a perspective frame is not a box: points nearer the camera project wider, so the depth of the
+    // scene has to be paid for on both axes or the closest model falls off the edge
+    spanW = Math.max(sz.x + sz.z * 0.55, 1.8);
+    spanH = Math.max(sz.y * 1.15 + sz.z * 0.40, 1.8);
+    cx = ct.x;
   } else {
     const left = lc - width * 0.30;
     let right = rc + width * 0.30;
@@ -2198,8 +2203,8 @@ function layout() {
   // being centred on the window (which pushed the leftmost layer behind the panel)
   const panelL = state.collapsed ? 28 : 236, panelR = state.sel ? 320 : 0;
   const visW = Math.max(320, innerWidth - panelL - panelR);
-  const grow = innerWidth / visW;
-  const d = fitDistance(spanW * grow, spanH);
+  const grow = (innerWidth / visW) * 1.10;   // a margin: the outermost model must not sit on the cut
+  const d = fitDistance(spanW * grow, spanH * 1.15);
   const dx = ((panelL + visW / 2) / innerWidth - 0.5) * spanW * grow;
   // once the layers are on the ring the camera has to look slightly down, or a ring seen edge-on
   // is just a pile of overlapping bodies
