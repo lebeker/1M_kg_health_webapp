@@ -327,7 +327,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261031d";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261031q";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1759,6 +1759,33 @@ function buildOrganNodes() {
     hosts.forEach(hid => linkPairs.push({ a: sh.key, b: hid, type: sh.key }));
   });
 
+  /* the systems stand around the set, one clear place each: a Fibonacci sphere, then a short
+     relaxation so no two of them share a spot. Without this they landed in a one-unit blob that
+     read as a single organ model. */
+  if (organNodes.length > 1) {
+    const c0 = setCentre();
+    const N = organNodes.length, R = 2.6;
+    organNodes.forEach((o, i) => {
+      const y = 1 - (i + 0.5) * 2 / N;
+      const r = Math.sqrt(Math.max(0, 1 - y * y));
+      const phi = i * Math.PI * (3 - Math.sqrt(5));
+      o.node.position.set(c0.x + Math.cos(phi) * r * R, c0.y + y * R * 0.7, c0.z + Math.sin(phi) * r * R);
+      o.node.userData.wantPos = o.node.position.clone();
+    });
+    for (let it = 0; it < 40; it++) {
+      organNodes.forEach(o => {
+        const f = new THREE.Vector3();
+        organNodes.forEach(q => {
+          if (q === o) return;
+          const dv = o.node.position.clone().sub(q.node.position), dd = dv.length() || 1e-4;
+          if (dd < 1.5) f.addScaledVector(dv, ((1.5 - dd) / dd) * 0.4);
+        });
+        o.node.position.add(f);
+        o.node.userData.wantPos.copy(o.node.position);
+      });
+    }
+  }
+
   edgePairs = organNodes.map(o => ({
     a: o.node,
     b: o.parentKey ? (organNodes.find(x => x.key === o.parentKey) || {}).node || null : null
@@ -2097,7 +2124,10 @@ function layout() {
   const panelL = state.collapsed ? 28 : 236, panelR = state.sel ? 320 : 0;
   const visW = Math.max(320, innerWidth - panelL - panelR);
   const grow = innerWidth / visW;
-  const d = fitDistance(spanW * grow, spanH);
+  let d = fitDistance(spanW * grow, spanH);
+  // a split scene is a body and a handful of nodes: if the fit asks for a stadium-sized camera,
+  // the span is wrong, and the picture the user gets is a tiny frozen blob
+  if (organNodes.length) d = Math.min(d, 9);
   const dx = ((panelL + visW / 2) / innerWidth - 0.5) * spanW * grow;
   // once the layers are on the ring the camera has to look slightly down, or a ring seen edge-on
   // is just a pile of overlapping bodies
