@@ -327,7 +327,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261031l";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261031m";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1564,11 +1564,14 @@ function syncShells() {
     // (c) the node always keeps the WHOLE organ, faint: that is the model you put the parts back
     // into, and it is what an edge attaches to, so no edge starts in empty space. A part that is out
     // is fainter still, so you can see where it came from.
+    let shown = 0;
     shell.children.forEach(m => {
       const isOut = outSet.has(m.userData.shellPart);
-      m.visible = true;
-      m.material.opacity = isOut ? 0.06 : 0.12;
+      m.visible = isOut;                       // the parent shows what has left; the rest is solid in it
+      m.material.opacity = 0.18;
+      if (isOut) shown++;
     });
+    shell.visible = shown > 0;
   });
 }
 
@@ -1853,9 +1856,14 @@ function buildOrganNodes() {
   });
 
   organNodes.forEach(o => { o.node.userData.cLocal = hubLocal(o.node); });
+  const setObj = (organGhost && organGhost.visible) ? organGhost : groups.organs;
+  if (setObj) setObj.userData.cLocal = new THREE.Vector3();
+  // every edge has a node at each end: a top-level system connects to the set node, a split part to
+  // its parent. Nothing is ever drawn to a bare point.
   edgePairs = organNodes.map(o => ({
     a: o.node,
-    b: o.parentKey ? (organNodes.find(x => x.key === o.parentKey) || {}).node || null : null
+    b: o.parentKey ? ((organNodes.find(x => x.key === o.parentKey) || {}).node || setObj)
+                   : setObj
   }));
   partNodes.forEach(pn => edgePairs.push({ a: pn.node, b: pn.parent.node }));
   ensureEdges();
@@ -1997,7 +2005,7 @@ function updateEdges() {
     e.a.updateMatrixWorld(true);
     const a = e.a.localToWorld(e.a.userData.cLocal.clone());
     let b = set;
-    if (e.b) { e.b.updateMatrixWorld(true); b = e.b.localToWorld(e.b.userData.cLocal.clone()); }
+    if (e.b) { e.b.updateMatrixWorld(true); b = e.b.localToWorld((e.b.userData.cLocal || new THREE.Vector3()).clone()); }
     arr[i * 6] = a.x; arr[i * 6 + 1] = a.y; arr[i * 6 + 2] = a.z;
     arr[i * 6 + 3] = b.x; arr[i * 6 + 4] = b.y; arr[i * 6 + 5] = b.z;
   });
@@ -2714,30 +2722,31 @@ function solveAnalyses() {
     if (onNode) return an.obj.localToWorld((an.obj.userData.cLocal || new THREE.Vector3()).clone());
     return setCentre().clone();
   });
+  const pts = ANALYSES.map((a, i) => a.node ? a.node.position.clone() : anchors[i].clone());
 
-  const fixed = [], free = [], links = [];
-  organNodes.forEach(o => {
-    const p = o.node.position;
-    fixed.push({ id: "o:" + o.key, x: p.x, y: p.y, z: p.z, fx: p.x, fy: p.y, fz: p.z, r: 0.32 });
-  });
-  ANALYSES.forEach((a, i) => {
-    const p = anchors[i];
-    const anchorId = "an:" + i;
-    fixed.push({ id: anchorId, x: p.x, y: p.y, z: p.z, fx: p.x, fy: p.y, fz: p.z, r: 0.01 });
-    const seed = a.node ? a.node.position : p;
-    free.push({ id: "a:" + i, i, x: seed.x, y: seed.y, z: seed.z, r: 0.26 });
-    links.push({ source: anchorId, target: "a:" + i, d: 1.35 });
-  });
-
-  const nodes = fixed.concat(free);
-  const sim = d3.forceSimulation(nodes, 3)
-    .force("link", d3.forceLink(links).id(n => n.id).distance(l => l.d).strength(0.55))
-    .force("charge", d3.forceManyBody().strength(-0.09).distanceMax(4.5))
-    .force("collide", d3.forceCollide().radius(n => n.r * 1.9))
-    .stop();
-  for (let i = 0; i < 260; i++) sim.tick();
-
-  free.forEach(n => { ANALYSES[n.i].solved = new THREE.Vector3(n.x, n.y, n.z); });
+  // relaxation: a spring holds each document 1.35 from its organ, every other document and every
+  // organ node pushes it away. 60 passes, no fixed slots, no clamping box.
+  const SPRING = 1.35, ITER = 60;
+  for (let it = 0; it < ITER; it++) {
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i], home = anchors[i];
+      const f = new THREE.Vector3();
+      const d0 = home.clone().sub(p);
+      const len = d0.length() || 1e-4;
+      f.addScaledVector(d0, ((len - SPRING) / len) * 0.35);
+      pts.forEach((q, j) => {
+        if (j === i) return;
+        const dv = p.clone().sub(q), dd = dv.length() || 1e-4;
+        if (dd < 0.95) f.addScaledVector(dv, ((0.95 - dd) / dd) * 0.5);
+      });
+      organNodes.forEach(o => {
+        const dv = p.clone().sub(o.node.position), dd = dv.length() || 1e-4;
+        if (dd < 0.85) f.addScaledVector(dv, ((0.85 - dd) / dd) * 0.45);
+      });
+      p.add(f);
+    }
+  }
+  pts.forEach((p, i) => { ANALYSES[i].solved = p; });
   analysisSolved = true;
 }
 
