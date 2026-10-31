@@ -327,7 +327,7 @@ function paint(l, root, tag) {
   counts[l.id] = (counts[l.id] || 0) + n;
 }
 
-const ASSET_VERSION = "20261031k";   // bump when a model changes: Pages caches GLBs hard
+const ASSET_VERSION = "20261031l";   // bump when a model changes: Pages caches GLBs hard
 const loader = new THREE.GLTFLoader();
 
 const loadedFiles = new Set();
@@ -1542,6 +1542,7 @@ function buildShell(o, row) {
   const mid = box.getCenter(new THREE.Vector3());
   shell.children.forEach(m => { m.matrix.premultiply(new THREE.Matrix4().makeTranslation(-mid.x, -mid.y, -mid.z)); });
   shell.userData.total = shell.children.length;
+  o.node.userData.cLocal = new THREE.Vector3();   // the shell is centred on the origin by construction
 }
 
 function syncShells() {
@@ -1851,6 +1852,7 @@ function buildOrganNodes() {
     hosts.forEach(hid => linkPairs.push({ a: sh.key, b: hid, type: sh.key }));
   });
 
+  organNodes.forEach(o => { o.node.userData.cLocal = hubLocal(o.node); });
   edgePairs = organNodes.map(o => ({
     a: o.node,
     b: o.parentKey ? (organNodes.find(x => x.key === o.parentKey) || {}).node || null : null
@@ -1951,6 +1953,23 @@ function updateLinks() {
 function applyEdgeState() {
   if (edges) edges.visible = !state.edgeOff.has("tree");
   Object.entries(linkObjs).forEach(([t, o]) => { o.visible = !state.edgeOff.has(t); });
+}
+
+/* the point an edge must start from: the centre of what the node actually shows. A split organ's
+   meshes sit at their anatomical offsets, so the group origin is beside the organ, not on it. */
+function hubLocal(g) {
+  const box = new THREE.Box3();
+  let any = false;
+  [g.children.find(c => c.userData.holder), g.userData.shell].forEach(grp => {
+    if (!grp || grp.visible === false) return;
+    grp.traverse(m => {
+      if (!m.isMesh || m.userData.pickSphere || m.userData.cloud || m.visible === false) return;
+      if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+      box.union(m.geometry.boundingBox.clone().applyMatrix4(m.matrix));
+      any = true;
+    });
+  });
+  return any ? box.getCenter(new THREE.Vector3()) : new THREE.Vector3();
 }
 
 function ensureEdges() {
