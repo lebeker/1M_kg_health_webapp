@@ -820,7 +820,16 @@ function selectAnalysis(a) {
   if (a.node) focusOn(a.node);
 }
 
-document.getElementById("nodeClose").onclick = () => select(null);
+/* The ✕ hides the panel and nothing else. Closing the panel is not a gesture that means "back to
+   the overview": the camera stays on the node it was framed on, and the one gesture that does mean
+   it is a click on the empty space (see pointerup). Re-framing here also re-ran layout() with the
+   panel's 320 px gone, which moved the picture by the panel's width on its own. */
+function closePanel() {
+  state.sel = null;
+  document.getElementById("node").hidden = true;
+  clearHighlight();
+}
+document.getElementById("nodeClose").onclick = closePanel;
 
 /* double-click any node to fly to it: the same framing a selection gets, no second camera path */
 renderer.domElement.addEventListener("dblclick", e => {
