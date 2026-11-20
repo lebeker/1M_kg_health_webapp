@@ -1,6 +1,7 @@
 # Health map — task breakdown
 
-Date: 2026-11-12 (rev 3). Basis: audit of `1M_kg_health_webapp`, `1M_kg_ATEST_health/FINDINGS.md`,
+Date: 2026-11-12 (rev 3); §5 resolved and tasks amended 2026-11-20 (rev 5). Basis: audit of
+`1M_kg_health_webapp`, `1M_kg_ATEST_health/FINDINGS.md`,
 `HANDOVER.md`, `body/README.md`, `PROMPT.md`, `HISTORY.md`, wireframes
 `docs/wireframe-health-v11-analysis.svg`, `docs/wireframe-health-v11b-diagnosis.svg`, `docs/wireframe-health-v11c-summary.svg`, `docs/wireframe-health-v12-past-ghost.svg`.
 
@@ -17,6 +18,22 @@ agents work in English; Russian lives only in user-facing copy.
 - Right panel = what was forecast and recommended on that date, whether it was done or ignored, and
   how much the forecast has drifted since.
 - Five priority levels stay.
+
+**Changes in rev 5 — §5 resolved (2026-11-20)**
+
+The owner answered the open decisions. They are folded into the tasks below and are binding: no run
+re-opens them.
+
+| §5 | Decision |
+|---|---|
+| Levels | P0–P4 and the distribution stand as written |
+| Import (T20) | redefined: two skills handed to the parent `kg` skill, not screens; lowest priority, defined now and built after release |
+| Estimates | SCORE2 + Lee are enough for P1 |
+| Centre of the screen | settled by rev 4 — three columns, no centre zone; the snapshot-feed question is withdrawn, not deferred |
+| Graph button (T27) | the same viewer, read-only: a template app has no write path, so the button only renders `kg.json` in this app's own view |
+
+Delivery starts at tag **`health-20261120a-kickoff`** (2026-11-20): the plan at rev 5 with these
+decisions folded in. Tags are never moved, so that tag is the fixed "we started here" mark.
 
 **Changes in rev 4 — layout approved**
 
@@ -144,7 +161,7 @@ Kept out of scope until the owner approves. Do not start.
 |---|---|---|---|---|---|
 | T18 | `prediction` node type | A forecast is a simulation, not a fact | target, horizon, condition, delta_median, source, confidence; does not affect the estimate until its condition is met | T04 | S |
 | T19 | Five built-in strategies | The demo must show the mechanics | Statin/LDL, smoking, colonoscopy, HbA1c, blood pressure; each with a PMID and an interval | T18 | M |
-| T20 | Agent-side import (PDF/JPEG) | Input is a file, not a form | Agent receives a file → extracts entities → `sources/<id>.<ext>` + `kg.json` entry → human confirms; nothing is written without confirmation; unconfirmed = `not confirmed` | T06 | L |
+| T20 | Import: two skills for the parent `kg` skill | A template app has no write path, and the job is to produce a medical story/card, so the simplest path is to walk the markers of the main view and export them. Lowest priority: define it now, build it after release | (a) **Markers → PDF**: every marker of the main view (value, reference, flag, date, source) exported as one paginated card/story, no write to `kg.json`; (b) **Standard format**: survey established health-record formats, then either align with one (documented mapping, round-trip test on the demo case) or record a written "no fit" verdict with reasons. Both ship as skills the webapp hands to `kg`, never as UI | T06 | L |
 | T21 | Demo case: man, 65 | A plausible 20-year example | 62 events, 3 conditions, 5 medications, 2 procedures; separate workspace | T06 | L |
 
 ### E. Skills and release — P3
@@ -161,7 +178,7 @@ Kept out of scope until the owner approves. Do not start.
 
 | ID | Task | Why | Acceptance | Deps | Size |
 |---|---|---|---|---|---|
-| T27 | Graph view behind a button | The graph is a tool, not the product | Button "open graph" opens the current viewer in a separate view; the main flow never requires it; back returns to the selected date | T01 | M |
+| T27 | Graph view behind a button | The graph is a tool, not the product. A template app has no write path: the button renders `kg.json` through this app's own viewer, nothing more | Button "open graph" opens the current viewer in a separate view, read-only — no create, connect or delete reachable from it; the main flow never requires it; back returns to the selected date | T01 | M |
 | T28 | 3D layer + `kg` skill notice | Show where organs and diagnoses live | Separate toggle inside the graph view; explicit "load ~15 MB?" question; lazy load; off by default; the `kg` skill asks before downloading models | T27 | M |
 
 ---
@@ -190,14 +207,19 @@ otherwise; no task may depend on them.
 
 ---
 
-## 5. Open decisions
+## 5. Open decisions — resolved 2026-11-20
 
-1. Confirm the five levels and the distribution above.
-2. Import: agent-side input (T20) — P2, or cut until there are real users?
-3. Estimates: is SCORE2 + Lee enough for P1, and is the backlog order right?
-4. Centre of the screen: snapshot feed (current plan) — or selected-event card in the centre with
-   the feed as a side column?
-5. Graph button (T27): same viewer or a reduced read-only version?
+All five are answered (owner, 2026-11-20). The answers live in "Changes in rev 5" above and in the
+task rows; the list below is kept as history so nobody re-derives it.
+
+1. ~~Confirm the five levels and the distribution above.~~ — confirmed as written.
+2. ~~Import: agent-side input (T20) — P2, or cut until there are real users?~~ — redefined as two
+   skills for the parent `kg` skill (markers → PDF; established-format alignment), lowest priority.
+3. ~~Estimates: is SCORE2 + Lee enough for P1, and is the backlog order right?~~ — enough; order stands.
+4. ~~Centre of the screen: snapshot feed — or selected-event card with the feed as a side column?~~ —
+   withdrawn: rev 4 already settled three columns with no centre zone.
+5. ~~Graph button (T27): same viewer or a reduced read-only version?~~ — same viewer, read-only; a
+   template app has no write path.
 
 ---
 
