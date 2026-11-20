@@ -1,0 +1,268 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1480" height="900" viewBox="0 0 1480 900" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <rect width="1480" height="900" fill="#ffffff"/>
+  <style>
+    .t { font-size: 12px; fill: #111; }
+    .ts { font-size: 10px; fill: #777; }
+    .tm { font-size: 9px; fill: #999; letter-spacing: .06em; }
+    .faint { font-size: 11px; fill: #b5b5b5; }
+    .box { fill: #fff; stroke: #d9d9d9; }
+    .soft { fill: #f6f6f6; stroke: none; }
+    .line { stroke: #c9c9c9; fill: none; }
+    .dash { stroke: #c9c9c9; fill: none; stroke-dasharray: 3 3; }
+    .num { font-size: 9px; fill: #fff; font-weight: 700; }
+    .badge { fill: #111; }
+  </style>
+
+  <text x="40" y="16" class="tm">WIREFRAME v7 · APPROVED LAYOUT · ONE LIST INSTEAD OF A WIDGET PER ANALYSIS</text>
+
+  <!-- 1 graph -->
+  <rect x="1214" y="24" width="30" height="30" rx="4" fill="#111"/>
+  <circle cx="1214" cy="24" r="7" class="badge"/><text x="1214" y="27" class="num" text-anchor="middle">1</text>
+  <polygon points="1229,30 1237,34.5 1237,43.5 1229,48 1221,43.5 1221,34.5" fill="none" stroke="#fff" stroke-width="1.2"/>
+  <circle cx="1229" cy="30" r="1.9" fill="#fff"/><circle cx="1237" cy="34.5" r="1.9" fill="#fff"/>
+  <circle cx="1237" cy="43.5" r="1.9" fill="#fff"/><circle cx="1229" cy="48" r="1.9" fill="#fff"/>
+  <circle cx="1221" cy="43.5" r="1.9" fill="#fff"/><circle cx="1221" cy="34.5" r="1.9" fill="#fff"/>
+
+  <!-- 2 profile -->
+  <rect x="1250" y="24" width="190" height="30" rx="4" class="box"/>
+  <circle cx="1394" cy="24" r="7" class="badge"/><text x="1394" y="27" class="num" text-anchor="middle">2</text>
+  <circle cx="1270" cy="39" r="8" fill="#eee" stroke="#ccc"/>
+  <text x="1286" y="43" class="ts">male · 1961 (65)</text>
+
+  <!-- 3 timeline -->
+  <text x="40" y="78" class="tm">3 · TIMELINE · ONE MARK PER EVENT</text>
+  <rect x="40" y="86" width="1392" height="52" class="soft"/>
+  <g stroke="#c3c3c3">
+    <line x1="60" y1="100" x2="60" y2="122"/><line x1="120" y1="100" x2="120" y2="122"/>
+    <line x1="180" y1="100" x2="180" y2="122"/><line x1="240" y1="100" x2="240" y2="122"/>
+    <line x1="300" y1="100" x2="300" y2="122"/><line x1="360" y1="100" x2="360" y2="122"/>
+    <line x1="420" y1="100" x2="420" y2="122"/><line x1="480" y1="100" x2="480" y2="122"/>
+    <line x1="540" y1="100" x2="540" y2="122"/><line x1="600" y1="100" x2="600" y2="122"/>
+    <line x1="660" y1="100" x2="660" y2="122"/>
+  </g>
+  <g class="tm">
+    <text x="60" y="136" text-anchor="middle">1985</text>
+    <text x="180" y="136" text-anchor="middle">1995</text>
+    <text x="300" y="136" text-anchor="middle">2005</text>
+    <text x="420" y="136" text-anchor="middle">2015</text>
+    <text x="540" y="136" text-anchor="middle">2025</text>
+  </g>
+
+  <circle cx="486" cy="78" r="7" class="badge"/><text x="486" y="81" class="num" text-anchor="middle">4</text>
+  <g stroke="#111" stroke-width="1.4">
+    <line x1="470" y1="92" x2="470" y2="108"/><line x1="505" y1="92" x2="505" y2="108"/>
+    <line x1="560" y1="92" x2="560" y2="108"/><line x1="612" y1="92" x2="612" y2="108"/>
+    <line x1="648" y1="92" x2="648" y2="108"/><line x1="682" y1="92" x2="682" y2="108"/>
+  </g>
+  <circle cx="470" cy="90" r="3" fill="#111"/><circle cx="505" cy="90" r="3" fill="#111"/>
+  <circle cx="560" cy="90" r="3" fill="#111"/><circle cx="612" cy="90" r="3" fill="#111"/>
+  <circle cx="648" cy="90" r="3" fill="#111"/><circle cx="682" cy="90" r="3" fill="#111"/>
+
+  <circle cx="700" cy="80" r="7" class="badge"/><text x="700" y="83" class="num" text-anchor="middle">5</text>
+  <rect x="700" y="90" width="206" height="44" fill="#fff" stroke="#111"/>
+  <g stroke="#bdbdbd">
+    <line x1="714" y1="96" x2="714" y2="118"/><line x1="732" y1="96" x2="732" y2="118"/>
+    <line x1="750" y1="96" x2="750" y2="118"/><line x1="768" y1="96" x2="768" y2="118"/>
+    <line x1="786" y1="96" x2="786" y2="118"/><line x1="804" y1="96" x2="804" y2="118"/>
+    <line x1="822" y1="96" x2="822" y2="118"/><line x1="840" y1="96" x2="840" y2="118"/>
+    <line x1="858" y1="96" x2="858" y2="118"/><line x1="876" y1="96" x2="876" y2="118"/>
+    <line x1="894" y1="96" x2="894" y2="118"/>
+  </g>
+  <text x="803" y="132" class="tm" text-anchor="middle">±2 years, by month</text>
+
+  <g stroke="#2b2b2b" opacity="0.5">
+    <line x1="930" y1="86" x2="930" y2="132"/><line x1="952" y1="86" x2="952" y2="132"/>
+    <line x1="974" y1="86" x2="974" y2="132"/><line x1="996" y1="86" x2="996" y2="132"/>
+    <line x1="1018" y1="86" x2="1018" y2="132"/><line x1="1040" y1="86" x2="1040" y2="132"/>
+    <line x1="1062" y1="86" x2="1062" y2="132"/><line x1="1084" y1="86" x2="1084" y2="132"/>
+    <line x1="1106" y1="86" x2="1106" y2="132"/><line x1="1128" y1="86" x2="1128" y2="132"/>
+    <line x1="1150" y1="86" x2="1150" y2="132"/><line x1="1172" y1="86" x2="1172" y2="132"/>
+    <line x1="1194" y1="86" x2="1194" y2="132"/><line x1="1216" y1="86" x2="1216" y2="132"/>
+    <line x1="1238" y1="86" x2="1238" y2="132"/><line x1="1260" y1="86" x2="1260" y2="132"/>
+    <line x1="1282" y1="86" x2="1282" y2="132"/><line x1="1304" y1="86" x2="1304" y2="132"/>
+    <line x1="1326" y1="86" x2="1326" y2="132"/><line x1="1348" y1="86" x2="1348" y2="132"/>
+    <line x1="1370" y1="86" x2="1370" y2="132"/><line x1="1392" y1="86" x2="1392" y2="132"/>
+    <line x1="1414" y1="86" x2="1414" y2="132"/>
+  </g>
+  <text x="930" y="80" class="tm">future · risk colour</text>
+  <line x1="906" y1="84" x2="906" y2="150" stroke="#111" stroke-width="1.5"/>
+  <text x="912" y="150" class="ts">today</text>
+  <g class="tm">
+    <text x="960" y="148" text-anchor="middle">2035</text>
+    <text x="1140" y="148" text-anchor="middle">2055</text>
+    <text x="1320" y="148" text-anchor="middle">2075</text>
+  </g>
+
+  <!-- ================= COLUMN 1: vertical related list ================= -->
+  <rect x="40" y="180" width="300" height="690" rx="6" class="box"/>
+  <circle cx="54" cy="194" r="7" class="badge"/><text x="54" y="197" class="num" text-anchor="middle">7</text>
+  <text x="70" y="198" class="tm">RELATED RECORDS · LDL</text>
+
+  <text x="70" y="218" class="tm" fill="#b5b5b5">↑ FUTURE</text>
+  <text x="322" y="218" class="tm" text-anchor="end">↓ PAST</text>
+
+  <line x1="68" y1="230" x2="68" y2="800" stroke="#e2e2e2"/>
+  <polygon points="68,226 64,234 72,234" fill="#d0d0d0"/>
+
+  <!-- future: pale -->
+  <circle cx="68" cy="262" r="4" fill="#e8e8e8"/>
+  <text x="80" y="258" class="faint">2028 · projected</text>
+  <text x="80" y="272" class="faint">LDL 4.2 if statin holds</text>
+
+  <circle cx="68" cy="312" r="4" fill="#e8e8e8"/>
+  <text x="80" y="308" class="faint">2027-06 · due</text>
+  <text x="80" y="322" class="faint">next lipid panel</text>
+
+  <line x1="60" y1="340" x2="322" y2="340" class="dash"/>
+
+  <!-- selected: centre -->
+  <rect x="56" y="356" width="268" height="64" rx="4" fill="#111"/>
+  <circle cx="322" cy="356" r="7" class="badge"/><text x="322" y="359" class="num" text-anchor="middle">8</text>
+  <text x="70" y="376" class="ts" style="fill:#cfcfcf">NOW · SELECTED</text>
+  <text x="70" y="396" style="font-size:12px; fill:#ffffff; font-weight:600">2026-11-12 · LDL 4.9</text>
+  <text x="70" y="412" class="ts" style="fill:#cfcfcf">scan · not confirmed</text>
+
+  <!-- past: solid, bright -->
+  <circle cx="68" cy="448" r="4" fill="#111"/>
+  <text x="80" y="444" class="ts">2026-04-08</text>
+  <text x="80" y="458" class="t">LDL 4.7</text>
+
+  <circle cx="68" cy="496" r="4" fill="#111"/>
+  <text x="80" y="492" class="ts">2025-07-02</text>
+  <text x="80" y="506" class="t">LDL 4.6</text>
+
+  <circle cx="68" cy="544" r="4" fill="#111"/>
+  <text x="80" y="540" class="ts">2024-06-03</text>
+  <text x="80" y="554" class="t">LDL 4.6</text>
+
+  <circle cx="68" cy="592" r="4" fill="#111"/>
+  <text x="80" y="588" class="ts">2023-02-17</text>
+  <text x="80" y="602" class="t">LDL 4.3</text>
+
+  <circle cx="68" cy="640" r="4" fill="#111"/>
+  <text x="80" y="636" class="ts">2021-05-14</text>
+  <text x="80" y="650" class="t">LDL 4.1</text>
+
+  <line x1="56" y1="676" x2="322" y2="676" class="line"/>
+  <text x="70" y="698" class="tm">RULE</text>
+  <text x="70" y="716" class="ts">future above, past below, always</text>
+  <text x="70" y="734" class="ts">future is pale: not yet true</text>
+  <text x="70" y="752" class="ts">default scroll shows 1 future record</text>
+  <text x="70" y="770" class="ts">click any row → it becomes the centre</text>
+  <text x="70" y="788" class="ts">same list for any marker · no per-test widget</text>
+
+  <!-- ================= COLUMN 2: main view ================= -->
+  <rect x="360" y="180" width="460" height="690" rx="6" class="box"/>
+  <circle cx="374" cy="194" r="7" class="badge"/><text x="374" y="197" class="num" text-anchor="middle">11</text>
+  <text x="390" y="198" class="tm">MAIN VIEW · LDL · 2026-11-12</text>
+
+  <!-- 6 player controls with start/end -->
+  <circle cx="676" cy="192" r="7" class="badge"/><text x="676" y="195" class="num" text-anchor="middle">6</text>
+  <rect x="688" y="186" width="26" height="28" rx="3" class="box"/>
+  <rect x="694" y="193" width="2" height="14" fill="#111"/>
+  <polygon points="706,193 706,207 697,200" fill="#111"/>
+
+  <rect x="720" y="186" width="26" height="28" rx="3" class="box"/>
+  <polygon points="730,193 730,207 722,200" fill="#111"/>
+
+  <rect x="750" y="186" width="26" height="28" rx="3" class="box"/>
+  <polygon points="754,193 754,207 762,200" fill="#111"/>
+
+  <rect x="780" y="186" width="26" height="28" rx="3" class="box"/>
+  <polygon points="786,193 786,207 794,200" fill="#111"/>
+  <rect x="796" y="193" width="2" height="14" fill="#111"/>
+
+
+  <!-- 12 value -->
+  <rect x="372" y="226" width="436" height="98" rx="4" class="soft"/>
+  <circle cx="790" cy="234" r="7" class="badge"/><text x="790" y="237" class="num" text-anchor="middle">12</text>
+  <text x="388" y="252" class="ts">LDL cholesterol</text>
+  <text x="388" y="284" font-size="26" font-weight="600" fill="#111">4.9</text>
+  <text x="432" y="284" class="ts">mmol/L · ref &lt; 3.0</text>
+  <text x="388" y="306" class="ts">source: scan · 2026-11-12 · not confirmed</text>
+
+  <!-- 13 history -->
+  <circle cx="374" cy="352" r="7" class="badge"/><text x="374" y="355" class="num" text-anchor="middle">13</text>
+  <text x="390" y="356" class="tm">TREND · SAME MARKER</text>
+  <g class="dash">
+    <line x1="388" y1="436" x2="792" y2="436"/>
+    <line x1="388" y1="436" x2="388" y2="388"/>
+  </g>
+  <path d="M388 426 L455 420 L522 424 L589 414 L656 402 L723 394 L792 388" class="line" stroke="#111" stroke-width="1.6"/>
+  <circle cx="792" cy="388" r="3.5" fill="#111"/>
+  <text x="388" y="454" class="tm">2021</text><text x="792" y="454" class="tm" text-anchor="end">2026</text>
+
+  <line x1="388" y1="476" x2="792" y2="476" class="line"/>
+
+  <!-- 14 related entities -->
+  <circle cx="374" cy="496" r="7" class="badge"/><text x="374" y="499" class="num" text-anchor="middle">14</text>
+  <text x="390" y="500" class="tm">LINKED ENTITIES</text>
+  <text x="390" y="520" class="ts">statins · 0 active</text>
+  <text x="390" y="538" class="ts">family history · unknown</text>
+  <text x="390" y="556" class="ts">diet / steps · not tracked</text>
+
+  <line x1="388" y1="578" x2="792" y2="578" class="line"/>
+  <text x="390" y="600" class="tm">ONE RENDERER</text>
+  <text x="390" y="620" class="ts">fields come from the schema, not from a bespoke widget</text>
+  <text x="390" y="638" class="ts">value · unit · reference · source · confidence</text>
+  <text x="390" y="656" class="ts">missing field = row hidden, not a broken layout</text>
+
+  <!-- ================= COLUMN 3 ================= -->
+  <rect x="840" y="180" width="592" height="690" rx="6" class="box"/>
+  <circle cx="854" cy="194" r="7" class="badge"/><text x="854" y="197" class="num" text-anchor="middle">15</text>
+  <text x="870" y="198" class="tm">FORECAST AND RECOMMENDATIONS · ON THIS DATE</text>
+
+  <circle cx="854" cy="222" r="7" class="badge"/><text x="854" y="225" class="num" text-anchor="middle">16</text>
+  <text x="870" y="248" font-size="32" font-weight="600" fill="#111">80.2</text>
+  <text x="956" y="248" class="t">years · 75.1 – 84.0</text>
+  <text x="870" y="268" class="ts">median for this cohort · not a promise · as it stands on the selected date</text>
+
+  <line x1="870" y1="286" x2="1416" y2="286" class="line"/>
+
+  <circle cx="854" cy="308" r="7" class="badge"/><text x="854" y="311" class="num" text-anchor="middle">17</text>
+  <text x="870" y="312" class="tm">WHAT MOVES IT</text>
+  <g class="ts">
+    <text x="870" y="334">−2.1  LDL 4.9, no statin</text>
+    <text x="1150" y="334">+1.2  stopped smoking 2018</text>
+    <text x="870" y="354">−1.4  BP 158/96</text>
+    <text x="1150" y="354">+0.6  walks 7k steps</text>
+    <text x="870" y="374">−0.9  age 65</text>
+    <text x="1150" y="374">—     unknown</text>
+  </g>
+
+  <line x1="870" y1="394" x2="1416" y2="394" class="line"/>
+
+  <circle cx="854" cy="416" r="7" class="badge"/><text x="854" y="419" class="num" text-anchor="middle">18</text>
+  <text x="870" y="420" class="tm">RECOMMENDED ON THIS DATE</text>
+  <g class="ts">
+    <text x="870" y="442">start a statin · source: ESC 2021</text>
+    <text x="1416" y="442" text-anchor="end">since 2021</text>
+    <text x="870" y="462">colonoscopy · source: USPSTF</text>
+    <text x="1416" y="462" text-anchor="end">since 2023</text>
+    <text x="870" y="482">HbA1c once a year</text>
+    <text x="1416" y="482" text-anchor="end">next 2027-06</text>
+  </g>
+
+  <line x1="870" y1="502" x2="1416" y2="502" class="line"/>
+
+  <circle cx="854" cy="524" r="7" class="badge"/><text x="854" y="527" class="num" text-anchor="middle">19</text>
+  <text x="870" y="528" class="tm">WHAT WE DO NOT KNOW</text>
+  <g class="ts">
+    <text x="870" y="550">no family history · no sleep data · no vaccinations</text>
+    <text x="870" y="568">no colonoscopy after 60 · no lipid panel for 2025</text>
+    <text x="870" y="586">the model does not account for depression or loneliness</text>
+  </g>
+
+  <line x1="870" y1="606" x2="1416" y2="606" class="line"/>
+
+  <circle cx="854" cy="628" r="7" class="badge"/><text x="854" y="631" class="num" text-anchor="middle">20</text>
+  <text x="870" y="632" class="tm">ON WHAT GROUNDS</text>
+  <text x="870" y="652" class="ts">SCORE2 · ESC 2021 · Lee index · model v0.3</text>
+  <text x="870" y="670" class="ts">every number carries a source or it is not shown</text>
+
+  <circle cx="854" cy="700" r="7" class="badge"/><text x="854" y="703" class="num" text-anchor="middle">21</text>
+  <rect x="868" y="686" width="548" height="60" rx="4" class="dash" fill="none"/>
+  <text x="884" y="708" class="ts">empty state: no events yet — forecast is unavailable, not zero</text>
+  <text x="884" y="726" class="ts">the app says "not enough data" instead of inventing a number</text>
+
+</svg>

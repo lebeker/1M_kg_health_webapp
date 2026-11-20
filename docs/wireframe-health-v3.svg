@@ -1,0 +1,276 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1480" height="920" viewBox="0 0 1480 920" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <rect width="1480" height="920" fill="#ffffff"/>
+  <style>
+    .t { font-size: 12px; fill: #111; }
+    .tb { font-size: 12px; fill: #111; font-weight: 600; }
+    .ts { font-size: 10px; fill: #777; }
+    .tm { font-size: 9px; fill: #999; letter-spacing: .06em; }
+    .h { font-size: 15px; font-weight: 600; fill: #111; }
+    .box { fill: #fff; stroke: #d9d9d9; }
+    .soft { fill: #f6f6f6; stroke: none; }
+    .line { stroke: #c9c9c9; fill: none; }
+    .dash { stroke: #c9c9c9; fill: none; stroke-dasharray: 3 3; }
+    .now { stroke: #111; stroke-width: 1.5; }
+  </style>
+
+  <text x="40" y="34" class="h">health map — v3 · timeline is the navigator, snapshots are the memory</text>
+  <text x="40" y="52" class="ts">left: what was known · centre: every forecast we ever made · right: what we said, what was done, how wrong we were</text>
+
+  <rect x="1120" y="20" width="320" height="44" rx="6" class="box"/>
+  <circle cx="1144" cy="42" r="12" fill="#eee" stroke="#ccc"/>
+  <text x="1166" y="38" class="t">male · 1961 (65)</text>
+  <text x="1166" y="54" class="ts">profile lives in kg.json</text>
+
+  <!-- ===== timeline ===== -->
+  <text x="40" y="92" class="tm">TIME</text>
+  <text x="1440" y="92" class="tm" text-anchor="end">past grey · future painted by annual risk</text>
+
+  <rect x="40" y="100" width="1400" height="56" class="soft"/>
+  <g stroke="#c9c9c9">
+    <line x1="60" y1="116" x2="60" y2="140"/><line x1="120" y1="116" x2="120" y2="140"/>
+    <line x1="180" y1="116" x2="180" y2="140"/><line x1="240" y1="116" x2="240" y2="140"/>
+    <line x1="300" y1="116" x2="300" y2="140"/><line x1="360" y1="116" x2="360" y2="140"/>
+    <line x1="420" y1="116" x2="420" y2="140"/><line x1="480" y1="116" x2="480" y2="140"/>
+    <line x1="540" y1="116" x2="540" y2="140"/><line x1="600" y1="116" x2="600" y2="140"/>
+    <line x1="660" y1="116" x2="660" y2="140"/>
+  </g>
+  <g class="tm">
+    <text x="60" y="152" text-anchor="middle">1985</text>
+    <text x="180" y="152" text-anchor="middle">1995</text>
+    <text x="300" y="152" text-anchor="middle">2005</text>
+    <text x="420" y="152" text-anchor="middle">2015</text>
+    <text x="540" y="152" text-anchor="middle">2025</text>
+  </g>
+
+  <rect x="700" y="104" width="210" height="48" fill="#fff" stroke="#111"/>
+  <g stroke="#bdbdbd">
+    <line x1="718" y1="112" x2="718" y2="134"/><line x1="736" y1="112" x2="736" y2="134"/>
+    <line x1="754" y1="112" x2="754" y2="134"/><line x1="772" y1="112" x2="772" y2="134"/>
+    <line x1="790" y1="112" x2="790" y2="134"/><line x1="808" y1="112" x2="808" y2="134"/>
+    <line x1="826" y1="112" x2="826" y2="134"/><line x1="844" y1="112" x2="844" y2="134"/>
+    <line x1="862" y1="112" x2="862" y2="134"/><line x1="880" y1="112" x2="880" y2="134"/>
+    <line x1="898" y1="112" x2="898" y2="134"/>
+  </g>
+  <text x="805" y="148" class="tm" text-anchor="middle">±2 years, by month</text>
+
+  <g stroke="#2b2b2b" opacity="0.55">
+    <line x1="930" y1="106" x2="930" y2="150"/><line x1="950" y1="106" x2="950" y2="150"/>
+    <line x1="970" y1="106" x2="970" y2="150"/><line x1="990" y1="106" x2="990" y2="150"/>
+    <line x1="1010" y1="106" x2="1010" y2="150"/><line x1="1030" y1="106" x2="1030" y2="150"/>
+    <line x1="1050" y1="106" x2="1050" y2="150"/><line x1="1070" y1="106" x2="1070" y2="150"/>
+    <line x1="1090" y1="106" x2="1090" y2="150"/><line x1="1110" y1="106" x2="1110" y2="150"/>
+    <line x1="1130" y1="106" x2="1130" y2="150"/><line x1="1150" y1="106" x2="1150" y2="150"/>
+    <line x1="1170" y1="106" x2="1170" y2="150"/><line x1="1190" y1="106" x2="1190" y2="150"/>
+    <line x1="1210" y1="106" x2="1210" y2="150"/><line x1="1230" y1="106" x2="1230" y2="150"/>
+    <line x1="1250" y1="106" x2="1250" y2="150"/><line x1="1270" y1="106" x2="1270" y2="150"/>
+    <line x1="1290" y1="106" x2="1290" y2="150"/><line x1="1310" y1="106" x2="1310" y2="150"/>
+    <line x1="1330" y1="106" x2="1330" y2="150"/><line x1="1350" y1="106" x2="1350" y2="150"/>
+    <line x1="1370" y1="106" x2="1370" y2="150"/><line x1="1390" y1="106" x2="1390" y2="150"/>
+    <line x1="1410" y1="106" x2="1410" y2="150"/>
+  </g>
+  <g class="tm">
+    <text x="960" y="166" text-anchor="middle">2035</text>
+    <text x="1140" y="166" text-anchor="middle">2055</text>
+    <text x="1320" y="166" text-anchor="middle">2075</text>
+  </g>
+  <text x="930" y="98" class="tm">risk ↑ denser</text>
+
+  <line x1="906" y1="100" x2="906" y2="176" class="now"/>
+  <text x="912" y="176" class="ts">today</text>
+
+  <!-- ===== LEFT: state at date ===== -->
+  <rect x="40" y="196" width="320" height="574" rx="6" class="box"/>
+  <text x="56" y="220" class="tm">STATE AT 2026-11-12</text>
+  <text x="344" y="220" class="tm" text-anchor="end">what was known</text>
+
+  <text x="56" y="248" class="tb">conditions</text>
+  <g class="ts">
+    <text x="56" y="268">arterial hypertension · since 2018</text>
+    <text x="56" y="286">hyperlipidaemia · since 2021</text>
+    <text x="56" y="304">fatty liver · not confirmed</text>
+  </g>
+
+  <text x="56" y="332" class="tb">medications</text>
+  <g class="ts">
+    <text x="56" y="352">amlodipine 5 mg · since 2019</text>
+    <text x="56" y="370">no statin — recommended 2021, ignored</text>
+  </g>
+
+  <line x1="56" y1="390" x2="344" y2="390" class="line"/>
+
+  <text x="56" y="412" class="tm">SELECTED · LDL · 2026-11-12</text>
+  <rect x="56" y="422" width="288" height="96" rx="4" class="soft"/>
+  <text x="72" y="446" class="t">LDL cholesterol</text>
+  <text x="72" y="472" font-size="22" font-weight="600" fill="#111">4.9</text>
+  <text x="110" y="472" class="ts">mmol/L · ref &lt; 3.0</text>
+  <text x="72" y="492" class="ts">source: scan 2026-11-12 · not confirmed</text>
+  <text x="72" y="508" class="ts">→ drives forecast −2.1 years</text>
+
+  <line x1="56" y1="536" x2="344" y2="536" class="line"/>
+  <text x="56" y="558" class="tm">HISTORY OF THIS MARKER</text>
+  <g class="dash">
+    <line x1="56" y1="600" x2="344" y2="600"/>
+    <line x1="56" y1="600" x2="56" y2="572"/>
+  </g>
+  <path d="M56 590 L120 584 L184 588 L248 578 L312 566 L344 560" class="line" stroke="#111" stroke-width="1.5"/>
+  <text x="56" y="618" class="tm">2021</text><text x="344" y="618" class="tm" text-anchor="end">2026</text>
+  <text x="56" y="640" class="ts">↑ rising 4 years · statin still not started</text>
+
+  <line x1="56" y1="660" x2="344" y2="660" class="line"/>
+  <text x="56" y="682" class="tm">ADD</text>
+  <rect x="56" y="692" width="140" height="28" rx="4" fill="#111"/>
+  <text x="126" y="710" class="ts" fill="#fff" text-anchor="middle">+ analysis</text>
+  <rect x="204" y="692" width="140" height="28" rx="4" class="box"/>
+  <text x="274" y="710" class="ts" text-anchor="middle">+ medication</text>
+
+  <!-- ===== CENTRE: snapshot feed ===== -->
+  <rect x="380" y="196" width="600" height="574" rx="6" class="box"/>
+  <text x="396" y="220" class="tm">SNAPSHOTS · SCROLL TO TRAVEL</text>
+  <text x="964" y="220" class="tm" text-anchor="end">every event = immutable forecast</text>
+
+  <!-- 2024 -->
+  <text x="396" y="246" class="ts">2024</text>
+  <g>
+    <rect x="396" y="256" width="132" height="86" rx="4" class="box"/>
+    <text x="408" y="274" class="tm">2024-02-11</text>
+    <text x="408" y="298" font-size="18" font-weight="600" fill="#111">78.1</text>
+    <text x="408" y="316" class="ts">no statin</text>
+    <circle cx="514" cy="330" r="4" fill="#999"/>
+
+    <rect x="540" y="256" width="132" height="86" rx="4" class="box"/>
+    <text x="552" y="274" class="tm">2024-06-03</text>
+    <text x="552" y="298" font-size="18" font-weight="600" fill="#111">78.0</text>
+    <text x="552" y="316" class="ts">LDL 4.6</text>
+    <circle cx="658" cy="330" r="4" fill="#999"/>
+
+    <rect x="684" y="256" width="132" height="86" rx="4" class="box"/>
+    <text x="696" y="274" class="tm">2024-09-20</text>
+    <text x="696" y="298" font-size="18" font-weight="600" fill="#111">77.8</text>
+    <text x="696" y="316" class="ts">BP 162/98</text>
+    <circle cx="802" cy="330" r="4" fill="#999"/>
+
+    <rect x="828" y="256" width="132" height="86" rx="4" class="box"/>
+    <text x="840" y="274" class="tm">2024-12-01</text>
+    <text x="840" y="298" font-size="18" font-weight="600" fill="#111">77.9</text>
+    <text x="840" y="316" class="ts">flu shot</text>
+    <circle cx="946" cy="330" r="4" fill="#999"/>
+  </g>
+
+  <!-- 2025 -->
+  <text x="396" y="370" class="ts">2025</text>
+  <g>
+    <rect x="396" y="380" width="132" height="86" rx="4" class="box"/>
+    <text x="408" y="398" class="tm">2025-03-14</text>
+    <text x="408" y="422" font-size="18" font-weight="600" fill="#111">77.6</text>
+    <text x="408" y="440" class="ts">weight +4 kg</text>
+    <circle cx="514" cy="454" r="4" fill="#999"/>
+
+    <rect x="540" y="380" width="132" height="86" rx="4" class="box"/>
+    <text x="552" y="398" class="tm">2025-07-02</text>
+    <text x="552" y="422" font-size="18" font-weight="600" fill="#111">77.5</text>
+    <text x="552" y="440" class="ts">ALT 68</text>
+    <circle cx="658" cy="454" r="4" fill="#999"/>
+
+    <rect x="684" y="380" width="132" height="86" rx="4" class="box"/>
+    <text x="696" y="398" class="tm">2025-10-11</text>
+    <text x="696" y="422" font-size="18" font-weight="600" fill="#111">77.4</text>
+    <text x="696" y="440" class="ts">no colonoscopy</text>
+    <circle cx="802" cy="454" r="4" fill="#999"/>
+
+    <rect x="828" y="380" width="132" height="86" rx="4" class="dash"/>
+    <text x="840" y="398" class="tm">2025-12-30</text>
+    <text x="840" y="422" font-size="18" font-weight="600" fill="#999">—</text>
+    <text x="840" y="440" class="ts">no records</text>
+  </g>
+
+  <!-- 2026 -->
+  <text x="396" y="494" class="ts">2026</text>
+  <g>
+    <rect x="396" y="504" width="132" height="86" rx="4" class="box"/>
+    <text x="408" y="522" class="tm">2026-04-08</text>
+    <text x="408" y="546" font-size="18" font-weight="600" fill="#111">77.9</text>
+    <text x="408" y="564" class="ts">LDL 4.7</text>
+    <circle cx="514" cy="578" r="4" fill="#999"/>
+
+    <rect x="540" y="504" width="132" height="86" rx="4" class="box"/>
+    <text x="552" y="522" class="tm">2026-08-19</text>
+    <text x="552" y="546" font-size="18" font-weight="600" fill="#111">79.4</text>
+    <text x="552" y="564" class="ts">statin started</text>
+    <circle cx="658" cy="578" r="4" fill="#111"/>
+
+    <rect x="684" y="504" width="132" height="86" rx="6" fill="#fff" stroke="#111" stroke-width="2"/>
+    <text x="696" y="522" class="tm">2026-11-12</text>
+    <text x="696" y="546" font-size="18" font-weight="600" fill="#111">80.2</text>
+    <text x="696" y="564" class="ts">today · selected</text>
+    <circle cx="802" cy="578" r="4" fill="#111"/>
+
+    <rect x="828" y="504" width="132" height="86" rx="4" class="dash"/>
+    <text x="840" y="522" class="tm">next</text>
+    <text x="840" y="546" font-size="18" font-weight="600" fill="#999">?</text>
+    <text x="840" y="564" class="ts">add an event</text>
+  </g>
+
+  <line x1="396" y1="616" x2="964" y2="616" class="line"/>
+  <text x="396" y="638" class="tm">SCROLL = SELECT DATE · CLICK = OPEN THAT FORECAST</text>
+  <text x="396" y="658" class="ts">tile shows the forecast as it was made that day, not a recomputation</text>
+  <text x="396" y="676" class="ts">grey dot — nothing was recommended · black dot — a decision was made</text>
+  <text x="396" y="694" class="ts">empty tile is honest: no records ≠ no risk</text>
+
+  <rect x="396" y="712" width="568" height="42" rx="4" class="soft"/>
+  <text x="412" y="730" class="ts">gap since 2025-12: 4 months without records</text>
+  <text x="412" y="746" class="ts">→ forecast confidence lowered, interval widened automatically</text>
+
+  <!-- ===== RIGHT: forecast + adherence + drift ===== -->
+  <rect x="1000" y="196" width="440" height="306" rx="6" class="box"/>
+  <text x="1016" y="220" class="tm">FORECAST ON 2026-11-12</text>
+  <text x="1016" y="248" font-size="30" font-weight="600" fill="#111">80.2</text>
+  <text x="1080" y="248" class="t">years · 75.1 – 84.0</text>
+  <text x="1016" y="268" class="ts">median for this cohort, not a promise</text>
+
+  <line x1="1016" y1="286" x2="1424" y2="286" class="line"/>
+
+  <text x="1016" y="308" class="tm">WHAT WE RECOMMENDED</text>
+  <circle cx="1022" cy="328" r="4" fill="#111"/>
+  <text x="1034" y="332" class="ts">start statin — due 2021</text>
+  <text x="1424" y="332" class="ts" text-anchor="end">done, late · 2026-08</text>
+  <circle cx="1022" cy="352" r="4" fill="#999"/>
+  <text x="1034" y="356" class="ts">colonoscopy — due 2023</text>
+  <text x="1424" y="356" class="ts" text-anchor="end">ignored · 3 yrs</text>
+  <circle cx="1022" cy="376" r="4" fill="#999"/>
+  <text x="1034" y="380" class="ts">HbA1c — due 2027-06</text>
+  <text x="1424" y="380" class="ts" text-anchor="end">pending</text>
+
+  <line x1="1016" y1="400" x2="1424" y2="400" class="line"/>
+  <text x="1016" y="422" class="tm">WHAT WE SAID THEN vs NOW</text>
+  <text x="1016" y="444" class="ts">2021-05-14</text>
+  <text x="1108" y="444" class="t">76.2</text>
+  <text x="1180" y="444" class="ts">no statin, LDL 4.1</text>
+  <text x="1016" y="466" class="ts">2026-11-12</text>
+  <text x="1108" y="466" class="t">80.2</text>
+  <text x="1180" y="466" class="ts">statin started 2026-08</text>
+  <text x="1108" y="484" class="ts">+4.0 years in 5 years</text>
+  <text x="1108" y="500" class="ts">+3.6 of it — the statin we recommended in 2021</text>
+
+  <!-- drift chart -->
+  <rect x="1000" y="512" width="440" height="168" rx="6" class="box"/>
+  <text x="1016" y="520" class="tm">DRIFT · FORECAST OVER TIME</text>
+  <g class="dash">
+    <line x1="1016" y1="540" x2="1016" y2="650"/>
+    <line x1="1016" y1="650" x2="1424" y2="650"/>
+  </g>
+  <path d="M1016 636 L1084 632 L1152 630 L1220 618 L1288 600 L1356 574 L1424 556" class="line" stroke="#111" stroke-width="2"/>
+  <path d="M1016 636 L1084 634 L1152 640 L1220 628 L1288 622 L1356 618 L1424 616" class="dash"/>
+  <circle cx="1356" cy="574" r="4" fill="#111"/>
+  <text x="1016" y="668" class="tm">2021</text>
+  <text x="1424" y="668" class="tm" text-anchor="end">2031</text>
+  <text x="1310" y="560" class="ts">with statin</text>
+  <text x="1310" y="632" class="ts">without</text>
+
+  <!-- graph button -->
+  <rect x="1000" y="696" width="440" height="58" rx="6" class="box"/>
+  <text x="1016" y="716" class="tm">SEPARATE VIEW · NOT PART OF THE FLOW</text>
+  <rect x="1016" y="724" width="180" height="22" rx="4" fill="#111"/>
+  <text x="1106" y="739" class="ts" fill="#fff" text-anchor="middle">open graph →</text>
+  <text x="1210" y="739" class="ts">3D inside, opt-in, ~15 MB</text>
+
+</svg>
