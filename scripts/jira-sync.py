@@ -81,6 +81,12 @@ STATUS_HELD = ("blocked", "changes_requested")
 # States that say something a human needs to read, even when the status column does not move.
 COMMENT_STATES = ("running", "review", "blocked", "changes_requested", "done")
 
+# A card that has been archived is out of the flow: nothing is written for it, and — the reason this
+# is a constant rather than an `if` in one loop — it does not get to claim an issue either. Two
+# decomposer cards left behind by a mistake still named SCRUM-41, and their lingering claim silenced
+# the real card's sync for as long as they sat in the table.
+ARCHIVED = "archived"
+
 STEP_ASSIGN = "assign"
 STEP_TRANSITION = "transition"
 STEP_COMMENT = "comment"
@@ -518,6 +524,8 @@ def run(apply: bool, strict: bool, cards: Iterable[dict], detail_of: Callable[[s
     claims: dict[str, list[str]] = {}
     for card in cards:
         card_id = str(card.get("id"))
+        if str(card.get("status")) == ARCHIVED:
+            continue  # an archived card is out of the flow: it neither claims an issue nor writes one
         try:
             details[card_id] = detail_of(card_id)
         except StepFailed as exc:
@@ -541,6 +549,9 @@ def run(apply: bool, strict: bool, cards: Iterable[dict], detail_of: Callable[[s
     for card in cards:
         card_id = str(card.get("id"))
         card_state = str(card.get("status"))
+        if card_state == ARCHIVED:
+            log(f"  {card_id} {card_state:<9} — archived, skipped")
+            continue
         detail = details.get(card_id)
         if detail is None:
             continue  # unreadable card, already counted

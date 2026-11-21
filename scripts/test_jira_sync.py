@@ -207,6 +207,16 @@ class TestOneIssueOneCard(unittest.TestCase):
         self.assertEqual(client.calls, [])
         self.assertEqual(code, 1)
 
+    def test_an_archived_card_does_not_stop_the_live_card(self):
+        # Two archived decomposer cards once named SCRUM-41 and silenced the real card's sync:
+        # a card out of the flow must not claim an issue.
+        code, client = self._run([
+            ("t_gone", "archived", detail("archived", "mex", body="Task: SCRUM-41")),
+            ("t_live", "running", detail("running", "mex", body="Task: SCRUM-41")),
+        ])
+        self.assertEqual(code, 0)
+        self.assertIn("comment", [call[0] for call in client.calls])
+
     def test_an_ambiguous_card_does_not_stop_the_clean_one(self):
         code, client = self._run([
             ("t_a", "ready", detail("ready", "mex", body="this card covers SCRUM-18 and SCRUM-19")),
