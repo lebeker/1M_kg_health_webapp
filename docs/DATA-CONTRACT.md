@@ -47,27 +47,35 @@ a key the viewer would have filled in anyway.
 
 ## Node kinds
 
-Seven kinds, and no free-form ones. A kind that is not on this list is a modelling error, because the
+Eight kinds, and no free-form ones. Six of them are **events**: a fact in the record that happened on
+a date and came from a document. A kind that is not on this list is a modelling error, because the
 template has a layout for each and nothing for the rest.
 
-| kind | what it is | carries a date? | example |
-|---|---|---|---|
-| `condition` | a diagnosis, confirmed or suspected | onset, resolution | hyperlipidaemia |
-| `observation` | a measured value or a panel | always | lipid panel, TSH |
-| `encounter` | a visit, a hospital stay, a procedure | always | cardiology visit 2021-05-14 |
-| `medication` | a drug and a regimen | start, stop | atorvastatin 20 mg |
-| `summary` | a period rolled up: annual or today | the period end | 2025 annual summary |
-| `prediction` | a simulated projection under a condition | target date | LDL < 3.0 by 2028 |
-| `source` | a document the facts came from | document date | discharge note, page 2 |
+| kind | an event? | date | what it is | example |
+|---|---|---|---|---|
+| `condition` | yes | `when`: onset, `to` when resolved | a diagnosis, confirmed or suspected | hyperlipidaemia |
+| `observation` | yes | `when` | a measured value or a panel | lipid panel, TSH |
+| `encounter` | yes | `when` | a visit, an appointment, a hospital stay | cardiology visit 2021-05-14 |
+| `medication` | yes | `when`: start, `to` when stopped | a drug and a regimen | atorvastatin 20 mg |
+| `procedure` | yes | `when`: the day it was performed | something done to the person | coronary angiography 2021-05-15 |
+| `document` | yes | `when`: the date printed on it | the file the facts came from | discharge note, page 2 |
+| `summary` | no | `when`: the period end | a period rolled up: annual or today. Virtual | 2025 annual summary |
+| `prediction` | no | target date, from T18 | a simulated projection under a condition | LDL < 3.0 by 2028 |
 
 Rules:
 
-- A `summary` is virtual. It is not an event somebody recorded; it is a marker the app generates for a
-  year (stamped `01-01` of the following year) or for today. It is stored only once confirmed.
+- **An event cannot exist without a date.** `when` is required per kind by the schema, and the
+  template's event model (`src/events.ts`) refuses to build one without a real calendar date. An
+  undated fact is not an event that can be repaired later: nothing can place it on the timeline.
+- **A fact points at its document.** Every node carries `source`, the id of a `document` node, except
+  the `document` itself: it is the provenance, so it points at none. A fact without a document is a
+  rumour with a colour.
+- A `procedure` is not an `encounter`: an encounter is where the person went, a procedure is what was
+  done to them. A document that records both carries two nodes.
+- A `summary` is virtual. It is not an event somebody recorded; it is a marker the app generates for
+  a year (stamped `01-01` of the following year) or for today. It is stored only once confirmed.
 - A `prediction` never moves the main estimate until its condition is met. When it is met, the
   estimate moves and the history says which prediction moved it.
-- A `source` node is required for every fact that came from a document. A fact without a source is a
-  rumour with a colour.
 
 ## Node fields
 
@@ -75,15 +83,15 @@ Base fields are `kg/1` (`id`, `label`, `kind`, `level`, `size`, `style`, `desc`,
 
 | field | on | required | meaning |
 |---|---|---|---|
-| `when` | `observation`, `encounter`, `medication`, `summary`, `condition` | yes for events | ISO date or interval `{"from": "...", "to": "..."}` |
+| `when` | every event, and `summary` | yes | ISO date or interval `{"from": "...", "to": "..."}`; the date the thing happened, or the day the interval started |
 | `value` | `observation` | yes | number, as a number, not a string |
 | `unit` | `observation` | yes | UCUM code where one exists (`mmol/L`, `mm[Hg]`) |
 | `ref_low`, `ref_high` | `observation` | no | the lab's own reference range; never invented |
 | `flag` | `observation` | no | `low` / `normal` / `high` / `critical`, as the lab printed it |
-| `code` | `observation`, `condition` | no | LOINC for observations, ICD-10 or SNOMED for conditions |
+| `code` | `observation`, `condition`, `procedure` | no | LOINC for observations, ICD-10 or SNOMED for conditions, SNOMED CT / ICD-10-PCS / OPCS-4 for procedures |
 | `status` | `condition`, `medication` | yes | `active`, `resolved`, `suspected`, `stopped` |
 | `confirmed` | any | yes | `true` when a human confirmed it; otherwise `false` and the UI says `not confirmed` |
-| `source` | any | yes | id of a `source` node |
+| `source` | any but `document` | yes | id of a `document` node; a document is the provenance and carries none |
 | `origin` | `condition`, `summary` | no | `doctor` or `generated`; the two never look alike |
 | `confidence` | any | no | `0..1`; shown only when it exists |
 
@@ -100,7 +108,7 @@ The relation is the edge's `label`. The list is closed — a new relation needs 
 | `treated_by` | condition → medication | that condition is treated with this drug |
 | `contradicts` | observation → condition | a later measurement disagrees with the note |
 | `preceded_by` | event → event | the order of two events, when dates alone are ambiguous |
-| `derived_from` | any → source | provenance: this fact came from that document |
+| `derived_from` | any → document | provenance: this fact came from that document |
 | `advised` | encounter → medication, observation | a doctor recommended it |
 | `projected` | prediction → condition, observation | what the prediction is about |
 | `part_of` | observation → observation | a marker inside a panel |
@@ -122,10 +130,15 @@ node.observation.ldl-2026-11     ── when 2026-11-12, value 4.9
 The template derives "state on date D" by taking every event with `when <= D` and every edge whose
 `valid_from <= D < valid_to`. Nothing is stored twice.
 
+A validity window belongs to something that holds between two dates — a condition, a medication, a
+projection. A document is dated (the date printed on it) but was never "in force", so it carries no
+window; the checker refuses one on it.
+
 ## What the template may assume
 
 1. `id` is unique and stable. Never reused for different content.
-2. An event has `when`. A non-event does not need one.
+2. An event has `when`; a `summary` has the date it marks; a `prediction` has a target date only from
+   T18. A non-event needs no date of its own.
 3. Every node has `kind` from the list above and `confirmed` set.
 4. Fields may be missing. **A missing field hides its row; it never breaks the layout.**
 5. The document is read-only for the template. No writes, no mutation, no caching into localStorage.
@@ -138,20 +151,25 @@ draft 2020-12, version in `x-contract-version`), and the checker that reads it i
 in `valid/` must pass, a fixture in `invalid/` must be rejected, and the run exits non-zero when
 either half misbehaves. It needs no network and no `node_modules` — `bun` is the whole install.
 
+The schema is at **2.0.0** since T06: `source` is renamed to `document`, `procedure` became its own
+event, and the six event kinds are the spine of the model. A document written against 1.0.0 is
+migrated by renaming the `source` kind to `document` and giving it the date printed on it.
+
 The document is valid when:
 
-- it matches the schema: the envelope, the seven kinds, the eight relations, the fields as typed
-  (a `value` is a number, a `when` is a real calendar date), and per kind the fields that kind
-  cannot do without (an observation its date, value, unit and source; a condition its onset, status
-  and source; an encounter its date and source);
+- it matches the schema: the envelope, the eight kinds (six of them events), the eight relations, the
+  fields as typed (a `value` is a number, a `when` is a real calendar date), and per kind the fields
+  that kind cannot do without (an observation its date, value, unit and source; a condition its onset,
+  status and source; an encounter and a procedure their date and source; a document the date printed
+  on it);
 - `id` is unique, and every edge's `from` and `to` are nodes in the same document;
-- every node's `source` points at an existing node whose kind is `source` — and a `source` node
-  points at none, because it is the provenance;
+- every node's `source` points at an existing node whose kind is `document` — and a `document` points
+  at none, because it is the provenance;
 - an edge's ends carry the kinds its relation allows (`x-relations` in the schema: `tracks` runs
-  observation → condition, `derived_from` anything → source, and so on);
-- no node but a dated one carries a validity window: `valid_from` / `valid_to` are a relation's
-  device. A stable thing — a document, an organ — has no window, and a dated node states its date
-  in `when`. A window that ends before it starts is rejected on both nodes and edges;
+  observation → condition, `derived_from` anything → document, and so on);
+- no node but one that can be in force carries a validity window: `valid_from` / `valid_to` are a
+  relation's device. A stable thing — a document, an organ — has no window, and an event states its
+  date in `when`. A window that ends before it starts is rejected on both nodes and edges;
 - `meta.profile.sex` and `meta.profile.year_of_birth` exist.
 
 What the schema deliberately does not describe: a stored snapshot. A snapshot is derived, not
