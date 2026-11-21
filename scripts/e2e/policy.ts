@@ -1,9 +1,14 @@
 /**
- * The two refusals a child session is held to, as patterns rather than as instructions.
+ * What a child session is held to, as patterns rather than as instructions.
  *
  * A rule in a prompt is a request: a model can ignore it, and the run then reports success on a
  * machine it rummaged through. These are the checks that make the request true — every tool call
- * the clean-room agent makes is scanned after the fact, and one hit is a failed run, not a note.
+ * a child makes is scanned after the fact, and one hit is a failed run, not a note.
+ *
+ * `CAPTURE_TOOLS` is the third one, and it is about scope rather than about the machine. The
+ * capture session exists to call three tools; its brief says so, and until this allowlist existed
+ * the saying was the only thing holding it. A session granted a toolset is a session that can use
+ * all of it, so the documented scope is checked against the calls that actually happened.
  *
  * `HOST_APP` is owner policy: bots do not launch, attach to or control desktop applications, so a
  * child that names a browser binary, `osascript`, `open -a`, a remote-debugging port, Playwright or
@@ -70,4 +75,20 @@ export function hostAppCalls(calls: ToolCall[]): string[] {
 
 export function outsideRoomCalls(calls: ToolCall[]): string[] {
   return offendingCalls(calls, OUTSIDE_ROOM_PATTERNS)
+}
+
+/**
+ * The capture session's whole surface: the three tools its brief names, and nothing else.
+ *
+ * "Is a `browser_*` tool" is not the line. Hermes's browser toolset also carries `browser_exec`,
+ * which runs arbitrary code on the host, and being named `browser_` does not make that a
+ * photograph. So the check is an allowlist of the calls that produce this run's evidence.
+ */
+export const CAPTURE_TOOLS = ['browser_navigate', 'browser_console', 'browser_vision'] as const
+
+/** Calls the capture session made that are outside its brief, in the harness's own words. */
+export function captureScopeViolations(calls: ToolCall[]): string[] {
+  return calls
+    .filter((call) => !(CAPTURE_TOOLS as readonly string[]).includes(call.name))
+    .map((call) => `${call.name}: the capture session may only use ${CAPTURE_TOOLS.join(', ')}`)
 }

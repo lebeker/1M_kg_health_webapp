@@ -188,9 +188,13 @@ export async function capturePages(options: CaptureOptions): Promise<CaptureRun>
     home,
     work,
     prompt: capturePrompt(options.pages),
-    // Hermes only offers the browser toolset to a session that also has `terminal` (the
-    // browser driver runs as a child process). The capture session is told not to use it.
-    toolsets: ['browser', 'terminal'],
+    // `browser` alone, deliberately. Hermes builds the browser toolset from its `browser_*`
+    // tools and offers it when it can find the `agent-browser` CLI (put on this session's PATH
+    // above); it does not need `terminal` for that. Granting `terminal` would hand a host shell
+    // to a session whose only documented job is three browser calls — and it would keep
+    // `browser_exec`, the toolset's arbitrary-code tool, in the surface. `run.ts` checks that
+    // every call this session made is one of the three, so the scope cannot drift silently.
+    toolsets: ['browser'],
     env: browserEnv([bin]),
     maxTurns: options.maxTurns ?? 40,
     timeoutMs: options.timeoutMs ?? 8 * 60_000,

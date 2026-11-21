@@ -120,8 +120,9 @@ public. Anything else tests the old product and proves nothing.
 
 **Show it and close the loop.** The page is opened by Hermes's own `browser_*` tools in a
 narrowly scoped capture session — headless, throwaway profile, `use_real_profile: false`, no
-`computer_use`, and no browser binary started by the harness (owner policy: bots do not launch
-or control desktop applications). That session opens the page the agent rendered, waits for
+`computer_use`, pinned to the `browser` toolset alone, and no browser binary started by the
+harness (owner policy: bots do not launch or control desktop applications). That session opens
+the page the agent rendered, waits for
 the first render, reads the page title, the `N nodes · M edges` header, the visible text and a
 sha256 of the live DOM, answers the card's `expect` in the page itself, and takes the
 screenshot. All of it is written to `~/.hermes/e2e/<card>-<timestamp>/` next to the agent's

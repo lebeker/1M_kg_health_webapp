@@ -33,7 +33,7 @@ import { findArtifacts, keepRoomCopy, prepareCleanRoom, runAgent } from './clean
 import type { ToolCall } from './hermes'
 import { inject } from './inject'
 import { worktreeState } from './git-state'
-import { hostAppCalls, outsideRoomCalls } from './policy'
+import { captureScopeViolations, hostAppCalls, outsideRoomCalls } from './policy'
 
 type Check = { name: string; ok: boolean; detail: string; hard?: boolean }
 
@@ -172,10 +172,14 @@ function run(command: string, args: string[], cwd: string): { ok: boolean; outpu
  * machine's owner for permission. Both checks live in `policy.ts`, where they are unit tested;
  * this gate is where they are enforced — a child that did either produced evidence the harness
  * did not choose, and the run fails rather than reports it as a note.
+ *
+ * The third check is about scope, not about the machine: the capture session's documented surface
+ * is three tools, and a session is only as narrow as its worst call.
  */
-function policyChecks(sessionCalls: ToolCall[], roomCalls: ToolCall[]): Check[] {
+function policyChecks(sessionCalls: ToolCall[], roomCalls: ToolCall[], captureCalls: ToolCall[]): Check[] {
   const hostApps = hostAppCalls(sessionCalls)
   const escapes = outsideRoomCalls(roomCalls)
+  const outOfScope = captureScopeViolations(captureCalls)
   return [
     {
       name: 'policy.no-host-apps',
@@ -189,6 +193,16 @@ function policyChecks(sessionCalls: ToolCall[], roomCalls: ToolCall[]): Check[] 
         escapes.length === 0
           ? `${roomCalls.length} clean-room tool calls, none searched or read outside the room`
           : escapes.join(' / '),
+    },
+    {
+      name: 'capture.browser-only',
+      ok: outOfScope.length === 0 && captureCalls.length > 0,
+      detail:
+        outOfScope.length > 0
+          ? outOfScope.join(' / ')
+          : captureCalls.length === 0
+            ? 'the capture session made no tool calls, so its scope was never exercised'
+            : `${captureCalls.length} capture calls, all browser_navigate / browser_console / browser_vision`,
     },
   ]
 }
@@ -342,6 +356,8 @@ async function main() {
   const allCalls: ToolCall[] = []
   /** Only the clean-room agent's calls: the room's boundary, not the capture session's file URLs. */
   const roomCalls: ToolCall[] = []
+  /** Only the capture session's calls: its documented scope is three tools, and it is checked. */
+  const captureCalls: ToolCall[] = []
   let captures: PageCapture[] = []
   let document: KgDocument = {}
   let agentLog = join(evidence, 'agent.jsonl')
@@ -391,6 +407,7 @@ async function main() {
 
       const capture = await capturePages({ pages, outDir: evidence })
       allCalls.push(...capture.calls)
+      captureCalls.push(...capture.calls)
       captureLog = capture.logPath
       captures = capture.pages
       writeFileSync(join(evidence, 'capture.tools.json'), `${JSON.stringify(capture.tools, null, 2)}\n`)
@@ -422,7 +439,7 @@ async function main() {
     await room.close()
   }
 
-  checks.push(...policyChecks(allCalls, roomCalls))
+  checks.push(...policyChecks(allCalls, roomCalls, captureCalls))
 
   const failed = checks.filter((check) => !check.ok)
   const report = {

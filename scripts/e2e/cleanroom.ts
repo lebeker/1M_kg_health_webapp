@@ -94,6 +94,16 @@ document before you finish. Then say what you did and where the page is.
 `
 
 /**
+ * Where the app's contract checker lives in the room, relative to the directory the agent works
+ * in. Both the install and the `--keep-room` copy go through this one function: the first
+ * version had each side spell the path out, they disagreed by one directory, and `--keep-room`
+ * kept nothing while the README said it kept the checker.
+ */
+export function checkerDir(work: string): string {
+  return join(work, 'check')
+}
+
+/**
  * The app's own contract checker, in the room.
  *
  * The skill's `validate` knows the base kg/1 shape; this app adds rules of its own (a profile,
@@ -104,7 +114,7 @@ document before you finish. Then say what you did and where the page is.
  * own CI runs, verbatim, and the harness runs the same file afterwards: one checker on both
  * sides of the gate. It carries the shape of a document, never its content.
  */
-function installChecker(worktree: string, room: string) {
+function installChecker(worktree: string, work: string) {
   const files: Array<[string, string]> = [
     ['scripts/validate-kg-fixtures.ts', 'check/validate.ts'],
     ['scripts/lib/kg-contract.ts', 'check/lib/kg-contract.ts'],
@@ -112,7 +122,7 @@ function installChecker(worktree: string, room: string) {
   for (const [from, to] of files) {
     const source = join(worktree, from)
     if (!existsSync(source)) throw new Error(`${source} is missing — the room cannot be given the app's checker`)
-    const destination = join(room, to)
+    const destination = join(checkerDir(work), to.replace(/^check\//, ''))
     mkdirSync(dirname(destination), { recursive: true })
     copyFileSync(source, destination)
   }
@@ -334,7 +344,7 @@ export function findArtifacts(room: CleanRoom): RoomArtifacts | null {
 /** Copy the room's leftovers into the evidence directory before the room is thrown away. */
 export function keepRoomCopy(room: CleanRoom, destination: string) {
   mkdirSync(destination, { recursive: true })
-  const check = join(room.dir, 'check')
+  const check = checkerDir(room.work)
   if (existsSync(check)) cpSync(check, join(destination, 'check'), { recursive: true })
   const storage = join(room.work, 'storage')
   if (existsSync(storage)) cpSync(storage, join(destination, 'storage'), { recursive: true })

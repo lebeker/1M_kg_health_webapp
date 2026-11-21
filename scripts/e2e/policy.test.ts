@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { ROOM_RULES } from './cleanroom'
 import type { ToolCall } from './hermes'
-import { hostAppCalls, outsideRoomCalls } from './policy'
+import { CAPTURE_TOOLS, captureScopeViolations, hostAppCalls, outsideRoomCalls } from './policy'
 
 const call = (name: string, input: Record<string, unknown>): ToolCall => ({ name, input, output: '', isError: false })
 
@@ -67,5 +67,29 @@ describe('the host-application guard still holds', () => {
 
   test('leaves the browser tools alone', () => {
     expect(hostAppCalls([call('browser_navigate', { url: 'file:///tmp/page.html' })])).toEqual([])
+  })
+})
+
+describe('the capture session is only as wide as its brief', () => {
+  test('allows the three tools the brief names', () => {
+    const calls = [
+      call('browser_navigate', { url: 'file:///tmp/page.html' }),
+      call('browser_console', { expression: 'document.title' }),
+      call('browser_vision', { question: 'is the graph drawn?' }),
+    ]
+    expect(captureScopeViolations(calls)).toEqual([])
+    expect(CAPTURE_TOOLS).toEqual(['browser_navigate', 'browser_console', 'browser_vision'])
+  })
+
+  test('fails a host shell or file tool in the capture session', () => {
+    expect(captureScopeViolations([call('terminal', { command: 'ls' })])).toHaveLength(1)
+    expect(captureScopeViolations([call('read_file', { path: 'kg.json' })])).toHaveLength(1)
+  })
+
+  test('does not accept "it starts with browser_" as the boundary', () => {
+    // `browser_exec` runs arbitrary code on the host; being named `browser_` is not a photograph.
+    const violations = captureScopeViolations([call('browser_exec', { code: 'print(1)' })])
+    expect(violations).toHaveLength(1)
+    expect(violations[0]).toContain('browser_exec')
   })
 })

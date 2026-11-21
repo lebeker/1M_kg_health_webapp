@@ -49,11 +49,12 @@ comment with the screenshots attached). Exit 2 = the card declares no user quest
 4. **Asks the question** with one `hermes chat -q` and lets the agent do whatever the skill
    tells it to do. The agent gets `terminal` and `file`; the harness never touches the graph
    while the agent is working.
-5. **Shows it** in a second, narrowly scoped Hermes session: the capture session, whose only
-   tools are `browser_navigate`, `browser_console` and `browser_vision`. It opens the page the
-   agent rendered, waits for the first render, reads the title, the header, the visible text
-   and a sha256 of the live DOM, answers the card's `expect` list in the page itself, and takes
-   the screenshot. See **Why a browser session and not a driver** below.
+5. **Shows it** in a second, narrowly scoped Hermes session: the capture session, pinned to the
+   `browser` toolset, whose only tools it may call are `browser_navigate`, `browser_console` and
+   `browser_vision`. It opens the page the agent rendered, waits for the first render, reads the
+   title, the header, the visible text and a sha256 of the live DOM, answers the card's `expect`
+   list in the page itself, and takes the screenshot. See **Why a browser session and not a
+   driver** below.
 6. **Replays**: the agent's `kg.json` is injected into the branch build
    (`dist/index.html`, the same `#kg-graph` element the skill's `render` rewrites) and captured
    again; then `bun run verify` and the kg/1 contract over the agent's document run in the
@@ -113,11 +114,20 @@ exactly that, and its picture is of a browser the harness chose rather than the 
 
 So the page is opened by Hermes's own `browser_*` tools in a session of their own: headless,
 throwaway profile, `use_real_profile: false`, extension control off, no `computer_use`. The
+session is pinned to the `browser` toolset — not `browser` plus `terminal`: Hermes builds the
+browser toolset from its `browser_*` tools and offers it when it can find the `agent-browser`
+CLI, which the harness puts on that session's `PATH`; it needs no shell for that, and giving it
+one would hand a host shell (and `browser_exec`) to a session whose job is three calls. The
 harness reads the session's `--format stream-json` record and pairs each page with the
 `browser_navigate` / `browser_console` / `browser_vision` calls that produced it. Every child
 session — the clean-room agent too — is scanned afterwards: a tool call that names a browser
 binary, `osascript`, `open -a`, a remote-debugging port, Playwright or Puppeteer fails
 `policy.no-host-apps`, because a child that starts its own browser is not evidence.
+
+The capture session's scope is a check as well, not only a prompt: `capture.browser-only` fails
+the run if it called anything other than those three tools. An allowlist rather than a
+`browser_*` prefix, because the toolset it is offered also carries `browser_exec` (arbitrary code
+on the host), and a tool is not made safe by the first word of its name.
 
 Two consequences a reviewer should know:
 
