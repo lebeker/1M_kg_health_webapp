@@ -56,7 +56,8 @@ Two companions travel with it and never mix:
 
 This repo. A single-file HTML app that reads the inlined document and draws three columns.
 
-**Owns:** layout, widget behaviour, empty states, what is shown when a field is missing.
+**Owns:** layout, widget behaviour, empty states, what is shown when a field is missing, and the
+arithmetic that turns facts into an estimate (`src/rules.ts`).
 **Does not own:** facts, defaults that look like data, editing.
 
 The build inlines the document:
@@ -79,6 +80,20 @@ replaces that text and changes nothing else.
 | `edges` | relation patterns that make it readable |
 | `requires` | what has to be installed before a graph can be built |
 | `tool_notes` | why each requirement exists |
+
+### Estimates
+
+An estimate is a base number plus the deltas of the rules that fire, and every rule carries its own
+citation: `{id, when, delta, source, confidence}` (`src/rules.ts`). `when` is a condition over the
+facts — `age >= 50`, `flag in [high, critical]` — never a date; dates live on nodes. A rule set names
+the scale it adjusts (`score2-10y/1`), so two scales' deltas cannot be added together by accident.
+
+The engine owns the arithmetic and one promise: the same facts and the same rules give the same
+number, bit for bit; a fact that is missing is not a default — the rule does not fire, and the
+estimate says which rules did not fire and why. A rule without a `source` does not load. What counts
+as a risk factor is not the engine's claim to make: it arrives as a reviewed rule file with a
+citation and a confidence, with the scales that use it (T15 SCORE2, T16 Lee index) and the
+explanation (T17).
 
 **Today this file is a byte-for-byte copy of the science app** (`id: "viewer"`, `title: "Research
 field map"`). Fixing it is task T02 in the plan, and until it is fixed every agent that reads this
