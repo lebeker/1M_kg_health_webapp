@@ -1,0 +1,116 @@
+{
+  "schema": "kg/1",
+  "meta": {
+    "title": "Demo — invented records, one person",
+    "demo": true,
+    "birth": "1984-03-01",
+    "life_expectancy": { "male": 74, "female": 80 }
+  },
+  "nodes": [
+    {
+      "id": "lab-2019",
+      "kind": "analysis",
+      "label": "TSH 6.8",
+      "date": "2019-04-12",
+      "organ": "thyroid",
+      "panel": "thyroid",
+      "track": "thyroid",
+      "evidence": 42,
+      "confidence": 60,
+      "delta": -0.4,
+      "values": [{ "name": "TSH", "value": 6.8, "unit": "mIU/l", "ref": [0.4, 4.0] }],
+      "summary": "Thyroid-stimulating hormone above range: the pituitary is pushing a sluggish thyroid. A single reading is not a diagnosis — it needs a free T4 and a repeat in six to eight weeks.",
+      "affects": [
+        { "organ": "thyroid", "how": "under-active: less T3/T4, slower metabolism" },
+        { "organ": "heart", "how": "a slow thyroid lowers heart rate and raises LDL" },
+        { "organ": "nervous system", "how": "fatigue, low mood, poor concentration" }
+      ]
+    },
+    {
+      "id": "lab-2022",
+      "kind": "analysis",
+      "label": "ALT 71",
+      "date": "2022-06-03",
+      "organ": "liver",
+      "panel": "liver",
+      "track": "liver",
+      "evidence": 55,
+      "confidence": 70,
+      "delta": -0.4,
+      "values": [{ "name": "ALT", "value": 71, "unit": "U/l", "ref": [0, 41] }],
+      "summary": "Alanine aminotransferase about 1.7× the upper limit. It points at the liver, not at the muscle, but it says nothing about the cause: fat, alcohol, drugs and viral hepatitis all look like this. An ultrasound and a repeat in three months separate them.",
+      "affects": [
+        { "organ": "liver", "how": "hepatocyte injury; if fat-driven, it can progress to fibrosis" },
+        { "organ": "cardio-vascular", "how": "fatty liver travels with insulin resistance and higher CV risk" }
+      ]
+    },
+    {
+      "id": "bp-2024-10",
+      "kind": "analysis",
+      "label": "Blood pressure 135/90",
+      "date": "2024-10-15",
+      "organ": "heart",
+      "panel": "haemodynamics",
+      "track": "blood-pressure",
+      "evidence": 45,
+      "confidence": 72,
+      "delta": -0.9,
+      "values": [
+        { "name": "Systolic", "value": 135, "unit": "mmHg", "ref": [90, 120] },
+        { "name": "Diastolic", "value": 90, "unit": "mmHg", "ref": [60, 80] },
+        { "name": "Pulse", "value": 78, "unit": "bpm", "ref": [60, 100] }
+      ],
+      "summary": "Monthly average of daily home readings: 135/90. That is stage 1 hypertension — the diastolic is the louder number here. Home averages beat a single office reading, which is why this one is kept as a document rather than a note.",
+      "affects": [
+        { "organ": "heart", "how": "higher afterload: left ventricle thickens, then stiffens" },
+        { "organ": "kidneys", "how": "raised pressure filters harder; nephrons scar silently" },
+        { "organ": "brain", "how": "small-vessel disease: white-matter change, later vascular dementia" },
+        { "organ": "retina", "how": "hypertensive retinopathy — the only place the damage is visible" }
+      ]
+    },
+    {
+      "id": "bp-2026-10",
+      "kind": "analysis",
+      "label": "Blood pressure 150/110",
+      "date": "2026-10-15",
+      "organ": "heart",
+      "panel": "haemodynamics",
+      "track": "blood-pressure",
+      "evidence": 22,
+      "confidence": 75,
+      "delta": -3.2,
+      "values": [
+        { "name": "Systolic", "value": 150, "unit": "mmHg", "ref": [90, 120] },
+        { "name": "Diastolic", "value": 110, "unit": "mmHg", "ref": [60, 80] },
+        { "name": "Pulse", "value": 84, "unit": "bpm", "ref": [60, 100] }
+      ],
+      "summary": "Monthly average of daily home readings: 150/110. Stage 2 hypertension, and 110 diastolic is the part that buys damage — it is the pressure the heart has to push against between beats. Two years after 135/90 this is progression, not a bad day.",
+      "affects": [
+        { "organ": "heart", "how": "concentric hypertrophy and diastolic dysfunction; LVH on echo" },
+        { "organ": "kidneys", "how": "glomerular pressure injury; albumin in the urine is the first sign" },
+        { "organ": "brain", "how": "stroke risk roughly doubles per 20 mmHg systolic" },
+        { "organ": "aorta", "how": "wall stress: aneurysm and dissection risk climb" },
+        { "organ": "retina", "how": "flame haemorrhages and papilloedema at this level" }
+      ]
+    },
+    {
+      "id": "lab-2024",
+      "kind": "analysis",
+      "label": "Glucose 4.94",
+      "date": "2024-11-07",
+      "organ": "pancreas",
+      "panel": "carbohydrate",
+      "track": "glucose",
+      "evidence": 82,
+      "confidence": 75,
+      "delta": 1.2,
+      "values": [{ "name": "Glucose", "value": 4.94, "unit": "mmol/l", "ref": [4.11, 5.89] }],
+      "summary": "Fasting glucose 4.94 mmol/l, mid-range. It says the pancreas is keeping up today; it does not say what happens after a meal. HbA1c is the number that answers that.",
+      "affects": [
+        { "organ": "pancreas", "how": "beta cells are meeting demand — no sign of strain" },
+        { "organ": "cardio-vascular", "how": "normal fasting glucose keeps the metabolic CV risk low" }
+      ]
+    }
+  ],
+  "edges": []
+}

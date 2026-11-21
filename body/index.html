@@ -110,6 +110,8 @@
 #tl .lbl { position:absolute; top:30px; font-size:9px; color:#77777f; transform:translateX(-50%);
            letter-spacing:.04em; }
 #tl .lbl.big { color:#a9a9b4; }
+#tl .empty { position:absolute; left:0; top:12px; color:#6b7c8f; font-size:11px;
+             letter-spacing:.04em; }
 #tl .band { position:absolute; top:8px; height:26px; background:rgba(255,255,255,.03);
             border-left:1px solid #2f2f38; border-right:1px solid #2f2f38; }
 #tlCard { position:fixed; z-index:40; min-width:180px; max-width:320px; background:#141419;
@@ -165,6 +167,7 @@
 
 <div class="bar">
   <b>Body</b>
+  <button id="loadDemo" title="load demo/graph.json — invented records, nothing saved">load demo</button>
 
   <span class="spacer"></span>
   <div class="seg" id="sex">
@@ -2320,65 +2323,15 @@ const KGDATA = (() => {
   try { return JSON.parse(el.textContent); } catch (e) { console.warn("kg-graph: bad JSON", e); return null; }
 })();
 
-/* No graph in the page yet: three documents, so the layer can be seen and argued with. */
-const SAMPLE_ANALYSES = [
-  { id:"lab-2019", kind:"analysis", label:"TSH 6.8", date:"2019-04-12", organ:"thyroid", panel:"thyroid",
-    track:"thyroid", evidence:42, confidence:60, delta:-0.4,
-    values:[{name:"TSH", value:6.8, unit:"mIU/l", ref:[0.4, 4.0]}],
-    summary:"Thyroid-stimulating hormone above range: the pituitary is pushing a sluggish thyroid. " +
-            "A single reading is not a diagnosis — it needs a free T4 and a repeat in six to eight weeks.",
-    affects:[{organ:"thyroid", how:"under-active: less T3/T4, slower metabolism"},
-             {organ:"heart", how:"a slow thyroid lowers heart rate and raises LDL"},
-             {organ:"nervous system", how:"fatigue, low mood, poor concentration"}] },
-  { id:"lab-2022", kind:"analysis", label:"ALT 71", date:"2022-06-03", organ:"liver", panel:"liver",
-    track:"liver", evidence:55, confidence:70, delta:-0.4,
-    values:[{name:"ALT", value:71, unit:"U/l", ref:[0, 41]}],
-    summary:"Alanine aminotransferase about 1.7× the upper limit. It points at the liver, not at " +
-            "the muscle, but it says nothing about the cause: fat, alcohol, drugs and viral " +
-            "hepatitis all look like this. An ultrasound and a repeat in three months separate them.",
-    affects:[{organ:"liver", how:"hepatocyte injury; if fat-driven, it can progress to fibrosis"},
-             {organ:"cardio-vascular", how:"fatty liver travels with insulin resistance and higher CV risk"}] },
-  { id:"bp-2024-10", kind:"analysis", label:"Blood pressure 135/90", date:"2024-10-15", organ:"heart",
-    panel:"haemodynamics", track:"blood-pressure", evidence:45, confidence:72, delta:-0.9,
-    values:[{name:"Systolic", value:135, unit:"mmHg", ref:[90, 120]},
-            {name:"Diastolic", value:90, unit:"mmHg", ref:[60, 80]},
-            {name:"Pulse", value:78, unit:"bpm", ref:[60, 100]}],
-    summary:"Monthly average of daily home readings: 135/90. That is stage 1 hypertension — the " +
-            "diastolic is the louder number here. Home averages beat a single office reading, " +
-            "which is why this one is kept as a document rather than a note.",
-    affects:[{organ:"heart", how:"higher afterload: left ventricle thickens, then stiffens"},
-             {organ:"kidneys", how:"raised pressure filters harder; nephrons scar silently"},
-             {organ:"brain", how:"small-vessel disease: white-matter change, later vascular dementia"},
-             {organ:"retina", how:"hypertensive retinopathy — the only place the damage is visible"}] },
-  { id:"bp-2026-10", kind:"analysis", label:"Blood pressure 150/110", date:"2026-10-15", organ:"heart",
-    panel:"haemodynamics", track:"blood-pressure", evidence:22, confidence:75, delta:-3.2,
-    values:[{name:"Systolic", value:150, unit:"mmHg", ref:[90, 120]},
-            {name:"Diastolic", value:110, unit:"mmHg", ref:[60, 80]},
-            {name:"Pulse", value:84, unit:"bpm", ref:[60, 100]}],
-    summary:"Monthly average of daily home readings: 150/110. Stage 2 hypertension, and 110 diastolic " +
-            "is the part that buys damage — it is the pressure the heart has to push against between " +
-            "beats. Two years after 135/90 this is progression, not a bad day.",
-    affects:[{organ:"heart", how:"concentric hypertrophy and diastolic dysfunction; LVH on echo"},
-             {organ:"kidneys", how:"glomerular pressure injury; albumin in the urine is the first sign"},
-             {organ:"brain", how:"stroke risk roughly doubles per 20 mmHg systolic"},
-             {organ:"aorta", how:"wall stress: aneurysm and dissection risk climb"},
-             {organ:"retina", how:"flame haemorrhages and papilloedema at this level"}] },
-  { id:"lab-2024", kind:"analysis", label:"Glucose 4.94", date:"2024-11-07", organ:"pancreas", panel:"carbohydrate",
-    track:"glucose", evidence:82, confidence:75, delta:1.2,
-    values:[{name:"Glucose", value:4.94, unit:"mmol/l", ref:[4.11, 5.89]}],
-    summary:"Fasting glucose 4.94 mmol/l, mid-range. It says the pancreas is keeping up today; it " +
-            "does not say what happens after a meal. HbA1c is the number that answers that.",
-    affects:[{organ:"pancreas", how:"beta cells are meeting demand — no sign of strain"},
-             {organ:"cardio-vascular", how:"normal fasting glucose keeps the metabolic CV risk low"}] }
-];
+/* The page ships no records of anyone. A document arrives in one of two ways: embedded in the
+   page (`<script id="kg-graph">`, what the render command writes) or fetched from
+   demo/graph.json when the reader asks for the demo. An empty page is a valid page: no profile,
+   no analyses, an empty ruler — never somebody else's labs as the default start.
 
-const TL_META = (KGDATA && KGDATA.meta) || {};
-const BIRTH = new Date(TL_META.birth || "1984-03-01");
-const LE_BY_SEX = TL_META.life_expectancy || { male: 74, female: 80 };
-
-const ANALYSES = (((KGDATA && KGDATA.nodes) || []).filter(n => n.kind === "analysis").length
-  ? KGDATA.nodes.filter(n => n.kind === "analysis")
-  : SAMPLE_ANALYSES).map(n => ({
+   Neither path is user data. Nothing on this page writes to storage, so loading the demo leaves
+   an empty record of the reader's own (the seed of T23). */
+function toAnalyses(nodes) {
+  return (nodes || []).filter(n => n.kind === "analysis").map(n => ({
     id: n.id, label: n.label || n.id, date: n.date || "", organ: n.organ || "",
     panel: n.panel || "", values: n.values || [], summary: n.summary || "",
     affects: n.affects || [], track: n.track || n.id, link: n.link || "",
@@ -2388,6 +2341,53 @@ const ANALYSES = (((KGDATA && KGDATA.nodes) || []).filter(n => n.kind === "analy
     at: n.date ? new Date(n.date) : null,
     node: null, line: null
   })).filter(a => a.at && !isNaN(+a.at));
+}
+
+let TL_META = (KGDATA && KGDATA.meta) || {};
+let BIRTH = TL_META.birth ? new Date(TL_META.birth) : null;
+if (BIRTH && isNaN(+BIRTH)) BIRTH = null;
+let LE_BY_SEX = TL_META.life_expectancy || { male: 74, female: 80 };
+let ANALYSES = toAnalyses(KGDATA && KGDATA.nodes);
+
+/* One document in, one view out: the demo and an embedded graph are the same shape, so the
+   panel, the ruler and the marks do not care which of the two arrived. */
+function applyDocument(doc) {
+  const meta = (doc && doc.meta) || {};
+  const birth = meta.birth ? new Date(meta.birth) : null;
+  TL_META = meta;
+  BIRTH = birth && !isNaN(+birth) ? birth : null;
+  LE_BY_SEX = meta.life_expectancy || { male: 74, female: 80 };
+  ANALYSES = toAnalyses(doc && doc.nodes);
+}
+
+/* The demo is an artifact fetched on demand, not part of the page: a reader who never asks for
+   it never sees it, and the fetch is the only place those records come from. */
+let demoState = "absent";
+async function loadDemo() {
+  if (demoState === "loading" || demoState === "loaded") return;
+  demoState = "loading";
+  const btn = document.getElementById("loadDemo");
+  const foot = document.getElementById("foot");
+  if (btn) { btn.disabled = true; btn.textContent = "loading demo…"; }
+  try {
+    const res = await fetch("demo/graph.json", { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    applyDocument(await res.json());
+    state.analysisHidden.clear();
+    buildLegend();          // the analyses list is part of the legend; a document that arrived is listed
+    buildTimeline();
+    buildAnalyses();
+    paintFade();
+    demoState = "loaded";
+    if (btn) btn.textContent = "demo loaded";
+    if (foot) foot.textContent = "demo · invented records, not a patient history · nothing saved";
+  } catch (error) {
+    demoState = "absent";
+    if (btn) { btn.disabled = false; btn.textContent = "load demo"; }
+    if (foot) foot.textContent = "Could not load demo/graph.json — " + error.message;
+    console.error("demo/graph.json did not load", error);
+  }
+}
 
 /* ---- the projection: a baseline life expectancy, moved by what the documents say */
 function deltaOf(a) {
@@ -2446,6 +2446,17 @@ function buildTimeline() {
   const T = TL.track;
   if (!T) return;
   T.innerHTML = "";
+  if (!BIRTH) {
+    // no document, no profile: an empty ruler rather than a life made up for the reader
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "no records yet — load the demo, or a document of your own";
+    T.appendChild(empty);
+    TL.winFrom = TL.winTo = null;
+    TL.xw0 = TL.xw1 = TL.stepY = 0;
+    TL.endYear = 0;
+    return;
+  }
   const now = new Date();
   const wf = new Date(now.getFullYear() - 2, now.getMonth(), 1);
   const wt = new Date(now.getFullYear() + 2, now.getMonth() + 1, 0);
@@ -2598,6 +2609,19 @@ let analysisRoot = null, analysisNodes = [];
 const NODE_R = 0.055;
 
 function buildAnalyses() {
+  // the demo can arrive after the page has drawn: rebuild the marks, never stack a second set
+  if (analysisRoot) {
+    ANALYSES.forEach(a => {
+      if (!a.line) return;
+      scene.remove(a.line);
+      a.line.geometry.dispose();
+      a.line.material.dispose();
+    });
+    scene.remove(analysisRoot);
+    analysisRoot = null;
+  }
+  analysisNodes.length = 0;
+  ANALYSES.forEach(a => { a.node = null; a.line = null; });
   if (!ANALYSES.length) return;
   analysisRoot = new THREE.Group();
   analysisRoot.name = "analyses";
@@ -2772,6 +2796,9 @@ function tick() {
   controls.update();
   renderer.render(scene, camera);
 }
+const loadDemoBtn = document.getElementById("loadDemo");
+if (loadDemoBtn) loadDemoBtn.onclick = loadDemo;
+
 buildLegend();
 tick();
 boot();
@@ -2792,6 +2819,8 @@ window.__edgeCount = () => (edges ? edges.geometry.attributes.position.count / 2
 window.__nodeCount = () => organNodes.length;
 window.__setSkin = () => layout();   // kept for the test scripts; the shell is always on now
 window.__collapse = () => document.getElementById("collapse").click();
+window.__demoState = () => demoState;          // absent | loading | loaded
+window.__analyses = () => ANALYSES.map(a => a.id);
 </script>
 </body>
 </html>
