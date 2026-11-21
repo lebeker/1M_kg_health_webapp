@@ -24,6 +24,16 @@
   .seg button[data-sex="female"].on { color:#f2a0bf; }
   .seg button[data-sex="male"].on { color:#7fb4f2; }
 
+  /* widget 6, the player: four buttons and the date they are standing on */
+  .player { display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden; }
+  .player button { border:0; border-radius:0; background:transparent; padding:5px 8px; color:#9fb3c6; }
+  .player button + button { border-left:1px solid var(--line); }
+  .player button:hover:enabled { background:#1b2532; color:#fff; }
+  .player button:disabled { color:#47535f; cursor:default; }
+  .player svg { display:block; }
+  .tl-date { min-width:112px; color:var(--mut); font-size:11.5px; letter-spacing:.03em;
+             font-variant-numeric:tabular-nums; white-space:nowrap; }
+
   .legend { position:fixed; left:0; top:48px; bottom:0; width:236px; display:flex; flex-direction:column;
     background:var(--panel); border-top:1px solid var(--line); border-right:1px solid var(--line);
     overflow:hidden; transition:width .18s ease; z-index:2; }
@@ -94,7 +104,7 @@
   .bootnum { color:#5f7183; font-size:11px; margin-top:7px; }
 
 #tl { position:fixed; left:244px; right:14px; top:46px; height:74px; z-index:26;
-      pointer-events:auto; }   /* the strip is a scrubber: it must receive the click */
+      pointer-events:auto; overflow:hidden; }   /* the strip is a scrubber: it must receive the click */
 #tl .track { position:relative; height:44px; pointer-events:none; }
 #tl .base { position:absolute; left:0; right:0; top:26px; height:1px; background:#3a3a44; }
 #tl .tick { position:absolute; top:16px; width:1px; height:11px; background:#3b3b45; pointer-events:auto;
@@ -170,6 +180,13 @@
   <button id="loadDemo" title="load demo/graph.json — invented records, nothing saved">load demo</button>
 
   <span class="spacer"></span>
+  <div class="player" id="tlPlayer" role="group" aria-label="timeline player">
+    <button data-step="start" title="start — first event" aria-label="start"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><rect x="1" y="2" width="1.7" height="8" fill="currentColor"/><path d="M10.5 2.4 L4.2 6 L10.5 9.6 Z" fill="currentColor"/></svg></button>
+    <button data-step="prev" title="previous event" aria-label="previous event"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M9 2.4 L2.7 6 L9 9.6 Z" fill="currentColor"/></svg></button>
+    <button data-step="next" title="next event" aria-label="next event"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M3 2.4 L9.3 6 L3 9.6 Z" fill="currentColor"/></svg></button>
+    <button data-step="end" title="end — last event" aria-label="end"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M1.5 2.4 L7.8 6 L1.5 9.6 Z" fill="currentColor"/><rect x="9.3" y="2" width="1.7" height="8" fill="currentColor"/></svg></button>
+  </div>
+  <span class="tl-date" id="tlDate" title="the date the timeline points at"></span>
   <div class="seg" id="sex">
     <button data-sex="female" title="female" aria-label="female">&#9792;</button>
     <button data-sex="male" class="on" title="male" aria-label="male">&#9794;</button>
@@ -198,6 +215,7 @@
 <script src="lib/d3-octree.min.js"></script>
 <script src="lib/d3-timer.min.js"></script>
 <script src="lib/d3-force-3d.min.js"></script>
+<script src="lib/timeline-step.js"></script>
 <script>
 const LAYERS = [
   { id:"skin",     name:"skin · teeth · nails", color:0xe8c9a0, filesBySex:true,
@@ -2366,13 +2384,13 @@ function toAnalyses(nodes) {
     delta: Number.isFinite(Number(n.delta)) ? Number(n.delta) : null,
     evidence: Math.max(0, Math.min(100, Number(n.evidence ?? 50))),
     confidence: Math.max(0, Math.min(100, Number(n.confidence ?? 50))),
-    at: n.date ? new Date(n.date) : null,
+    at: n.date ? dayOf(n.date) : null,
     node: null, line: null
   })).filter(a => a.at && !isNaN(+a.at));
 }
 
 let TL_META = (KGDATA && KGDATA.meta) || {};
-let BIRTH = TL_META.birth ? new Date(TL_META.birth) : null;
+let BIRTH = TL_META.birth ? dayOf(TL_META.birth) : null;
 if (BIRTH && isNaN(+BIRTH)) BIRTH = null;
 let LE_BY_SEX = TL_META.life_expectancy || { male: 74, female: 80 };
 let ANALYSES = toAnalyses(KGDATA && KGDATA.nodes);
@@ -2381,7 +2399,7 @@ let ANALYSES = toAnalyses(KGDATA && KGDATA.nodes);
    panel, the ruler and the marks do not care which of the two arrived. */
 function applyDocument(doc) {
   const meta = (doc && doc.meta) || {};
-  const birth = meta.birth ? new Date(meta.birth) : null;
+  const birth = meta.birth ? dayOf(meta.birth) : null;
   TL_META = meta;
   BIRTH = birth && !isNaN(+birth) ? birth : null;
   LE_BY_SEX = meta.life_expectancy || { male: 74, female: 80 };
@@ -2462,13 +2480,60 @@ const ageAt = d => (+d - +BIRTH) / (365.25 * 864e5);
 const TL = { track: document.getElementById("tlTrack"), card: document.getElementById("tlCard"),
              winFrom: null, winTo: null, xw0: 0, xw1: 0, stepY: 7, stepM: 9, endYear: 0 };
 
+/* The ruler is a navigator, not a scroller. A wheel on the strip must not move the date and
+   must not scroll the row: the only inputs are a click on a point and the four player buttons. */
+document.getElementById("tl").addEventListener("wheel", e => { e.preventDefault(); }, { passive: false });
+
 function monthDiff(a, b) { return (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()); }
+/* A record's date is a calendar day, not an instant: "2019-04-12" read as UTC midnight is a
+   different day either side of Greenwich, and the ruler would then mark a tick one day off.
+   Everything the timeline dates is parsed and printed in the reader's own calendar. */
+function dayOf(value) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  return new Date(value);
+}
+function iso(d) { return new Date(+d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
+/* a label at either end of the row would be half outside the strip and clipped: keep the text on it */
+function labelX(x, width) { return Math.max(16, Math.min(width - 16, x)); }
 function xOf(d) {
   if (+d < +TL.winFrom) return (+d - +BIRTH) / (365.25 * 864e5) * TL.stepY;
   if (+d <= +TL.winTo) return TL.xw0 + monthDiff(TL.winFrom, d) * TL.stepM;
   return TL.xw1 + (+d - +TL.winTo) / (365.25 * 864e5) * TL.stepY;
 }
-function iso(d) { return d.toISOString().slice(0, 10); }
+
+/* One way to move the timeline: everything that selects a date goes through here, so the
+   projection, the marker, the readout and the ruler cannot disagree about which day it is. */
+function selectDate(d) {
+  if (!d || isNaN(+d)) return;
+  state.date = iso(d);
+  paintFade();
+  buildTimeline();          // ends in refreshPick: the marker and the readout follow the date
+}
+
+/* The player (widget 6): four buttons that step between events, never between ticks. start and
+   end land on the first and last event; prev and next land on the nearest event on either side of
+   whatever date the timeline is pointing at — a click on the strip, an earlier step, a document. */
+function tlStep(where) {
+  const times = ANALYSES.map(a => +a.at);
+  const from = state.date ? +dayOf(state.date) : NaN;
+  const at = TimelineStep.step(times, from, where);
+  if (at !== null) selectDate(new Date(at));
+}
+document.querySelectorAll("#tlPlayer button").forEach(b => {
+  b.addEventListener("click", () => tlStep(b.dataset.step));
+});
+
+/* the date the player is standing on, and whether it can move at all */
+function tlReadout() {
+  const playable = ANALYSES.length > 0;
+  document.querySelectorAll("#tlPlayer button").forEach(b => { b.disabled = !playable; });
+  const out = document.getElementById("tlDate");
+  if (!out) return;
+  if (!state.date) { out.textContent = playable ? "" : "no records"; return; }
+  const yrs = BIRTH ? Math.floor(ageAt(dayOf(state.date))) : null;
+  out.textContent = state.date + (yrs !== null && yrs >= 0 ? " · " + yrs + " y" : "");
+}
 
 function buildTimeline() {
   const T = TL.track;
@@ -2483,22 +2548,27 @@ function buildTimeline() {
     TL.winFrom = TL.winTo = null;
     TL.xw0 = TL.xw1 = TL.stepY = 0;
     TL.endYear = 0;
+    tlReadout();
     return;
   }
   const now = new Date();
-  const wf = new Date(now.getFullYear() - 2, now.getMonth(), 1);
+  /* ±2 years of months around today, the rest of the ruler in years. If the reader is younger
+     than the window, the window starts at birth: the ruler never draws time before a life. */
+  const wfRaw = new Date(now.getFullYear() - 2, now.getMonth(), 1);
+  const wf = +wfRaw < +BIRTH ? new Date(BIRTH.getFullYear(), BIRTH.getMonth(), 1) : wfRaw;
   const wt = new Date(now.getFullYear() + 2, now.getMonth() + 1, 0);
   const W = Math.max(560, window.innerWidth - 244 - 14);
   const months = monthDiff(wf, wt) + 1;
   TL.winFrom = wf; TL.winTo = wt;
   TL.stepM = Math.max(4, Math.min(12, Math.floor((W * 0.42) / months)));
-  TL.xw0 = monthDiff(BIRTH, wf) * 0;                 // set below from the year run
-  const yearsBefore = (+wf - +BIRTH) / (365.25 * 864e5);
-  const yearsAfter = 100 - ageAt(wt);
+  const yearsBefore = Math.max(0, (+wf - +BIRTH) / (365.25 * 864e5));
+  /* the horizon is 40 years past today, whatever the birth year: a forecast needs a future
+     to sit in, and a ruler that stops at birth+40 would have none for anyone over 40 */
+  TL.endYear = now.getFullYear() + 40;
+  const yearsAfter = Math.max(0, (+new Date(TL.endYear, 0, 1) - +wt) / (365.25 * 864e5));
   TL.stepY = Math.max(3.2, (W - months * TL.stepM) / Math.max(1, yearsBefore + yearsAfter));
   TL.xw0 = yearsBefore * TL.stepY;
   TL.xw1 = TL.xw0 + months * TL.stepM;
-  TL.endYear = Math.max(BIRTH.getFullYear() + 100, now.getFullYear() + 40);
 
   const base = document.createElement("div"); base.className = "base"; T.appendChild(base);
   const band = document.createElement("div"); band.className = "band";
@@ -2518,7 +2588,7 @@ function buildTimeline() {
         if (xOf(new Date(mid)) < x) lo = mid; else hi = mid;
       }
       const d = new Date((lo + hi) / 2); d.setDate(1);
-      state.date = iso(d); paintFade(); refreshPick(); buildTimeline();
+      selectDate(d);
     });
   }
 
@@ -2541,11 +2611,11 @@ function buildTimeline() {
     if (+d > Date.now()) el.style.background = riskColour(annualRisk(ageAt(d)));
     el.addEventListener("mouseenter", e => tlCard(e, d, hits));
     el.addEventListener("mouseleave", () => { TL.card.hidden = true; });
-    el.addEventListener("click", () => { state.date = iso(d); paintFade(); refreshPick(); });
+    el.addEventListener("click", () => { selectDate(d); });
     if (label) {
       const l = document.createElement("div");
       l.className = "lbl" + (big ? " big" : "");
-      l.style.left = xOf(d).toFixed(1) + "px"; l.textContent = label;
+      l.style.left = labelX(xOf(d), T.clientWidth).toFixed(1) + "px"; l.textContent = label;
       T.appendChild(l);
     }
     T.appendChild(el);
@@ -2559,15 +2629,17 @@ function buildTimeline() {
     el.className = "tick" + (y % 5 === 0 ? " y5" : "") + (hits.length ? " has" : "");
     el.style.left = xOf(d).toFixed(1) + "px";
     el._date = d; el._hits = hits;
+    // the future is painted by the risk at that age; the past keeps the grey of a record
+    if (+d > +now) el.style.background = riskColour(annualRisk(ageAt(d)));
     el.addEventListener("mouseenter", e => tlCard(e, d, hits));
     el.addEventListener("mouseleave", () => { TL.card.hidden = true; });
-    el.addEventListener("click", () => { state.date = iso(d); paintFade(); refreshPick(); });
+    el.addEventListener("click", () => { selectDate(d); });
     T.appendChild(el);
     const every = Math.max(5, Math.ceil(26 / Math.max(1, TL.stepY)));   // a label needs ~26 px
     if (y % every === 0 || y === now.getFullYear()) {
       const l = document.createElement("div");
       l.className = "lbl" + (y === now.getFullYear() ? " big" : "");
-      l.style.left = xOf(d).toFixed(1) + "px"; l.textContent = y;
+      l.style.left = labelX(xOf(d), T.clientWidth).toFixed(1) + "px"; l.textContent = y;
       T.appendChild(l);
     }
   }
@@ -2575,15 +2647,6 @@ function buildTimeline() {
     const d = new Date(wf.getFullYear(), wf.getMonth() + i, 1);
     if (+d < +BIRTH) continue;
     tick(d, "m", d.getMonth() === 0 ? String(d.getFullYear()) : null, false);
-  }
-
-  // the future, painted by the risk at that age
-  for (let y = now.getFullYear(); y <= TL.endYear; y++) {
-    const d = new Date(y, 0, 1);
-    if (+d <= +now) continue;
-    const c = riskColour(annualRisk(ageAt(d)));
-    const el = [...T.children].find(e => e._date && +e._date === +d);
-    if (el) el.style.background = c;
   }
 
   const nw = document.createElement("div"); nw.className = "now";
@@ -2595,7 +2658,7 @@ function refreshPick() {
   // the marker sits on the tick nearest the chosen date: a document dated April must light 2019,
   // not vanish because no tick carries that exact day
   if (!state.date) state.date = iso(new Date());
-  const want = Date.parse(state.date);
+  const want = +dayOf(state.date);
   let best = null, bestD = Infinity;
   [...TL.track.children].forEach(el => {
     if (!el._date) { el.classList.remove("pick"); return; }
@@ -2604,6 +2667,7 @@ function refreshPick() {
     el.classList.remove("pick");
   });
   if (best) best.classList.add("pick");
+  tlReadout();            // the date readout and the player's enabled state follow the marker
 }
 
 function tlCard(e, d, hits) {
@@ -2717,7 +2781,7 @@ function anchorFor(a) {
 
 function fadeFor(a) {
   if (!state.date) return 1;
-  const yrs = Math.abs((+new Date(state.date) - +a.at) / (365.25 * 864e5));
+  const yrs = Math.abs((+dayOf(state.date) - +a.at) / (365.25 * 864e5));
   return Math.max(0.07, Math.exp(-yrs / 2));
 }
 
@@ -2849,6 +2913,16 @@ window.__setSkin = () => layout();   // kept for the test scripts; the shell is 
 window.__collapse = () => document.getElementById("collapse").click();
 window.__demoState = () => demoState;          // absent | loading | loaded
 window.__analyses = () => ANALYSES.map(a => a.id);
+window.__tl = () => ({ date: state.date, endYear: TL.endYear,
+                       winFrom: TL.winFrom ? iso(TL.winFrom) : null,
+                       winTo: TL.winTo ? iso(TL.winTo) : null });
+window.__tlStep = where => { tlStep(where); return state.date; };
+window.__tlAt = (clientX) => {          // the strip's own pointer path, for the acceptance run
+  const r = TL.track.getBoundingClientRect();
+  document.getElementById("tl").dispatchEvent(new PointerEvent("pointerdown",
+    { bubbles: true, clientX: r.left + clientX }));
+  return state.date;
+};
 </script>
 </body>
 </html>
