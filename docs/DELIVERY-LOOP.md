@@ -74,34 +74,53 @@ model is not a check. So CI is the deterministic half of the loop, and the evide
 screenshot, a DOM and a `kg.json` in the card's own evidence directory, tied to the commit under
 review — not a green tick.
 
-## 3. Agentic e2e (the part that does not exist yet)
+## 3. Agentic e2e (G3)
 
 Not a unit test and not a screenshot diff: a fresh agent, no memory of the work, is asked to use the
-product and has to be able to show the result.
+product and has to be able to show the result. Built as E01 (SCRUM-41):
+
+```sh
+bun run e2e --card t_0042bfe2      # exit 0 = the card's claim was visible, 1 = it was not, 2 = no prompt
+```
+
+`scripts/e2e/README.md` is the manual. The four parts that decide whether this is a real gate:
 
 **Clean room.** A throwaway directory with the `kg` skill installed and *nothing else* — no repo
 checkout, no prior conversation, no fixture files. The agent's context is one prompt and the tools
-that skill gives it.
+that skill gives it. The harness gives the child a private `HERMES_HOME` (one skill, one config file,
+no memory), strips the board and session environment, and starts its shell in the room; the only
+thing shared with the machine is the model endpoint.
 
-**Prompt.** Derived from the card, not generic. If the card renders an analysis, the prompt is "show
-me my last lipid panel"; if it changes the risk model, "what is my ten-year risk and where does the
-number come from". The agent must *ask* the question, not be handed an answer.
+**Prompt.** Carried by the card, in an `## e2e` block beside its acceptance — one sentence a user
+would say, plus the text that must be visible when the card is done:
 
-**Load.** Here is the one place this design has to differ from the obvious reading: **the published
-Pages build cannot be used for unmerged work.** Pages serves `main`; a card's work exists on a branch.
-So the clean room loads a **build of the card's worktree** (`bun run build` → `dist/index.html`),
-served from a local port. Same artifact that ships, just not yet public. Anything else tests the old
-product and proves nothing.
+```markdown
+## e2e
+prompt: show me my last lipid panel
+expect: LDL cholesterol, mmol/L
+```
 
-**Show it.** Headless browser against that build; screenshot and the DOM of the state the prompt
-asked for become the evidence. "It rendered" is not evidence unless there is a picture and a value.
+A card about rendering asks for a picture of a record; a card about the risk model asks for
+"what is my ten-year risk and where does the number come from". Nothing is hard-coded in the harness:
+a card with no prompt exits 2 and is blocked at G0 instead of being guessed at.
 
-**Close the loop.** The agent's `kg.json` from the clean room is wired into the branch build and the
-flow is replayed: no crash, no regression in the acceptance scripts, and the specific claim of the
-card is visible. Failures go back to the worker with the screenshot attached.
+**Load.** **The published Pages build cannot be used for unmerged work.** Pages serves `main`; a
+card's work exists on a branch. So the clean room loads a **build of the card's worktree**
+(`bun run build` → `dist/index.html`) and installs it with the skill's own `fetch-app --url` from a
+local mirror of that build. Same artifact that ships, same install path a user takes, just not yet
+public. Anything else tests the old product and proves nothing.
 
-**Cost.** One extra agent run per card. Acceptable for P0/P1 cards; for `S`-sized chores the lead may
-mark a card `e2e: light` (G2 + G3-with-a-single-prompt). The default is full.
+**Show it and close the loop.** Headless Chrome against the page the agent rendered: a screenshot,
+the DOM, the page title, the `N nodes · M edges` header and the card's expected text, all written to
+`.e2e/<card>-<timestamp>/` next to the agent's `kg.json` and its transcript. Then that `kg.json` is
+injected into the branch build and replayed: no crash, `bun run verify` green, the kg/1 contract over
+the agent's own document, the same claim visible. Failures come back to the worker as a card comment
+with the screenshot and the transcript attached, and the command exits non-zero.
+
+**Cost.** One extra agent run per card. Acceptable for P0/P1 cards; for cards smaller than `M` the
+lead may mark a card `e2e: light` — G2 plus the single prompt, no replay. The default is full. CI
+never runs this: a check that needs a model is not a check (see the note above), so G3's evidence is
+the evidence directory, tied to the commit under review.
 
 ## 4. Who does what
 
@@ -132,7 +151,7 @@ State as of 2026-11-21 (bootstrap card SCRUM-40):
 | 1 | `liamijatovich` and `righ22` are repo collaborators with write | **done** — both have `push` |
 | 2 | `main` is protected: PR, 1 approval from another identity, dismiss stale, no self-approval, auto-merge | **done** — `main` reports `"protected": true` and a repo-admin applied the auto-merge setting; `mex` cannot read the protection payload (admin-only), so the settings are recorded in §8 and verified by PR behaviour (`REVIEW_REQUIRED` on an otherwise green PR) |
 | 3 | A required CI check exists (G1/G2) | **done** — `.github/workflows/verify.yml` on `chore/SCRUM-40_delivery-workflow`: `branch-name`, `verify`, `sync-selftest` |
-| 4 | The agentic e2e harness exists (section 3) | **not built** — card E01 (SCRUM-41), and it blocks product cards |
+| 4 | The agentic e2e harness exists (section 3) | **pending a recorded run** — E01 (SCRUM-41) builds it (`bun run e2e --card <id>`, `scripts/e2e/README.md`); the row flips when a full clean-room + replay run is green on the commit that carries it |
 | 5 | Dispatcher running with per-profile concurrency caps | config ready (§7), dispatcher start is the parent's call |
 
 ## 7. Branch names, roles and how many runs a bot may have at once

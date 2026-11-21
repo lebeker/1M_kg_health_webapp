@@ -134,7 +134,7 @@
       "pattern": "condition → medication",
       "label": "treated by",
       "meaning": "that condition is treated with this drug",
-      "name": "treated by",
+      "name": "treated_by",
       "dir": "out",
       "from": [
         "condition"
@@ -162,7 +162,7 @@
       "pattern": "* → source",
       "label": "derived from",
       "meaning": "provenance: this fact came from that document. Required for every fact that came from a document",
-      "name": "derived from",
+      "name": "derived_from",
       "dir": "out",
       "style": "dotted",
       "color": "#b0b0b0"
@@ -199,7 +199,7 @@
       "pattern": "observation → observation",
       "label": "part of",
       "meaning": "a marker inside a panel",
-      "name": "part of",
+      "name": "part_of",
       "dir": "out",
       "from": [
         "observation"
@@ -211,6 +211,7 @@
   ],
   "edge_notes": {
     "closed list": "a new relation needs an entry in docs/DATA-CONTRACT.md first, then in this file, then in the engine. Not the other way round.",
+    "label is human, name is machine": "`label` is what a person reads in the catalogue; `name` is the token that goes into an edge's `label` in a document and must be one of the contract's relations (`tracks`, `treated_by`, `derived_from`, `part_of`, …). The skill seeds a graph from `name`, so a space in it makes every graph this app creates non-conformant — `scripts/app-manifest.test.ts` guards exactly that.",
     "temporal edges": "an edge carries valid_from and valid_to when the relation itself is temporary. A relation that was true and is not true now is closed, not deleted."
   },
   "visuals": {
