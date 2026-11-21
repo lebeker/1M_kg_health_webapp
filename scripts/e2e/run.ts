@@ -357,6 +357,7 @@ async function main() {
   const room = await prepareCleanRoom({
     buildPath,
     manifestPath: join(worktree, 'app.json'),
+    worktree,
     skillPath: options.kgSkill,
     commit,
   })

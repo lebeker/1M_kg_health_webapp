@@ -89,7 +89,10 @@ bun run e2e --card t_0042bfe2      # exit 0 = the card's claim was visible, 1 = 
 checkout, no prior conversation, no fixture files. The agent's context is one prompt and the tools
 that skill gives it. The harness gives the child a private `HERMES_HOME` (one skill, one config file,
 no memory), strips the board and session environment, and starts its shell in the room; the only
-thing shared with the machine is the model endpoint.
+thing shared with the machine is the model endpoint. The room also carries the app's own contract
+checker (`check/validate.ts`, the same file the harness runs): the skill's `validate` knows the base
+kg/1 shape, and a document that keeps only that shape is refused by this app, so the rules the
+document is judged by have to be in the room with the agent. Shape, never content.
 
 **Prompt.** Carried by the card, in an `## e2e` block beside its acceptance — one sentence a user
 would say, plus the text that must be visible when the card is done:

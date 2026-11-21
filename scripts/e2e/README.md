@@ -30,6 +30,15 @@ comment with the screenshots attached). Exit 2 = the card declares no user quest
    repo and not inside `~/.hermes` — because an agent that walks up one directory from a room
    inside either of those is out of the clean room. Its `AGENTS.md` says which directories are
    in scope and that desktop applications (browsers included) are not.
+
+   The room also gets the **app's own contract checker** (`check/validate.ts`, verbatim from
+   the worktree, with `check/lib/kg-contract.ts` beside it). The skill's `validate` checks the
+   base kg/1 shape; this app adds rules (a `meta.profile`, a source behind every fact, a date
+   on every event) that only the app's checker states. Without it in the room, an agent can
+   produce a document the skill calls conformant and the app rejects — that happened, 15 issues
+   deep, and the harness was judging the agent on rules it had no way to see. It carries the
+   shape of a document, never its content, and the harness runs the same file afterwards.
+
 4. **Asks the question** with one `hermes chat -q` and lets the agent do whatever the skill
    tells it to do. The agent gets `terminal` and `file`; the harness never touches the graph
    while the agent is working.
@@ -84,7 +93,7 @@ test is blocked, not started. The harness prints the block to add and exits 2.
 | `capture.jsonl`, `capture.prompt.txt`, `capture.tools.json` | the capture session's brief, its record stream and the `browser_*` calls it made |
 | `contract.txt`, `verify.txt` | G1 and G2 output |
 | `report.json` | every check, pass/fail, plus the paths above |
-| `room/` | with `--keep-room`, the clean room as it was left |
+| `room/` | with `--keep-room`, the clean room as it was left — its `storage/`, the app's `check/` and what was installed |
 
 A screenshot is the file `browser_vision` wrote into the capture session's own cache, copied
 here; it is not re-rendered by the harness.

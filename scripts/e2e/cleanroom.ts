@@ -15,6 +15,11 @@
  *    repo (or inside `~/.hermes`) can be escaped by walking up one directory, and an agent
  *    that reads the harness's own capture code is no longer a clean room.
  *
+ * The app's own contract checker comes along (`check/validate.ts`), because the skill's
+ * `validate` only knows the base kg/1 shape and this app is stricter: without the checker in
+ * the room the agent cannot see the rules its document is judged by, and the gate would be
+ * measuring the harness's hindsight rather than the product. Same file, both sides of the gate.
+ *
  * The room's `AGENTS.md` states the working rules: stay inside the room, and no desktop
  * applications — a browser this agent started would not be the managed one, and pictures
  * are taken by the capture session outside, with the `browser_*` tools.
@@ -23,7 +28,7 @@ import { spawn } from 'node:child_process'
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { endpointConfig, runChat, writeHermesHome, type ToolCall } from './hermes'
 
 export type CleanRoom = {
@@ -44,6 +49,8 @@ export type PrepareOptions = {
   buildPath: string
   /** The worktree's `app.json`: what the app says it is. */
   manifestPath: string
+  /** The worktree itself, so the room can be given the app's own contract checker. */
+  worktree: string
   /** The `kg` skill checkout. */
   skillPath: string
   /** Commit the build came from, stamped into the mirror so evidence can name it. */
@@ -60,6 +67,10 @@ installed app, and the empty space to write in.
 
 - The skill is \`../kg\` (also installed as \`skills/kg\` in this home). Its \`scripts/kg.py\`
   is the engine; the app it can render is already in \`assets/\`.
+- The app ships its own contract checker at \`check/validate.ts\`. \`bun check/validate.ts
+  <graph.json>\` prints every rule this app needs a document to keep, and exits 0 only when it
+  keeps all of them. \`kg.py validate\` checks the base kg/1 shape; this app is stricter, and
+  its checker lists the difference. It is the same checker the harness runs afterwards.
 - Anything written for this task belongs under \`./storage/\`.
 
 ## What is out of bounds
@@ -72,8 +83,34 @@ installed app, and the empty space to write in.
 ## The task
 
 The user's question is the single message you were given. Answer it by building the record
-with the skill and rendering it, then say what you did and where the page is.
+with the skill, keeping the app's contract, and rendering it; run the app's checker over the
+document before you finish. Then say what you did and where the page is.
 `
+
+/**
+ * The app's own contract checker, in the room.
+ *
+ * The skill's `validate` knows the base kg/1 shape; this app adds rules of its own (a profile,
+ * a source behind every fact, a date on every event) that only the app's checker states. A
+ * fresh agent that is never handed that checker produces a document the skill calls conformant
+ * and the app refuses — one smoke run did exactly that, 15 issues deep, and no amount of
+ * harness strictness would have let the agent see it. So the room gets the two files the app's
+ * own CI runs, verbatim, and the harness runs the same file afterwards: one checker on both
+ * sides of the gate. It carries the shape of a document, never its content.
+ */
+function installChecker(worktree: string, room: string) {
+  const files: Array<[string, string]> = [
+    ['scripts/validate-kg-fixtures.ts', 'check/validate.ts'],
+    ['scripts/lib/kg-contract.ts', 'check/lib/kg-contract.ts'],
+  ]
+  for (const [from, to] of files) {
+    const source = join(worktree, from)
+    if (!existsSync(source)) throw new Error(`${source} is missing — the room cannot be given the app's checker`)
+    const destination = join(room, to)
+    mkdirSync(dirname(destination), { recursive: true })
+    copyFileSync(source, destination)
+  }
+}
 
 function copySkill(source: string, destination: string, keepApp: string) {
   cpSync(source, destination, {
@@ -175,6 +212,7 @@ export async function prepareCleanRoom(options: PrepareOptions): Promise<CleanRo
   mkdirSync(join(home, 'skills'), { recursive: true })
   copySkill(options.skillPath, skill, appId)
   copySkill(options.skillPath, join(home, 'skills', 'kg'), appId)
+  installChecker(options.worktree, dir)
   writeFileSync(join(work, 'AGENTS.md'), ROOM_RULES)
 
   const mirror = await startMirror(options.buildPath, options.manifestPath, appId)
@@ -286,6 +324,8 @@ export function findArtifacts(room: CleanRoom): RoomArtifacts | null {
 /** Copy the room's leftovers into the evidence directory before the room is thrown away. */
 export function keepRoomCopy(room: CleanRoom, destination: string) {
   mkdirSync(destination, { recursive: true })
+  const check = join(room.dir, 'check')
+  if (existsSync(check)) cpSync(check, join(destination, 'check'), { recursive: true })
   const storage = join(room.work, 'storage')
   if (existsSync(storage)) cpSync(storage, join(destination, 'storage'), { recursive: true })
   const assets = join(room.skill, 'assets')
