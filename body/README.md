@@ -80,10 +80,11 @@ settles. The page, its scripts and the GLBs come over the local HTTP server, so 
 that server's 404 and not a broken page; the harness curls the server first and exits 2 with an
 instruction when it is dead (LIST OF ISSUES 4). Exit 1 means the split is wrong.
 
-It is not part of `bun run verify` yet: on `main` the last check fails. Pressing the button runs
-the split's own frame and then re-selects the set, whose fly-to lands 3.6 units out and leaves five
-of the six systems outside the frustum; `layout()`'s own frame (9 units) still leaves three out.
-That is LIST OF PROBLEMS 2, still open. Wire this into `verify` in the change that fixes the frame.
+It is part of `bun run verify` and of the CI `verify` job. The frame it asserts is `splitFrame()` in
+`index.html`: the six systems and the set are fitted in 3D, aimed at their own centre, so the ball
+of each node stays inside the frustum clear of the rail and the open panel. Framing them as a flat
+box in the body's plane and aiming at z = 0 is what left five of six systems off screen
+(LIST OF PROBLEMS 2).
 
 ## Earlier interface experiment
 

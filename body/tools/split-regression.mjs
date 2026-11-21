@@ -432,7 +432,8 @@ async function main() {
   const stripOutside = snap.nodes.filter(o => !o.inStrip);
   if (layoutOutside.length || stripOutside.length) {
     console.log(`  note: layout()'s own frame leaves ${layoutOutside.length}/${n} outside; ` +
-      `${stripOutside.length}/${n} also sit under the rail or the open panel`);
+      `${stripOutside.length}/${n} sit under the rail or the open panel: ` +
+      stripOutside.map(o => `${o.id} ndc ${o.ndc.map(v => v.toFixed(2)).join(",")}`).join("; "));
   }
 
   if (failures.length) {
