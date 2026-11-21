@@ -8,7 +8,7 @@ bun run e2e --card path/to/card.md    # a card written as a file
 ```
 
 Exit 0 = the card's claim was visible in the product. Exit 1 = it was not (the card gets a
-comment with the screenshot attached). Exit 2 = the card declares no user question.
+comment with the screenshots attached). Exit 2 = the card declares no user question.
 
 ## What it actually does
 
@@ -26,16 +26,22 @@ comment with the screenshot attached). Exit 2 = the card declares no user questi
 
    No repo checkout, no fixtures, no memory, no prior conversation, no board context (the
    child's `HERMES_*` environment is stripped), and its own `HOME`, so it cannot read another
-   profile's memory or skills. The room lives outside the repo (`--out`, default
-   `~/.hermes/e2e`), so `ls ..` from the agent's shell finds evidence, not the product source.
+   profile's memory or skills. The room is built in the system temp directory — not next to the
+   repo and not inside `~/.hermes` — because an agent that walks up one directory from a room
+   inside either of those is out of the clean room. Its `AGENTS.md` says which directories are
+   in scope and that desktop applications (browsers included) are not.
 4. **Asks the question** with one `hermes chat -q` and lets the agent do whatever the skill
-   tells it to do. The harness never touches the graph while the agent is working.
-5. **Shows it**: screenshots the page the agent rendered, and reads the DOM back — page title,
-   `N nodes · M edges`, and the card's expected text. A picture and a value, not "it rendered".
+   tells it to do. The agent gets `terminal` and `file`; the harness never touches the graph
+   while the agent is working.
+5. **Shows it** in a second, narrowly scoped Hermes session: the capture session, whose only
+   tools are `browser_navigate`, `browser_console` and `browser_vision`. It opens the page the
+   agent rendered, waits for the first render, reads the title, the header, the visible text
+   and a sha256 of the live DOM, answers the card's `expect` list in the page itself, and takes
+   the screenshot. See **Why a browser session and not a driver** below.
 6. **Replays**: the agent's `kg.json` is injected into the branch build
-   (`dist/index.html`, the same `#kg-graph` element the skill's `render` rewrites) and the page
-   is captured again; then `bun run verify` and the kg/1 contract over the agent's document run
-   in the worktree. No crash, no regression, same claim visible.
+   (`dist/index.html`, the same `#kg-graph` element the skill's `render` rewrites) and captured
+   again; then `bun run verify` and the kg/1 contract over the agent's document run in the
+   worktree. No crash, no regression, same claim visible.
 
 ## The card contract
 
@@ -51,9 +57,12 @@ expect: LDL cholesterol, mmol/L
   the state-at-date panel asks for a date, a card about the risk model asks for the number and
   where it comes from.
 - `expect` — optional text that must be visible in the page when the card is really done. Each
-  entry is asserted as a case-insensitive substring of the rendered page's text. Without it the
-  harness still checks that the document renders (title, counts, no errors) — but it cannot
-  check the card's own claim, so a card with a UI claim should always have one.
+  entry is matched, case-insensitively, against the page's own `innerText` **inside the page**,
+  and the browser's answer is what the harness asserts — the model never retypes it. The graph
+  itself is drawn on a `<canvas>`, so node labels are not in `innerText`: an `expect` has to be
+  text the DOM carries (the title, the `N nodes · M edges` header, legend entries, a rendered
+  panel). Without `expect` the harness still checks the page renders and is titled, but it
+  cannot check the card's own claim — that check fails, on purpose.
 - `e2e: light` anywhere in the body marks a card smaller than `M`: G2 plus one prompt, no
   replay. Only the lead marks a card light.
 
@@ -62,30 +71,58 @@ test is blocked, not started. The harness prints the block to add and exits 2.
 
 ## The evidence directory
 
-`~/.hermes/e2e/<label>-<card>-<timestamp>/` (or `--out`):
+`~/.hermes/e2e/<label>-<card>-<timestamp>/` (or `--out`, which must be outside the repo):
 
 | file | what it is |
 |---|---|
 | `card.json` | card id, prompt, mode, branch, commit, build sha256, dirty flag |
 | `build.html` | the exact artifact under test |
-| `agent.log` | the fresh agent's whole transcript |
+| `agent.jsonl` | the fresh agent's record stream — every tool call it made |
 | `kg.json` | the document the clean room produced |
-| `cleanroom.png`, `cleanroom.dom.html` | the page the agent rendered, and its DOM |
-| `replay.png`, `replay.dom.html` | the same document in the branch build |
+| `cleanroom.values.json`, `cleanroom.png` | what the browser read from the page the agent rendered, and the screenshot |
+| `replay.values.json`, `replay.png` | the same for the document inside the branch build |
+| `capture.jsonl`, `capture.prompt.txt`, `capture.tools.json` | the capture session's brief, its record stream and the `browser_*` calls it made |
 | `contract.txt`, `verify.txt` | G1 and G2 output |
 | `report.json` | every check, pass/fail, plus the paths above |
 | `room/` | with `--keep-room`, the clean room as it was left |
+
+A screenshot is the file `browser_vision` wrote into the capture session's own cache, copied
+here; it is not re-rendered by the harness.
+
+## Why a browser session and not a driver
+
+Owner policy: bots do not launch, attach to or control desktop applications. A harness that
+starts Chrome — headless or not, CDP or not, from TypeScript, Python or a shell — is doing
+exactly that, and its picture is of a browser the harness chose rather than the managed one.
+
+So the page is opened by Hermes's own `browser_*` tools in a session of their own: headless,
+throwaway profile, `use_real_profile: false`, extension control off, no `computer_use`. The
+harness reads the session's `--format stream-json` record and pairs each page with the
+`browser_navigate` / `browser_console` / `browser_vision` calls that produced it. Every child
+session — the clean-room agent too — is scanned afterwards: a tool call that names a browser
+binary, `osascript`, `open -a`, a remote-debugging port, Playwright or Puppeteer fails
+`policy.no-host-apps`, because a child that starts its own browser is not evidence.
+
+Two consequences a reviewer should know:
+
+- There is no pre-load console-error capture. A page that throws before a listener could be
+  attached is caught structurally instead: `ready` (the app mounted and left its first-frame
+  state), `mounted` (elements under `#root`), `not-empty` (the viewer did not fall back to "no
+  graph yet"), and `bun run verify` for the deterministic side.
+- The capture session is a model like any other. If it stops following its brief, the run goes
+  red with the transcript attached; it is never quietly repaired by the harness.
 
 ## Requirements
 
 - `hermes` on `PATH` or `HERMES_BIN`; Python 3 for the skill; `bun` for the build.
 - The `kg` skill checkout: `$KG_SKILL` or `--kg-skill` (default `../1M_kg_skill`).
-- Chrome or Chromium: `$CHROME_PATH` or a standard install. No npm package is installed; the
-  harness speaks the DevTools protocol over the browser's own websocket.
-- A model endpoint. The clean room gets a private `HERMES_HOME` with one config file and no
-  keys; it points at the local endpoint the machine already serves
-  (`E2E_MODEL`, `E2E_PROVIDER`, `E2E_BASE_URL`; defaults `deepseek-v4.1-flash:cloud` on
-  `http://127.0.0.1:11434/v1`).
+- Hermes's own browser toolset installed (`hermes pm install chromium agent-browser`, which the
+  installer does by default). Both live under `~/.hermes/tools`; the capture session, which has
+  a private home, is handed their paths so it can be offered the `browser_*` tools. Override
+  with `E2E_CHROMIUM` / `E2E_AGENT_BROWSER`.
+- A model endpoint. Both children get a private `HERMES_HOME` with one config file and no keys;
+  it points at the local endpoint the machine already serves (`E2E_MODEL`, `E2E_PROVIDER`,
+  `E2E_BASE_URL`; defaults `deepseek-v4.1-flash:cloud` on `http://127.0.0.1:11434/v1`).
 
 Nothing here runs in `.github/workflows/verify.yml`: a check that needs a model is not a
 deterministic check, and the CI comment says so on purpose. G3 runs locally, or headless on

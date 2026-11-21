@@ -110,12 +110,19 @@ card's work exists on a branch. So the clean room loads a **build of the card's 
 local mirror of that build. Same artifact that ships, same install path a user takes, just not yet
 public. Anything else tests the old product and proves nothing.
 
-**Show it and close the loop.** Headless Chrome against the page the agent rendered: a screenshot,
-the DOM, the page title, the `N nodes · M edges` header and the card's expected text, all written to
-`.e2e/<card>-<timestamp>/` next to the agent's `kg.json` and its transcript. Then that `kg.json` is
-injected into the branch build and replayed: no crash, `bun run verify` green, the kg/1 contract over
-the agent's own document, the same claim visible. Failures come back to the worker as a card comment
-with the screenshot and the transcript attached, and the command exits non-zero.
+**Show it and close the loop.** The page is opened by Hermes's own `browser_*` tools in a
+narrowly scoped capture session — headless, throwaway profile, `use_real_profile: false`, no
+`computer_use`, and no browser binary started by the harness (owner policy: bots do not launch
+or control desktop applications). That session opens the page the agent rendered, waits for
+the first render, reads the page title, the `N nodes · M edges` header, the visible text and a
+sha256 of the live DOM, answers the card's `expect` in the page itself, and takes the
+screenshot. All of it is written to `~/.hermes/e2e/<card>-<timestamp>/` next to the agent's
+`kg.json` and its record stream. Then that `kg.json` is injected into the branch build and
+replayed: no crash, `bun run verify` green, the kg/1 contract over the agent's own document,
+the same claim visible. Every child session's tool calls are scanned afterwards — one that
+starts its own browser, `osascript`, a remote-debugging port or Playwright fails the run — and
+failures come back to the worker as a card comment with the screenshots and the transcripts
+attached, with the command exiting non-zero.
 
 **Cost.** One extra agent run per card. Acceptable for P0/P1 cards; for cards smaller than `M` the
 lead may mark a card `e2e: light` — G2 plus the single prompt, no replay. The default is full. CI

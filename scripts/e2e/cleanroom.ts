@@ -2,7 +2,7 @@
  * The clean room: a throwaway directory that holds the `kg` skill and the app under test,
  * and nothing else. No repo checkout, no fixtures, no memory, no conversation.
  *
- * Two things make it an honest test rather than a stage set:
+ * Three things make it an honest test rather than a stage set:
  *
  *  - The app is installed by the skill's own command (`kg.py fetch-app --url …`) from a
  *    local mirror of the worktree build — the same artifact that ships, the same install
@@ -11,16 +11,24 @@
  *  - The agent gets one sentence and the skill. The only thing the harness shares with the
  *    machine is the model endpoint; the skill catalogue the agent reads says the app is
  *    installed, and where from, and nothing about what the answer should be.
+ *  - It is built in the system temp directory, not next to the evidence: a room inside the
+ *    repo (or inside `~/.hermes`) can be escaped by walking up one directory, and an agent
+ *    that reads the harness's own capture code is no longer a clean room.
+ *
+ * The room's `AGENTS.md` states the working rules: stay inside the room, and no desktop
+ * applications — a browser this agent started would not be the managed one, and pictures
+ * are taken by the capture session outside, with the `browser_*` tools.
  */
-import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
-import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { spawn } from 'node:child_process'
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
-
+import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
+import { endpointConfig, runChat, writeHermesHome, type ToolCall } from './hermes'
 
 export type CleanRoom = {
   dir: string
-  /** Empty directory the agent works in; its graph ends up in `storage/` here. */
+  /** Directory the agent works in; its graph ends up in `storage/` here. */
   work: string
   /** A private HERMES_HOME: one skill, one config, no memory. */
   home: string
@@ -32,8 +40,6 @@ export type CleanRoom = {
 }
 
 export type PrepareOptions = {
-  /** Directory to create the room in (the harness makes a subdirectory). */
-  parent: string
   /** `dist/index.html` of the card's worktree — the artifact under test. */
   buildPath: string
   /** The worktree's `app.json`: what the app says it is. */
@@ -44,7 +50,32 @@ export type PrepareOptions = {
   commit: string
 }
 
-function copySkill(source: string, destination: string) {
+/** The working rules the room starts with. Infrastructure, not part of the user's question. */
+export const ROOM_RULES = `# Working rules for this workspace
+
+This directory is a user's own machine as far as this task is concerned: one skill, one
+installed app, and the empty space to write in.
+
+## Where things live
+
+- The skill is \`../kg\` (also installed as \`skills/kg\` in this home). Its \`scripts/kg.py\`
+  is the engine; the app it can render is already in \`assets/\`.
+- Anything written for this task belongs under \`./storage/\`.
+
+## What is out of bounds
+
+- Directories above this one are not part of this task. Read and write here only.
+- Desktop applications are out of bounds, browsers included: no browser binary, no \`open\`,
+  no AppleScript. Rendering is done with the skill. Pages are photographed after this run,
+  by the harness, with Hermes's own browser tools — this session has none.
+
+## The task
+
+The user's question is the single message you were given. Answer it by building the record
+with the skill and rendering it, then say what you did and where the page is.
+`
+
+function copySkill(source: string, destination: string, keepApp: string) {
   cpSync(source, destination, {
     recursive: true,
     filter: (path) => {
@@ -52,6 +83,18 @@ function copySkill(source: string, destination: string) {
       return name !== '.git' && name !== '__pycache__' && name !== 'node_modules'
     },
   })
+  // The skill ships a template of its own (the research viewer). The room is a user who has
+  // *this* app installed: leaving another template in `assets/` would let the agent render with
+  // the skill's bundled page instead of the build under test — and the screenshot would then be
+  // of the old product, which is the one thing this gate exists to prevent.
+  const assets = join(destination, 'assets')
+  if (!existsSync(assets)) return
+  for (const name of readdirSync(assets)) {
+    const stem = name.replace(/\.(html|app\.json|version|md)$/, '')
+    if (stem === keepApp || name === 'README.md') continue
+    if (!/\.(html|app\.json|version)$/.test(name)) continue
+    rmSync(join(assets, name), { force: true })
+  }
 }
 
 async function startMirror(buildPath: string, manifestPath: string, appId: string): Promise<{ url: string; server: Server }> {
@@ -124,14 +167,15 @@ export async function prepareCleanRoom(options: PrepareOptions): Promise<CleanRo
   const appId = String(manifest.id ?? '')
   if (!appId) throw new Error(`${options.manifestPath} has no id — the harness cannot name the app`)
 
-  const dir = join(options.parent, 'room')
+  const dir = mkdtempSync(join(tmpdir(), 'kg-e2e-room-'))
   const work = join(dir, 'work')
   const home = join(dir, 'home')
   const skill = join(dir, 'kg')
   mkdirSync(work, { recursive: true })
   mkdirSync(join(home, 'skills'), { recursive: true })
-  copySkill(options.skillPath, skill)
-  copySkill(options.skillPath, join(home, 'skills', 'kg'))
+  copySkill(options.skillPath, skill, appId)
+  copySkill(options.skillPath, join(home, 'skills', 'kg'), appId)
+  writeFileSync(join(work, 'AGENTS.md'), ROOM_RULES)
 
   const mirror = await startMirror(options.buildPath, options.manifestPath, appId)
   try {
@@ -153,7 +197,7 @@ export async function prepareCleanRoom(options: PrepareOptions): Promise<CleanRo
     const installed = join(skill, 'assets', `${appId}.html`)
     if (!existsSync(installed)) throw new Error(`fetch-app reported success but ${installed} is missing`)
 
-    writeFileSync(join(home, 'config.yaml'), hermesConfig(work))
+    writeHermesHome(home, endpointConfig(work))
 
     return {
       dir,
@@ -165,6 +209,11 @@ export async function prepareCleanRoom(options: PrepareOptions): Promise<CleanRo
       mirrorUrl: mirror.url,
       close: async () => {
         await new Promise<void>((resolve) => mirror.server.close(() => resolve()))
+        try {
+          rmSync(dir, { recursive: true, force: true })
+        } catch {
+          // the OS will clean up a temp dir
+        }
       },
     }
   } catch (error) {
@@ -173,111 +222,44 @@ export async function prepareCleanRoom(options: PrepareOptions): Promise<CleanRo
   }
 }
 
+export type AgentRun = {
+  code: number
+  seconds: number
+  logPath: string
+  calls: ToolCall[]
+  resultText: string
+  timedOut: boolean
+}
+
 /**
- * The clean room's model endpoint. This is the one shared thing: no memory, no skills, no
- * keys — the local endpoint the machine already serves. Override with E2E_MODEL /
- * E2E_PROVIDER / E2E_BASE_URL.
+ * One prompt, one fresh agent, no follow-up turns from the harness. The agent gets `terminal`
+ * and `file` and nothing else: it builds a record with the skill. Looking at the result is the
+ * capture session's job, so a browser this agent starts is not a tool call to make — it is a
+ * policy violation the harness looks for afterwards.
  */
-function hermesConfig(work: string): string {
-  const model = process.env.E2E_MODEL ?? 'deepseek-v4.1-flash:cloud'
-  const provider = process.env.E2E_PROVIDER ?? 'ollama-launch'
-  const baseUrl = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:11434/v1'
-  return `model:
-  default: ${model}
-  provider: ${provider}
-  base_url: ${baseUrl}
-providers:
-  ${provider}:
-    api: ${baseUrl}
-    default_model: ${model}
-    models:
-      - ${model}
-    name: local
-terminal:
-  cwd: ${work}
-approvals:
-  single_query_mode: approve
-`
-}
-
-/** The child's environment: everything board- or session-related is removed on purpose. */
-function cleanEnv(home: string, work: string): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {}
-  for (const [key, value] of Object.entries(process.env)) {
-    if (key.startsWith('HERMES_KANBAN')) continue
-    if (key.startsWith('HERMES_SESSION')) continue
-    if (key === 'HERMES_HOME' || key === 'HERMES_PROFILE' || key === 'HERMES_TASK_ID') continue
-    // The agent's shell takes its start directory from these; inherited, it would start the
-    // "clean room" inside the repo the harness is running from.
-    if (key === 'PWD' || key === 'OLDPWD' || key === 'CDPATH') continue
-    env[key] = value
-  }
-  env.HERMES_HOME = home
-  // A clean room has its own home too: with the operator's home the agent could read another
-  // profile's memory and skills, which is exactly the prior context this gate exists to exclude.
-  env.HOME = home
-  env.PWD = work
-  return env
-}
-
-export function hermesBinary(): string {
-  if (process.env.HERMES_BIN && existsSync(process.env.HERMES_BIN)) return process.env.HERMES_BIN
-  try {
-    return execFileSync('command', ['-v', 'hermes'], { encoding: 'utf8', shell: '/bin/sh' }).trim()
-  } catch {
-    throw new Error('no hermes binary found — set HERMES_BIN')
-  }
-}
-
-export type AgentRun = { code: number; output: string; seconds: number; logPath: string }
-
-/** One prompt, one fresh agent, no follow-up turns from the harness. */
 export async function runAgent(
   room: CleanRoom,
   prompt: string,
   options: { logPath: string; timeoutMs?: number; maxTurns?: number },
 ): Promise<AgentRun> {
-  const timeoutMs = options.timeoutMs ?? 15 * 60_000
-  const started = Date.now()
-  const args = ['chat', '-q', prompt, '--max-turns', String(options.maxTurns ?? 100), '--source', 'e2e']
-  const child: ChildProcess = spawn(hermesBinary(), args, {
-    cwd: room.work,
-    env: cleanEnv(room.home, room.work),
-    stdio: ['ignore', 'pipe', 'pipe'],
+  const run = await runChat({
+    home: room.home,
+    work: room.work,
+    prompt,
+    toolsets: ['terminal', 'file'],
+    maxTurns: options.maxTurns ?? 200,
+    timeoutMs: options.timeoutMs ?? 15 * 60_000,
+    logPath: options.logPath,
+    source: 'e2e',
   })
-
-  let output = ''
-  const collect = (chunk: Buffer) => {
-    output += chunk.toString()
-    writeFileSync(options.logPath, output)
+  return {
+    code: run.code,
+    seconds: run.seconds,
+    logPath: run.logPath,
+    calls: run.calls,
+    resultText: run.resultText,
+    timedOut: run.timedOut,
   }
-  child.stdout?.on('data', collect)
-  child.stderr?.on('data', collect)
-
-  const code = await new Promise<number>((resolve) => {
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL')
-      output += `\n[harness] killed after ${Math.round(timeoutMs / 1000)}s\n`
-      resolve(124)
-    }, timeoutMs)
-    child.on('exit', (exitCode) => {
-      clearTimeout(timer)
-      resolve(exitCode ?? 1)
-    })
-    child.on('error', () => {
-      clearTimeout(timer)
-      resolve(127)
-    })
-  })
-
-  writeFileSync(options.logPath, output)
-  // The child's own log is the full trace; the piped output is what a human reads.
-  try {
-    copyFileSync(join(room.home, 'logs', 'agent.log'), options.logPath.replace(/\.log$/, '-hermes.log'))
-  } catch {
-    // a run that never started leaves no log
-  }
-  return { code, output, seconds: Math.round((Date.now() - started) / 100) / 10, logPath: options.logPath }
 }
 
 export type RoomArtifacts = { graphPath: string; pagePath: string | null }
