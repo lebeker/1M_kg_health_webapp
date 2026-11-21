@@ -30,6 +30,7 @@ describe('the contract gate', () => {
   // The fixture has to keep failing: if a rule is loosened, this table says which promise broke.
   const mustReject: Array<[string, string]> = [
     ['invalid/dangling-edge.json', 'not a node in this document'],
+    ['invalid/edge-without-end.json', 'edge has no to'],
     ['invalid/duplicate-node-id.json', 'duplicate node id'],
     ['invalid/unknown-kind.json', 'must be one of: condition, observation'],
     ['invalid/event-without-date.json', 'an encounter needs its date'],
@@ -46,6 +47,40 @@ describe('the contract gate', () => {
       const issues = validateKg(read(fixture))
       expect(issues.length).toBeGreaterThan(0)
       expect(issues.map((issue) => issue.message).join(' | ')).toContain(expected)
+    })
+  }
+})
+
+describe('the base kg/1 path', () => {
+  // A research map, not a health document: the renderer needs `nodes[].id` and `edges[].{from,to}`
+  // and nothing else (src/kg.ts), so these are the only edge fields the base pass may insist on.
+  const viewer = (edges: unknown[]): unknown => ({
+    meta: { title: 'a research map', schema: 'kg/1', app: 'viewer' },
+    nodes: [
+      { id: 'pub-1', label: 'A paper', kind: 'publication' },
+      { id: 'res-1', label: 'A researcher', kind: 'researcher', x: 12.5, y: -4 },
+    ],
+    edges,
+  })
+
+  test('an edge with both ends and free-form extras conforms', () => {
+    expect(validateKg(viewer([{ from: 'pub-1', to: 'res-1', label: 'authored by', power: 1 }]))).toEqual([])
+  })
+
+  // The renderer drops an edge that names no end without a word, so the checker is the only thing
+  // that can see it — a document with one must not be reported clean.
+  const missingEnd: Array<[string, Record<string, unknown>, string]> = [
+    ['no to', { from: 'pub-1', label: 'authored by' }, '$.edges[0].to'],
+    ['no from', { to: 'res-1', label: 'authored by' }, '$.edges[0].from'],
+    ['an empty to', { from: 'pub-1', to: '', label: 'authored by' }, '$.edges[0].to'],
+    ['a to that is not a string', { from: 'pub-1', to: 7, label: 'authored by' }, '$.edges[0].to'],
+  ]
+
+  for (const [name, edge, path] of missingEnd) {
+    test(`a base-path edge with ${name} is rejected`, () => {
+      const issues = validateKg(viewer([edge]))
+      expect(issues.map((issue) => issue.path)).toContain(path)
+      expect(issues.map((issue) => issue.message).join(' | ')).toContain('edge has no')
     })
   }
 })

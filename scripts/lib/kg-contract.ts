@@ -180,9 +180,18 @@ function validateBase(doc: Json): Issue[] {
   })
 
   edges?.forEach((edge, index) => {
-    if (!isObject(edge)) issues.push({ path: `$.edges[${index}]`, message: 'edge is not an object' })
-    else if (edge.label !== undefined && typeof edge.label !== 'string') {
-      issues.push({ path: `$.edges[${index}].label`, message: 'label must be a string' })
+    const path = `$.edges[${index}]`
+    if (!isObject(edge)) {
+      issues.push({ path, message: 'edge is not an object' })
+      return
+    }
+    // An edge is two ids and nothing else is promised (src/kg.ts): with no `to` it is not a
+    // relation, and the renderer drops it without a word, so this is the only place that says so.
+    for (const end of ['from', 'to'] as const) {
+      if (!isNonEmptyString(edge[end])) issues.push({ path: `${path}.${end}`, message: `edge has no ${end}` })
+    }
+    if (edge.label !== undefined && typeof edge.label !== 'string') {
+      issues.push({ path: `${path}.label`, message: 'label must be a string' })
     }
   })
 
@@ -212,7 +221,7 @@ function crossReferences(doc: Json, health: boolean): Issue[] {
     const path = `$.edges[${index}]`
     for (const end of ['from', 'to'] as const) {
       const value = edge[end]
-      if (!isNonEmptyString(value)) continue // the base pass or the schema says so already
+      if (!isNonEmptyString(value)) continue // an absent end is reported by validateBase, or by the schema on the health path
       if (!byId.has(value)) {
         issues.push({ path: `${path}.${end}`, message: `edge points at "${value}", which is not a node in this document` })
       }

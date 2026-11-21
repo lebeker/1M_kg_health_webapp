@@ -40,6 +40,11 @@ first, then in the engine, then in the template. Not the other way round.
 **No identity anywhere else.** Not in `nodes`, not in `desc`, not in the template's JavaScript. The
 birth date `1984-03-01` hardcoded in `body/index.html` is a defect, not a default.
 
+`requires` and `colors` are marked required because a document the app writes always carries them.
+The schema does not reject a document without them: the template supplies its own defaults (the
+health kinds ship their hex values), so a hand-written or foreign document is not turned away for
+a key the viewer would have filled in anyway.
+
 ## Node kinds
 
 Seven kinds, and no free-form ones. A kind that is not on this list is a modelling error, because the
@@ -156,5 +161,6 @@ not approved, so the contract covers the snapshot by keeping that derivation wel
 than by inventing a shape for it.
 
 The base `kg/1` shape stays thin: a document whose `meta.app` is not `health-viewer` is checked
-only for an envelope, an id per node and an existing node at both ends of an edge. Any other key is
-carried through untouched.
+only for an envelope, an id per node and, per edge, both ends named and resolving to a node in the
+document — an edge with a missing or empty `from`/`to` is not a relation, and the renderer drops it
+without a word. Any other key is carried through untouched.
