@@ -34,14 +34,27 @@
   .tl-date { min-width:112px; color:var(--mut); font-size:11.5px; letter-spacing:.03em;
              font-variant-numeric:tabular-nums; white-space:nowrap; }
 
-  .legend { position:fixed; left:0; top:48px; bottom:0; width:236px; display:flex; flex-direction:column;
+  /* the left column: the records list (widget 7) on top, the body's layer list under it. One column,
+     one collapse button: the same width the stage's layout maths has always assumed. */
+  #leftCol { position:fixed; left:0; top:120px; bottom:0; width:236px; display:flex; flex-direction:column;
     background:var(--panel); border-top:1px solid var(--line); border-right:1px solid var(--line);
     overflow:hidden; transition:width .18s ease; z-index:2; }
-  .legend header { display:flex; align-items:center; justify-content:space-between; padding:8px 10px;
+  #state { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
+  #leftCol header { display:flex; align-items:center; justify-content:space-between; padding:8px 10px;
     border-bottom:1px solid var(--line); font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--mut); }
-  .legend header .btn { padding:2px 6px; border:1px solid transparent; background:transparent; color:var(--mut); }
-  /* a grid column sizes to its widest row, which pushed the eye buttons out of the panel */
-  .legend .rows { overflow:auto; padding:6px; display:grid; grid-template-columns:minmax(0,1fr); gap:2px; }
+  #leftCol header .btn { padding:2px 6px; border:1px solid transparent; background:transparent; color:var(--mut); }
+  #state .rows { flex:1 1 auto; min-height:0; overflow:auto; padding:4px 6px 10px; }
+  .srow { padding:6px 7px; border-radius:6px; cursor:pointer; border-left:2px solid transparent; }
+  .srow:hover { background:#18202b; }
+  .srow .d { font-size:10px; letter-spacing:.04em; color:var(--mut); }
+  .srow .t { font-size:12.5px; color:#cfe0f0; margin-top:1px; line-height:1.35; }
+  /* widget 8: the selected row is the only marker in the list — a black row, nothing else */
+  .srow.on { background:#05070a; border-left-color:#dfe8f2; }
+  .srow.on .t { color:#fff; }
+  .legend { display:flex; flex-direction:column; flex:0 1 auto; min-height:0; max-height:38%;
+    border-top:1px solid var(--line); overflow:hidden; }
+  .legend .rows { min-height:0; overflow:auto; padding:6px; display:grid;
+    grid-template-columns:minmax(0,1fr); gap:2px; }
   .row { display:flex; align-items:center; gap:8px; padding:5px 6px; border-radius:6px; cursor:pointer; }
   .row:hover { background:#18202b; }
   .row .dot { width:10px; height:10px; border-radius:3px; flex:none; }
@@ -55,10 +68,13 @@
   .row.off .nm, .row.off .cnt { opacity:.38; }
   .row.off .eye { color:#5a6a7a; }
   svg { display:block; }
-  /* collapsed: just the button and a couple of pixels around it */
-  .legend.collapsed { width:28px; }
-  .legend.collapsed .rows, .legend.collapsed header span, .legend.collapsed .eye, .legend.collapsed .cnt { display:none; }
-  .legend.collapsed header { justify-content:center; border-bottom:0; padding:8px 0; }
+  /* collapsed: the whole left column folds to the button, which is how the stage's layout maths
+     (panelL = 28 when collapsed) has always measured it */
+  #leftCol.collapsed { width:28px; }
+  #leftCol.collapsed #state, #leftCol.collapsed .legend .rows { display:none; }
+  #leftCol.collapsed .legend header span { display:none; }
+  #leftCol.collapsed .legend { border-top:0; max-height:none; }
+  #leftCol.collapsed .legend header { justify-content:center; padding:8px 0; border-bottom:0; }
   /* organ tree: the organs row is a folder, every organ is a row of its own */
   .row .chev { width:18px; height:20px; flex:none; display:grid; place-items:center; padding:0;
     border:1px solid transparent; background:transparent; color:var(--mut); font-size:10px; }
@@ -193,13 +209,20 @@
   </div>
 </div>
 
-<aside class="legend" id="legend">
-  <header>
-    <span>layers</span>
-    <button class="btn" id="collapse" title="collapse">◀</button>
-  </header>
-  <div class="rows" id="rows"></div>
-</aside>
+<div id="leftCol">
+  <aside id="state" aria-label="records">
+    <header><span>records</span></header>
+    <div class="rows" id="stateRows"></div>
+  </aside>
+
+  <aside class="legend" id="legend">
+    <header>
+      <span>layers</span>
+      <button class="btn" id="collapse" title="collapse">◀</button>
+    </header>
+    <div class="rows" id="rows"></div>
+  </aside>
+</div>
 
 <div id="tl"><div class="track" id="tlTrack"></div></div>
 <div id="tlCard" hidden></div>
@@ -216,6 +239,7 @@
 <script src="lib/d3-timer.min.js"></script>
 <script src="lib/d3-force-3d.min.js"></script>
 <script src="lib/timeline-step.js"></script>
+<script src="lib/state-list.js"></script>
 <script>
 const LAYERS = [
   { id:"skin",     name:"skin · teeth · nails", color:0xe8c9a0, filesBySex:true,
@@ -242,7 +266,8 @@ const state = {
   treeOpen:false, openGroups:new Set(),
   analysisOpen:true, analysisHidden:new Set(), layersOpen:true,
   edgeOff:new Set(),         // edge types the user has hidden
-  date:null                  // the day the timeline is pointing at: analyses fade with distance
+  date:null,                // the day the timeline is pointing at: analyses fade with distance
+  event:null                // the record the reader picked in the left list, if any
 };
 const EYE_OUT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
 const SHELL_OPACITY = 0.45;
@@ -2342,7 +2367,7 @@ document.querySelectorAll("#sex button").forEach(b => b.onclick = () => {
 });
 document.getElementById("collapse").onclick = e => {
   state.collapsed = !state.collapsed;
-  document.getElementById("legend").classList.toggle("collapsed", state.collapsed);
+  document.getElementById("leftCol").classList.toggle("collapsed", state.collapsed);
   e.currentTarget.textContent = state.collapsed ? "▶" : "◀";
   e.currentTarget.title = state.collapsed ? "expand" : "collapse";
 };
@@ -2394,6 +2419,9 @@ let BIRTH = TL_META.birth ? dayOf(TL_META.birth) : null;
 if (BIRTH && isNaN(+BIRTH)) BIRTH = null;
 let LE_BY_SEX = TL_META.life_expectancy || { male: 74, female: 80 };
 let ANALYSES = toAnalyses(KGDATA && KGDATA.nodes);
+/* every dated record of the document, whatever its kind: the left list reads this, the ruler and
+   the marks keep reading ANALYSES, because a diagnosis has no value to paint a sphere with */
+let DOC_NODES = (KGDATA && KGDATA.nodes) || [];
 
 /* One document in, one view out: the demo and an embedded graph are the same shape, so the
    panel, the ruler and the marks do not care which of the two arrived. */
@@ -2404,6 +2432,7 @@ function applyDocument(doc) {
   BIRTH = birth && !isNaN(+birth) ? birth : null;
   LE_BY_SEX = meta.life_expectancy || { male: 74, female: 80 };
   ANALYSES = toAnalyses(doc && doc.nodes);
+  DOC_NODES = (doc && doc.nodes) || [];
 }
 
 /* The demo is an artifact fetched on demand, not part of the page: a reader who never asks for
@@ -2423,6 +2452,7 @@ async function loadDemo() {
     buildLegend();          // the analyses list is part of the legend; a document that arrived is listed
     buildTimeline();
     buildAnalyses();
+    buildStateList();       // the left list is read from the document, and the today row is remade
     paintFade();
     demoState = "loaded";
     if (btn) btn.textContent = "demo loaded";
@@ -2504,9 +2534,10 @@ function xOf(d) {
 
 /* One way to move the timeline: everything that selects a date goes through here, so the
    projection, the marker, the readout and the ruler cannot disagree about which day it is. */
-function selectDate(d) {
+function selectDate(d, id) {
   if (!d || isNaN(+d)) return;
   state.date = iso(d);
+  state.event = id || null;     // a date picked on the ruler marks no single record, only its day
   paintFade();
   buildTimeline();          // ends in refreshPick: the marker and the readout follow the date
 }
@@ -2668,6 +2699,61 @@ function refreshPick() {
   });
   if (best) best.classList.add("pick");
   tlReadout();            // the date readout and the player's enabled state follow the marker
+  markStateRow();         // the left list marks the record standing on the chosen date
+}
+
+/* ---- the left list: what was known then, one row per record (widget 7)
+   The order, the annual marker and the today row are `StateList`'s rules, not the page's; the page
+   only decides what a row looks like and what a click does. */
+let STATE_ROWS = [];
+
+function buildStateList() {
+  const box = document.getElementById("stateRows");
+  if (!box) return;
+  STATE_ROWS = StateList.rows(DOC_NODES, iso(new Date()));
+  box.innerHTML = "";
+  STATE_ROWS.forEach(row => {
+    const el = document.createElement("div");
+    el.className = "srow";
+    el.dataset.record = row.id;
+    el.dataset.date = row.date;
+    el.dataset.kind = row.kind;
+    const d = document.createElement("div");
+    d.className = "d"; d.textContent = row.date + " · " + row.title;
+    const t = document.createElement("div");
+    t.className = "t"; t.textContent = row.note;
+    el.appendChild(d); el.appendChild(t);
+    el.addEventListener("click", () => {
+      selectDate(dayOf(row.date), row.id);   // the ruler moves to that record's day...
+      centreRow(el);                          // ...and the row stays in the middle of the list
+    });
+    box.appendChild(el);
+  });
+  markStateRow();
+}
+
+/* widget 8: exactly one row is marked. Picking a record marks that record; a date chosen on the
+   ruler marks the record that carries that date. A generated row (today, annual) can be marked
+   too — it is in the list, so the reader can stand on it. */
+function markStateRow() {
+  const box = document.getElementById("stateRows");
+  if (!box) return;
+  let marked = false;
+  [...box.children].forEach(el => {
+    const hit = state.event ? el.dataset.record === state.event
+                            : (!marked && !!state.date && el.dataset.date === state.date);
+    if (hit) marked = true;
+    el.classList.toggle("on", hit);
+  });
+}
+
+/* clicking a row centres it: the list scrolls so the row sits in the middle of the panel, not at
+   its edge. The panel is the only scroll box; the page itself never scrolls. */
+function centreRow(el) {
+  const box = document.getElementById("stateRows");
+  if (!box || !el) return;
+  const b = box.getBoundingClientRect(), r = el.getBoundingClientRect();
+  box.scrollTop += (r.top - b.top) - (b.height - r.height) / 2;
 }
 
 function tlCard(e, d, hits) {
@@ -2892,6 +2978,7 @@ const loadDemoBtn = document.getElementById("loadDemo");
 if (loadDemoBtn) loadDemoBtn.onclick = loadDemo;
 
 buildLegend();
+buildStateList();       // today's summary is made here, at launch, and never stored
 tick();
 boot();
 
@@ -2922,6 +3009,17 @@ window.__tlAt = (clientX) => {          // the strip's own pointer path, for the
   document.getElementById("tl").dispatchEvent(new PointerEvent("pointerdown",
     { bubbles: true, clientX: r.left + clientX }));
   return state.date;
+};
+window.__today = () => iso(new Date());
+window.__records = () => STATE_ROWS.map(r => ({ id: r.id, kind: r.kind, date: r.date,
+                                                 note: r.note, stored: r.stored }));
+window.__selectRecord = id => {           // the row's own click path, for the acceptance run
+  const el = [...document.querySelectorAll("#stateRows .srow")].find(x => x.dataset.record === id);
+  if (!el) return null;
+  el.click();
+  const box = document.getElementById("stateRows");
+  return { date: state.date, marked: el.classList.contains("on"), scrollTop: box.scrollTop,
+           index: [...box.children].indexOf(el), rows: box.children.length };
 };
 </script>
 </body>
