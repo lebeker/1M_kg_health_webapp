@@ -175,6 +175,11 @@ allow two implementations. `mex` takes product cards one at a time.
 | Jira comments | `scripts/jira-sync.py` | running / review / blocked / changes_requested / done, deduped by marker |
 | plan, contract, gates | `docs/PLAN-health-2026-11-12.md`, `docs/DATA-CONTRACT.md`, this file | the owner (lead) |
 
+The card's assignee is the identity that owes the *next action*, and the Jira assignee follows it: while
+a card sits in `review` the issue is assigned to the reviewer, and it moves back with the card if the
+reviewer requests changes. That is deliberate — the ledger answers "who is holding this now", not
+"who wrote it first"; the author is in the PR and in the comments.
+
 A human never edits a status in Jira by hand: if the two disagree, the card is the truth and the sync
 is re-run.
 
