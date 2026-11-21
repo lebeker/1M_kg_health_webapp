@@ -51,12 +51,28 @@ a comment; three consecutive failures block the card for a human.
 | Gate | Question it answers | How it is checked |
 |---|---|---|
 | G0 acceptance | does the card state its own test? | the card body carries the plan's Acceptance text verbatim; no acceptance → card is blocked, not started |
-| G1 contract | does the data obey `kg/1-health`? | `scripts/validate-kg.mjs` over fixtures (T04) — required CI check |
-| G2 unit | does the code do what the card says? | project verify command: `bun run typecheck` + the card's own test |
+| G1 contract | does the data obey `kg/1-health`? | `bun run test:contract` — `docs/DATA-CONTRACT.md` over `tests/fixtures/kg/` (valid must pass, invalid must fail). T04 replaces the checker behind the same command | 
+| G2 unit | does the code do what the card says? | `bun run verify` = lint (`biome lint src scripts`) + `bun run typecheck` + `bun run test` + the contract gate + the branch-name self-test |
 | G3 agentic e2e | does a *user* get the promised outcome? | section 3 |
 | G4 review | did a different identity read it? | PR approval; stale approvals dismissed on new commits |
 | G5 merge | is it on `main`? | auto-merge armed by the author, merged by GitHub when G1–G4 are green |
-| G6 ledger | does Jira say the same thing? | `scripts/jira-sync.py --apply`, then read the issue back |
+| G6 ledger | does Jira say the same thing? | `python3 scripts/jira-sync.py --apply`, which reads every write back |
+
+### What CI runs, and what it must not
+
+`.github/workflows/verify.yml`, required on `main`. The three check names are the contract with branch
+protection, so they do not change without changing the protection rule:
+
+| check | what it proves | why it is here |
+|---|---|---|
+| `branch-name` | the head branch matches `(fix\|feat\|chore)/<JIRA-TICKET>_<desc>` | the same function a worker runs locally (`bun scripts/check-branch-name.ts`); a rule that only lives in CI is discovered after the push |
+| `verify` | lint, types, unit tests, contract fixtures, build | deterministic, no network beyond `bun install`, no model |
+| `sync-selftest` | the Jira sync's mapping, comments and read-back logic (`python3 -m unittest`) | the sync writes to the ledger; a regression there is a lie in Jira, not a red test |
+
+**GitHub never runs an agent.** G3 is local by design (section 3, card E01): a check that needs a
+model is not a check. So CI is the deterministic half of the loop, and the evidence for G3 is a
+screenshot, a DOM and a `kg.json` in the card's own evidence directory, tied to the commit under
+review — not a green tick.
 
 ## 3. Agentic e2e (the part that does not exist yet)
 
@@ -109,12 +125,98 @@ did not author.
 
 ## 6. What must be true before the loop can run
 
-| # | Requirement | State on 2026-11-20 |
-|---|---|---|
-| 1 | `liamijatovich` and `righ22` are repo collaborators with write | **missing** — they cannot push or open a PR |
-| 2 | `main` is protected: PR, 1 approval from another identity, dismiss stale, no self-approval, auto-merge | **missing** — API returns 404, lead holds push not admin |
-| 3 | A required CI check exists (G1/G2) | **missing** — no `.github/workflows` |
-| 4 | The agentic e2e harness exists (section 3) | **missing** — to be built as its own card |
-| 5 | Dispatcher running with per-profile concurrency caps | `hermes kanban dispatch`, not started |
+State as of 2026-11-21 (bootstrap card SCRUM-40):
 
-Until 1 and 2 land, every card sits at `ready` and the loop is a queue with no exit.
+| # | Requirement | State |
+|---|---|---|
+| 1 | `liamijatovich` and `righ22` are repo collaborators with write | **done** — both have `push` |
+| 2 | `main` is protected: PR, 1 approval from another identity, dismiss stale, no self-approval, auto-merge | **pending admin** — `mex` holds `push`, not `admin`; see §8 for the exact command |
+| 3 | A required CI check exists (G1/G2) | **workflow exists** (`.github/workflows/verify.yml`, PR for SCRUM-40); *required* needs #2 |
+| 4 | The agentic e2e harness exists (section 3) | **not built** — card E01 (SCRUM-41), and it blocks product cards |
+| 5 | Dispatcher running with per-profile concurrency caps | config ready (§7), dispatcher start is the parent's call |
+
+## 7. Branch names, roles and how many runs a bot may have at once
+
+**Branch name.** `(fix|feat|chore)/<JIRA-TICKET>_<optional-short-description>`, e.g. `feat/SCRUM-15`
+and `feat/SCRUM-15_schema-validator`. Lower-case words joined by single hyphens, no spaces, ≤40
+characters, no trailing underscore. `main`/`master` are exempt because nobody opens a PR from them.
+
+The rule is a function (`scripts/lib/branch-name.ts`), not a workflow snippet, so it can be checked
+before the push: `bun scripts/check-branch-name.ts`. The same function is the `branch-name` CI check.
+A project-linked card's default branch (`<project-slug>/<task-id>`) does **not** satisfy it, so a card
+that is dispatched as a project worktree must rename its branch to the ticket name before pushing;
+that is the card body's job to state, and the `branch-name` check is what makes it true.
+
+**Who may do what.** Role is a phase of a card, never a property of an identity: any of the three can
+implement one card and review another. What an identity may *not* do is approve its own work — that
+is GitHub's rule, enforced at the platform, not a prompt.
+
+**Concurrency, per identity.** `lia` and `right` each get **one implementation run plus one
+independent review run** — at most one card in `running` at a time, and review work on a *different*
+card. A total cap of two is not enough: it would still allow two implementations. That is
+`kanban.max_in_progress_per_profile: 1` in the dispatcher's config (review runs are dispatched from
+the `review` column and are not implementation runs). `mex` takes product cards one at a time.
+
+**Field ownership.** Two stores, one writer each, so nothing is updated by two places:
+
+| field | owner | written by |
+|---|---|---|
+| card status, assignee, comments, runs | Kanban board `health` | the worker that owns the card; the lead creates and splits |
+| Jira status | `scripts/jira-sync.py` | derived from card status (§ mapping in the script docstring) |
+| Jira assignee | `scripts/jira-sync.py` | derived from card assignee via `scripts/jira-identities.json` |
+| Jira comments | `scripts/jira-sync.py` | running / review / blocked / done, deduped by marker |
+| plan, contract, gates | `docs/PLAN-health-2026-11-12.md`, `docs/DATA-CONTRACT.md`, this file | the owner (lead) |
+
+A human never edits a status in Jira by hand: if the two disagree, the card is the truth and the sync
+is re-run.
+
+## 8. Bootstrap record (SCRUM-40, 2026-11-21)
+
+Done by `mex` on branch `chore/SCRUM-40_delivery-workflow`:
+
+- PRs #1–#4 (the unlanded commits and the three docs/scripts branches) consolidated into one branch
+  and one PR, so the work lands in one reviewed merge instead of four overlapping ones.
+- CI added: lint, typecheck, unit, contract fixtures, branch-name, sync self-test.
+- The Jira sync repaired: assignee mapping, a comment when the status does not move, read-back after
+  every write, and a non-zero exit when a write does not land. Verified against the live project:
+  SCRUM-40 moved to *In Progress* with its assignee read back, SCRUM-41 got a blocked comment while
+  its status stayed *To Do*.
+- The branch-name rule added and tested (15 cases in the CLI, plus unit tests).
+
+**Two operations only a repository admin can perform.** `mex` holds `push`, so both return `404 Not
+Found` (GitHub hides admin-only endpoints from non-admins):
+
+```sh
+# 1. allow auto-merge at the repository level (needed before a bot can arm it)
+gh api -X PATCH repos/lebeker/1M_kg_health_webapp -f allow_auto_merge=true
+
+# 2. protect main: PR required, 1 approval from another identity, stale approvals dismissed,
+#    last pusher cannot approve, the three CI checks required
+gh api -X PUT repos/lebeker/1M_kg_health_webapp/branches/main/protection \
+  -H 'Accept: application/vnd.github+json' --input - <<'JSON'
+{
+  "required_status_checks": {"strict": true, "contexts": ["branch-name", "verify", "sync-selftest"]},
+  "enforce_admins": false,
+  "required_pull_request_reviews": {
+    "dismiss_stale_reviews": true,
+    "require_code_owner_reviews": false,
+    "required_approving_review_count": 1,
+    "require_last_push_approval": true
+  },
+  "restrictions": null,
+  "allow_force_pushes": false,
+  "allow_deletions": false,
+  "required_conversation_resolution": true
+}
+JSON
+```
+
+`require_last_push_approval` is what stops a reviewer pushing a fix and approving it in one move;
+`dismiss_stale_reviews` is what stops an approval covering code it never saw. Neither has a
+substitute in an agent's instructions.
+
+**One operator value still missing.** `scripts/jira-identities.json` has no `account_id` for `lia` or
+`right`, because Jira Cloud refuses the lookup from this token (`Could not find account ID for user:
+<email>`). Until the ids are filled in (Jira profile URL: `…/jira/people/<accountId>`), the sync
+warns and leaves those assignees alone — 18 warnings on the current board. The ids are the whole
+difference between a ledger that says who owns a card and one that does not.
