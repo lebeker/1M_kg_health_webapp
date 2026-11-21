@@ -22,7 +22,7 @@
  *
  * The card's claim is the only thing that decides pass or fail. "It rendered" is not a claim.
  */
-import { execFileSync, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -32,6 +32,7 @@ import { type Card, missingPromptHelp, readCard } from './card'
 import { findArtifacts, keepRoomCopy, prepareCleanRoom, runAgent } from './cleanroom'
 import type { ToolCall } from './hermes'
 import { inject } from './inject'
+import { worktreeState } from './git-state'
 import { hostAppCalls, outsideRoomCalls } from './policy'
 
 type Check = { name: string; ok: boolean; detail: string; hard?: boolean }
@@ -158,10 +159,6 @@ function printHelp() {
 
 function sha256(buffer: Buffer | string): string {
   return createHash('sha256').update(buffer).digest('hex')
-}
-
-function git(worktree: string, args: string[]): string {
-  return execFileSync('git', args, { cwd: worktree, encoding: 'utf8' }).trim()
 }
 
 function run(command: string, args: string[], cwd: string): { ok: boolean; output: string } {
@@ -300,10 +297,8 @@ async function main() {
   }
 
   const worktree = options.worktree
-  const commit = git(worktree, ['rev-parse', 'HEAD'])
-  const dirtyFiles = git(worktree, ['status', 'porcelain']).split('\n').filter(Boolean)
+  const { commit, branch, dirtyFiles } = worktreeState(worktree)
   const dirty = dirtyFiles.length > 0
-  const branch = git(worktree, ['rev-parse', '--abbrev-ref', 'HEAD'])
 
   if (!options.skipBuild) {
     console.log(`build   ${branch} @ ${commit.slice(0, 7)} (bun run build)`)
