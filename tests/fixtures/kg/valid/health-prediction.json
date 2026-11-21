@@ -1,0 +1,83 @@
+{
+  "meta": {
+    "title": "Forecast over a closed relation",
+    "schema": "kg/1",
+    "app": "health-viewer",
+    "requires": { "skills": ["kg"], "plugins": [], "tools": [] },
+    "colors": { "condition": "#c0504d", "observation": "#4f81bd", "prediction": "#e6b422" },
+    "profile": { "sex": "female", "year_of_birth": 1970, "name": null },
+    "timezone": "Europe/Berlin"
+  },
+  "nodes": [
+    {
+      "id": "src-lab-2026-03",
+      "label": "Lab report, endocrinology, 2026-03-04",
+      "kind": "source",
+      "confirmed": true,
+      "link": "sources/lab-2026-03-04.pdf"
+    },
+    {
+      "id": "panel-lipids-2026-03",
+      "label": "Lipid panel, 2026-03-04",
+      "kind": "observation",
+      "when": "2026-03-04",
+      "value": 3.4,
+      "unit": "mmol/L",
+      "ref_high": 5.2,
+      "flag": "normal",
+      "confirmed": true,
+      "source": "src-lab-2026-03"
+    },
+    {
+      "id": "cond-hypercholesterolaemia",
+      "label": "Hypercholesterolaemia",
+      "kind": "condition",
+      "status": "active",
+      "origin": "doctor",
+      "when": { "from": "2021-02-11", "to": null },
+      "confirmed": true,
+      "source": "src-lab-2026-03",
+      "code": "E78.0"
+    },
+    {
+      "id": "med-rosuvastatin",
+      "label": "Rosuvastatin 5 mg",
+      "kind": "medication",
+      "status": "stopped",
+      "when": { "from": "2021-03-02", "to": "2025-11-20" },
+      "confirmed": true,
+      "source": "src-lab-2026-03"
+    },
+    {
+      "id": "pred-ldl-below-3-2031",
+      "label": "LDL below 3.0 by 2031 with a statin",
+      "kind": "prediction",
+      "confidence": 0.55,
+      "confirmed": false,
+      "source": "src-lab-2026-03"
+    },
+    {
+      "id": "obs-ldl-2031-projected",
+      "label": "LDL, projected 2031",
+      "kind": "observation",
+      "when": "2031-03-04",
+      "value": 2.9,
+      "unit": "mmol/L",
+      "confirmed": false,
+      "source": "src-lab-2026-03"
+    }
+  ],
+  "edges": [
+    { "from": "panel-lipids-2026-03", "to": "cond-hypercholesterolaemia", "label": "tracks", "source": "src-lab-2026-03" },
+    {
+      "from": "cond-hypercholesterolaemia",
+      "to": "med-rosuvastatin",
+      "label": "treated_by",
+      "source": "src-lab-2026-03",
+      "valid_from": "2021-03-02",
+      "valid_to": "2025-11-20"
+    },
+    { "from": "pred-ldl-below-3-2031", "to": "obs-ldl-2031-projected", "label": "projected", "confidence": 0.55 },
+    { "from": "obs-ldl-2031-projected", "to": "src-lab-2026-03", "label": "derived_from" }
+  ]
+}
