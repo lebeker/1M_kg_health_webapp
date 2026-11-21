@@ -305,7 +305,8 @@ async function main() {
 
   const worktree = options.worktree
   const commit = git(worktree, ['rev-parse', 'HEAD'])
-  const dirty = git(worktree, ['status', 'porcelain']).length > 0
+  const dirtyFiles = git(worktree, ['status', 'porcelain']).split('\n').filter(Boolean)
+  const dirty = dirtyFiles.length > 0
   const branch = git(worktree, ['rev-parse', '--abbrev-ref', 'HEAD'])
 
   if (!options.skipBuild) {
@@ -336,6 +337,7 @@ async function main() {
     branch,
     commit,
     dirty,
+    dirty_files: dirtyFiles,
     build: { path: join(evidence, 'build.html'), sha256: sha256(buildBytes), bytes: buildBytes.length },
     started_at: new Date().toISOString(),
   }, null, 2)}\n`)
@@ -437,6 +439,7 @@ async function main() {
     branch,
     commit,
     dirty,
+    dirty_files: dirtyFiles,
     evidence,
     browser: { route: 'hermes browser_* tools in a capture session', tools: captures.length > 0 },
     artifacts: {
