@@ -19,6 +19,7 @@ import {
 import { type Absorbed, foldState } from './fold'
 import SigmaView from './SigmaView'
 import DocPanel from './DocPanel'
+import ProfileChip from './ProfileChip'
 import { measureNote, readBudget, watchWork, writeBudget } from './capacity'
 import './styles.css'
 
@@ -102,6 +103,14 @@ const URLISH = /^https?:\/\/\S+$/
 /** A value as a cell: identifiers and URLs resolve, lists join, everything else is text. */
 function renderValue(v: unknown) {
   if (Array.isArray(v)) return v.join(' · ')
+  // A nested object is a value with a shape — an interval date is `{from, to}`. It reads as the
+  // span it is, rather than `[object Object]`, which would be a property the page cannot show and
+  // might as well have dropped.
+  if (v !== null && typeof v === 'object') {
+    const o = v as Record<string, unknown>
+    if (typeof o.from === 'string') return typeof o.to === 'string' ? `${o.from} → ${o.to}` : `${o.from} → now`
+    return JSON.stringify(o)
+  }
   const s = String(v)
   if (DOI.test(s)) {
     return (
@@ -1116,6 +1125,10 @@ export default function App() {
               3D
             </button>
           </div>
+
+          {/* Widget 2, far right: who the record is about. It reads `meta.profile`; the page holds
+              no birth year of its own, and a document without a profile says so. */}
+          <ProfileChip kg={kg} />
         </div>
         </div>
       </header>
