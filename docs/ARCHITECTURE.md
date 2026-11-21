@@ -131,8 +131,8 @@ Not for decoration. Four things only a graph carries at once:
    two tables.
 2. **Temporal structure** — an event between two states is a node with edges into both; a table can
    only say the row exists.
-3. **Provenance chains** — every claim points to a source, and a source points to a document; the
-   graph is the only place where that chain is one object.
+3. **Provenance chains** — every claim points at a document, and the document carries the date printed
+   on it; the graph is the only place where that chain is one object.
 4. **Honest gaps** — a missing edge is visible. A missing column is just a blank cell nobody notices.
 
 If a screen can be drawn from three numbers, draw three numbers. The graph earns its place when a

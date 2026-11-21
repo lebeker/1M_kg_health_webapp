@@ -34,6 +34,9 @@ describe('the contract gate', () => {
     ['invalid/duplicate-node-id.json', 'duplicate node id'],
     ['invalid/unknown-kind.json', 'must be one of: condition, observation'],
     ['invalid/event-without-date.json', 'an encounter needs its date'],
+    ['invalid/procedure-without-date.json', 'a procedure needs the date it was performed'],
+    ['invalid/document-without-date.json', 'a document needs the date printed on it'],
+    ['invalid/document-with-a-source.json', 'a document node is the provenance'],
     ['invalid/edge-without-source.json', 'missing "source"'],
     ['invalid/value-as-string.json', 'must be a number'],
     ['invalid/edge-label-not-in-contract.json', 'must be one of: tracks'],
@@ -99,6 +102,28 @@ describe('the schema is the contract, and it is versioned', () => {
     expect(Object.keys(HEALTH_EDGE_LABELS)).toEqual(edge.properties.label.enum)
   })
 
+  test('every event kind states its date, and the document is the one event without a source', () => {
+    const node = (
+      HEALTH_SCHEMA.$defs as Record<
+        string,
+        { oneOf: Array<{ properties?: Record<string, { const?: string }>; required?: string[] }> }
+      >
+    ).node
+    for (const kind of HEALTH_EVENT_KINDS) {
+      const branch = node.oneOf.find((candidate) => candidate.properties?.kind?.const === kind)
+      expect(branch?.required).toContain('when')
+      if (kind === 'document') expect(branch?.required ?? []).not.toContain('source')
+      else expect(branch?.required ?? []).toContain('source')
+    }
+  })
+
+  test('a summary marker and a prediction are kinds without being events', () => {
+    expect(HEALTH_KINDS).toContain('summary')
+    expect(HEALTH_KINDS).toContain('prediction')
+    expect(HEALTH_EVENT_KINDS).not.toContain('summary')
+    expect(HEALTH_EVENT_KINDS).not.toContain('prediction')
+  })
+
   test('every relation allows the endpoints the checker enforces', () => {
     for (const [label, rule] of Object.entries(HEALTH_EDGE_LABELS)) {
       expect(rule.from.length).toBeGreaterThan(0)
@@ -110,10 +135,18 @@ describe('the schema is the contract, and it is versioned', () => {
     }
   })
 
-  test('an event is a kind whose branch requires a date; a prediction and a source are not', () => {
-    expect([...HEALTH_EVENT_KINDS]).toEqual(['condition', 'observation', 'encounter', 'medication', 'summary'])
+  test('an event is one of the six kinds T06 names; a summary marker and a prediction are not', () => {
+    expect([...HEALTH_EVENT_KINDS]).toEqual([
+      'condition',
+      'observation',
+      'encounter',
+      'medication',
+      'procedure',
+      'document',
+    ])
     expect(TEMPORAL_NODE_KINDS).toContain('prediction')
-    expect(TEMPORAL_NODE_KINDS).not.toContain('source')
+    expect(TEMPORAL_NODE_KINDS).not.toContain('document')
+    expect(TEMPORAL_NODE_KINDS).not.toContain('summary')
   })
 })
 
@@ -126,7 +159,7 @@ describe('rules a card can trip over', () => {
       profile: { sex: 'male', year_of_birth: 1961 },
     },
     nodes: [
-      { id: 'src-1', kind: 'source', label: 'a note', confirmed: true },
+      { id: 'src-1', kind: 'document', when: '2021-05-14', label: 'a note', confirmed: true },
       {
         id: 'obs-1',
         kind: 'observation',
@@ -153,13 +186,13 @@ describe('rules a card can trip over', () => {
     expect(validateKg(doc).map((i) => i.path)).toContain('$.meta.schema')
   })
 
-  test('a source must point at a node whose kind is source', () => {
+  test('a fact must point at a node whose kind is document', () => {
     const doc = health({}) as { nodes: Array<Record<string, unknown>> }
     doc.nodes[1].source = 'obs-1'
-    expect(validateKg(doc).map((i) => i.message).join(' ')).toContain('not a source')
+    expect(validateKg(doc).map((i) => i.message).join(' ')).toContain('not a document')
   })
 
-  test('an edge that names a source must name a source node', () => {
+  test('an edge that names a source must name a document node', () => {
     const doc = health({}) as { edges: Array<Record<string, unknown>> }
     doc.edges[0].source = 'obs-1'
     expect(validateKg(doc).map((i) => i.message).join(' ')).toContain('edge source "obs-1" is a observation node')
@@ -191,10 +224,10 @@ describe('rules a card can trip over', () => {
     expect(validateKg(doc).map((i) => i.path)).toContain('$.nodes[src-1].confirmed')
   })
 
-  test('a source node is the provenance and may not point at one', () => {
+  test('a document node is the provenance and may not point at one', () => {
     const doc = health({}) as { nodes: Array<Record<string, unknown>> }
     doc.nodes[0].source = 'src-1'
-    expect(validateKg(doc).map((i) => i.message).join(' ')).toContain('a source node is the provenance')
+    expect(validateKg(doc).map((i) => i.message).join(' ')).toContain('a document node is the provenance')
   })
 
   test('a dated node may carry a validity window; a stable one may not', () => {

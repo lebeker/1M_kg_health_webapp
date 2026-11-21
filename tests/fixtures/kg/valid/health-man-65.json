@@ -12,7 +12,8 @@
     {
       "id": "src-discharge-2021",
       "label": "Discharge note, cardiology, p.2",
-      "kind": "source",
+      "kind": "document",
+      "when": "2021-05-14",
       "confirmed": true,
       "link": "sources/discharge-2021-05-14.pdf"
     },
@@ -59,6 +60,15 @@
       "source": "src-discharge-2021"
     },
     {
+      "id": "proc-coronary-angiography-2021-05-15",
+      "label": "Coronary angiography",
+      "kind": "procedure",
+      "when": "2021-05-15",
+      "code": "B211",
+      "confirmed": true,
+      "source": "src-discharge-2021"
+    },
+    {
       "id": "sum-2025",
       "label": "2025 annual summary",
       "kind": "summary",
@@ -81,6 +91,7 @@
     { "from": "cond-hyperlipidaemia", "to": "med-atorvastatin", "label": "treated_by", "valid_from": "2026-08-19" },
     { "from": "enc-cardiology-2021-05-14", "to": "med-atorvastatin", "label": "advised" },
     { "from": "pred-ldl-2028", "to": "obs-ldl-2026-11", "label": "projected", "confidence": 0.6 },
-    { "from": "obs-ldl-2026-11", "to": "src-discharge-2021", "label": "derived_from" }
+    { "from": "obs-ldl-2026-11", "to": "src-discharge-2021", "label": "derived_from" },
+    { "from": "proc-coronary-angiography-2021-05-15", "to": "src-discharge-2021", "label": "derived_from" }
   ]
 }
