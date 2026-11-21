@@ -2049,6 +2049,62 @@ function bodyHeadCut() {
   });
 }
 
+/* The split's own frame, fitted in 3D. The six systems stand on a sphere round the set, and the
+   set stands at its ring slot 3.6 units in FRONT of the plane the body is in. A frame measured as
+   a flat box in that plane and aimed at z = 0 therefore puts the nearest systems outside the
+   frustum — that is HANDOVER LIST OF PROBLEMS 2, and it is why five of six systems were off
+   screen. So: aim at the centre of what the split put on screen, then walk back along the view
+   direction until every ball and the set itself are inside the frustum, clear of the rail and
+   the open panel. The body stays where it is, a zoom-out away, as before: a frame that holds it
+   too is a twenty-unit stadium shot and the systems become specks. */
+function splitFrame(elev) {
+  const pts = [];
+  const at = (v, r) => { if (v) pts.push({p: v.clone(), r: r || 0}); };
+  // wantPos, not o.target: target still holds graphRows()' force-solved spot, and the systems
+  // are placed on their own sphere after that — framing the stale one misses the fan
+  organNodes.forEach(o => at(o.node.userData.wantPos || o.node.position, o.node.userData.radius || 0));
+  partNodes.forEach(pn => at(pn.node.userData.wantPos || pn.node.position, pn.node.userData.radius || 0));
+  ANALYSES.forEach(a => { if (a.node && a.node.visible) at(a.node.position, 0.12); });
+  if (organGhost) {
+    const gb = new THREE.Box3().setFromObject(organGhost);
+    if (!gb.isEmpty()) at(gb.getCenter(new THREE.Vector3()), gb.getSize(new THREE.Vector3()).length() / 2);
+  }
+  if (!pts.length) return null;
+
+  const box = new THREE.Box3();
+  pts.forEach(({p}) => box.expandByPoint(p));
+  const centre = box.getCenter(new THREE.Vector3());
+  const dir = new THREE.Vector3(0, elev, 1).normalize();
+
+  const panelL = state.collapsed ? 28 : 236, panelR = state.sel ? 320 : 0;
+  // the strip the scene has to live in, measured out from the middle of the view
+  const limX = 0.98 * Math.max(0.3, Math.min(2 - (2 * panelL) / innerWidth, 1 - (2 * panelR) / innerWidth));
+  const limY = 0.98;
+  const probe = new THREE.PerspectiveCamera(camera.fov, camera.aspect, camera.near, camera.far);
+  const tanH = Math.tan((camera.fov * Math.PI) / 360);
+  const fits = d => {
+    probe.position.copy(centre).addScaledVector(dir, d);
+    probe.lookAt(centre);
+    probe.updateMatrixWorld(true);
+    probe.matrixWorldInverse.copy(probe.matrixWorld).invert();
+    probe.updateProjectionMatrix();
+    return pts.every(({p, r}) => {
+      const depth = -p.clone().applyMatrix4(probe.matrixWorldInverse).z;
+      if (depth - r <= probe.near) return false;
+      const v = p.clone().project(probe);
+      return Math.abs(v.x) + r / (depth * tanH * probe.aspect) <= limX &&
+             Math.abs(v.y) + r / (depth * tanH) <= limY;
+    });
+  };
+  let lo = 0.5, hi = 2;
+  while (!fits(hi) && hi < 400) { lo = hi; hi *= 1.6; }
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (fits(mid)) hi = mid; else lo = mid;
+  }
+  return {centre, dir, d: hi};
+}
+
 function layout() {
   // the ghost's visibility belongs to syncOrgans(); layout only places things
   if (!bodyBox) return;
@@ -2134,50 +2190,25 @@ function layout() {
   }
 
   // what the camera frames: once the organs are split they are the work surface, and fitting the
-  // whole ring plus the fan at once made every organ a speck. Splitting now flies to the fan; the
-  // ring is still there, a zoom-out away
-  let spanW, spanH, cx;
-  if (graph) {
-    // frame the body and the nodes that are out together: the body is the anchor that says what
-    // left it, and framing the tree alone pushes the body behind the panel
-    const c = setCentre();
-    let rad = 0.4;
-    organNodes.forEach(o => {
-      const p = o.target || o.node.position;
-      rad = Math.max(rad, p.distanceTo(c) + organMaxNode * 0.55 + 0.08);
-    });
-    partNodes.forEach(pn => {
-      const p = pn.target || pn.node.position;
-      rad = Math.max(rad, p.distanceTo(c) + PART_NODE_SIZE * 0.9);
-    });
-    let minX = c.x - rad, maxX = c.x + rad, minY = -rad, maxY = rad;
-    if (bodyBox && !bodyBox.isEmpty()) {
-      minX = Math.min(minX, bodyBox.min.x - 0.12); maxX = Math.max(maxX, bodyBox.max.x + 0.12);
-      minY = Math.min(minY, bodyBox.min.y - 0.06); maxY = Math.max(maxY, bodyBox.max.y + 0.06);
-    }
-    spanW = Math.max(0.8, maxX - minX); spanH = Math.max(0.8, maxY - minY); cx = (minX + maxX) / 2;
-  } else {
-    const left = lc - width * 0.30;
-    let right = rc + width * 0.30;
-    if (organsOut) {
-      right = Math.max(right, slot.organs.x + (organSize.x / 2) * 1.2);
-      // the split graph is part of the picture: a camera framed on the body alone leaves half of
-      // it outside the frustum, which is what "where are the organs" looked like
-      organNodes.forEach(o => { right = Math.max(right, o.node.position.x + 0.55); });
-    }
-    spanW = Math.max(width * 1.1, right - left);
-    spanH = 1.8;
-    cx = (left + right) / 2;
+  // whole ring plus the fan at once made every organ a speck. Splitting flies to the fan (see
+  // splitFrame); the ring is still there, a zoom-out away
+  const left = lc - width * 0.30;
+  let right = rc + width * 0.30;
+  if (organsOut) {
+    right = Math.max(right, slot.organs.x + (organSize.x / 2) * 1.2);
+    // the split graph is part of the picture: a camera framed on the body alone leaves half of
+    // it outside the frustum, which is what "where are the organs" looked like
+    organNodes.forEach(o => { right = Math.max(right, o.node.position.x + 0.55); });
   }
+  const spanW = Math.max(width * 1.1, right - left);
+  const spanH = 1.8;
+  const cx = (left + right) / 2;
   // the panel sits over the canvas, so the scene is fitted into the strip to its right instead of
   // being centred on the window (which pushed the leftmost layer behind the panel)
   const panelL = state.collapsed ? 28 : 236, panelR = state.sel ? 320 : 0;
   const visW = Math.max(320, innerWidth - panelL - panelR);
   const grow = innerWidth / visW;
-  let d = fitDistance(spanW * grow, spanH);
-  // a split scene is a body and a handful of nodes: if the fit asks for a stadium-sized camera,
-  // the span is wrong, and the picture the user gets is a tiny frozen blob
-  if (organNodes.length) d = Math.min(d, 9);
+  const d = fitDistance(spanW * grow, spanH);
   const dx = ((panelL + visW / 2) / innerWidth - 0.5) * spanW * grow;
   // once the layers are on the ring the camera has to look slightly down, or a ring seen edge-on
   // is just a pile of overlapping bodies
@@ -2186,34 +2217,29 @@ function layout() {
   // somewhere, must not snap the view back to the overview
   // the selection is not part of this: opening the panel must not move the camera the user has
   // just zoomed
-  /* When organs are split the picture is the body AND the six nodes beside it. Framing it from
-     the layer slots — which know nothing about where the graph solved — left half of it outside
-     the frustum. The frame is the union of what is actually on screen. */
-  if (organNodes.length) {          // only a split graph redefines the frame; analyses alone do not
-    const b = new THREE.Box3();
-    if (bodyBox) b.union(bodyBox);
-    organNodes.forEach(o => b.expandByPoint(o.node.position));
-    ANALYSES.forEach(a => { if (a.node && a.node.visible) b.expandByPoint(a.node.position); });
-    if (!b.isEmpty()) {
-      const sz = b.getSize(new THREE.Vector3()), ct = b.getCenter(new THREE.Vector3());
-      spanW = Math.max(sz.x, 1.8); spanH = Math.max(sz.y, 1.8);
-      cx = ct.x;
-    }
-  }
-
   const camKeyNow = [...state.out].sort().join("+") + "|" + [...state.nodeOut].sort().join(",") + "|" + graph + "|" + state.collapsed;
   if (camKeyNow !== camKey) {
     camKey = camKeyNow;
-    // the frame is already the union of what is on screen, so it can be trusted: clamping it here
-    // is what pushed the rightmost nodes out of the frustum and left "empty" space where organs were
-    const dd = Math.max(d, 4.2);   // never closer than this: the body has to fit with its head
+    // the split frames itself, in 3D; everything else is fitted from the slots as it always was
+    const split = organNodes.length ? splitFrame(elev) : null;
+    if (split) {
+      camWant.target.copy(split.centre);
+      camWant.pos.copy(split.centre).addScaledVector(split.dir, split.d);
+    } else {
+      // the frame is already the union of what is on screen, so it can be trusted: clamping it here
+      // is what pushed the rightmost nodes out of the frustum and left "empty" space where organs were
+      const dd = Math.max(d, 4.2);   // never closer than this: the body has to fit with its head
 
-    camWant.pos.set(cx - dx, dd * elev, dd);
-    camWant.target.set(cx - dx, 0, 0);
+      camWant.pos.set(cx - dx, dd * elev, dd);
+      camWant.target.set(cx - dx, 0, 0);
+    }
     camAnim = true;
     camUntil = performance.now() + 1400;
   }
 }
+
+/* the split is on: six systems and the set are the picture, and layout() frames all of it */
+function splitOn(id) { return id === "organs" && organNodes.length > 0; }
 
 /* selecting changes the width the scene has to live in (the panel takes 320 px), so the frame is
    recomputed once, after the panel is in place — this is why nodes used to end up under the panel */
@@ -2221,7 +2247,9 @@ function select(id) {
   selectInner(id);
   camKey = "";
   layout();
-  const o = id ? objectForSel(id) : null;
+  // focusing the set here flew the camera to the set's own 3.6-unit box and left five of the six
+  // systems outside the frustum (HANDOVER LIST OF PROBLEMS 2): the split must not undo its frame
+  const o = splitOn(id) ? null : (id ? objectForSel(id) : null);
   if (o) focusOn(o);          // the panel changes the frame; the node itself is what we look at
 }
 

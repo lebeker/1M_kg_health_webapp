@@ -66,6 +66,26 @@ DOM, renderer and orbit controls are test adapters: **this is not a live browser
 Current geometry was rendered directly in Blender. Browser access was declined during the
 previous work and was not bypassed for this repair.
 
+## Split regression (T24)
+
+```sh
+bun run test:split                 # curl-checks the server, starts one on 8770 if it is dead
+node body/tools/split-regression.mjs --root <tree> --port 8771   # run it on another tree
+```
+
+`split-regression.mjs` presses the viewer's own "split into systems" button in a Node VM, then
+asserts the four things a working split has: six systems, six edges, every edge endpoint on a node
+(and none in another edge's span), and every node inside the camera frame once the movement
+settles. The page, its scripts and the GLBs come over the local HTTP server, so a missing file is
+that server's 404 and not a broken page; the harness curls the server first and exits 2 with an
+instruction when it is dead (LIST OF ISSUES 4). Exit 1 means the split is wrong.
+
+It is part of `bun run verify` and of the CI `verify` job. The frame it asserts is `splitFrame()` in
+`index.html`: the six systems and the set are fitted in 3D, aimed at their own centre, so the ball
+of each node stays inside the frustum clear of the rail and the open panel. Framing them as a flat
+box in the body's plane and aiming at z = 0 is what left five of six systems off screen
+(LIST OF PROBLEMS 2).
+
 ## Earlier interface experiment
 
 The Forma/constellation experiment has been moved to `constellation.html`; it is not the
