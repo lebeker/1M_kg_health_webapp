@@ -55,10 +55,25 @@ describe('a nested value is a value', () => {
         { id: 'a', kind: 'observation' },
         { id: 'b', kind: 'condition' },
       ],
-      edges: [{ from: 'a', to: 'b', label: 'tracks', valid_from: '2021-05-14', valid_to: '2024-01-01' }],
+      edges: [
+        {
+          from: 'a',
+          to: 'b',
+          label: 'tracks',
+          valid_from: '2021-05-14',
+          valid_to: '2024-01-01',
+          when: { from: '2021-05-14', to: null },
+          measurement: { value: 4.9, unit: 'mmol/L' },
+        },
+      ],
     })
     const [key] = graph.edges()
     expect(graph.getEdgeAttribute(key, 'valid_from')).toBe('2021-05-14')
+    // The two shapes a relation actually carries. Both are objects, both were dropped by the same
+    // skip the node loop had — and an edge's extras reach the page as a connection row, so this is
+    // the fence for that path, not bookkeeping.
+    expect(graph.getEdgeAttribute(key, 'when')).toEqual({ from: '2021-05-14', to: null })
+    expect(graph.getEdgeAttribute(key, 'measurement')).toEqual({ value: 4.9, unit: 'mmol/L' })
   })
 
   test('an object nested deeper is still the document’s property', () => {

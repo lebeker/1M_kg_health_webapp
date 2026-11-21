@@ -21,6 +21,7 @@ import SigmaView from './SigmaView'
 import DocPanel from './DocPanel'
 import ProfileChip from './ProfileChip'
 import { measureNote, readBudget, watchWork, writeBudget } from './capacity'
+import { valueText } from './value'
 import './styles.css'
 
 /** An eye and a crossed eye, drawn small: the switch for a relation or a kind. */
@@ -100,18 +101,11 @@ const EDGE_LAID_OUT = new Set([
 const DOI = /^10\.\d{4,9}\/\S+$/
 const URLISH = /^https?:\/\/\S+$/
 
-/** A value as a cell: identifiers and URLs resolve, lists join, everything else is text. */
+/** A value as a cell: identifiers and URLs resolve, everything else is text. */
 function renderValue(v: unknown) {
-  if (Array.isArray(v)) return v.join(' · ')
-  // A nested object is a value with a shape — an interval date is `{from, to}`. It reads as the
-  // span it is, rather than `[object Object]`, which would be a property the page cannot show and
-  // might as well have dropped.
-  if (v !== null && typeof v === 'object') {
-    const o = v as Record<string, unknown>
-    if (typeof o.from === 'string') return typeof o.to === 'string' ? `${o.from} → ${o.to}` : `${o.from} → now`
-    return JSON.stringify(o)
-  }
-  const s = String(v)
+  const s = valueText(v)
+  // A list or an object is already the text it should read as; a link is for a bare identifier.
+  if (Array.isArray(v) || (v !== null && typeof v === 'object')) return s
   if (DOI.test(s)) {
     return (
       <a className="doi" href={`https://doi.org/${s}`} target="_blank" rel="noreferrer">
@@ -1601,7 +1595,12 @@ export default function App() {
                             <span className="other">{c.label}</span>
                             {c.extra.length > 0 ? (
                               <span className="props">
-                                {c.extra.map(([k, v]) => `${k} ${String(v)}`).join(' · ')}
+                                {c.extra.map(([k, v], i) => (
+                                  <Fragment key={k}>
+                                    {i > 0 ? ' · ' : ''}
+                                    {k} {valueText(v)}
+                                  </Fragment>
+                                ))}
                               </span>
                             ) : null}
                           </button>
