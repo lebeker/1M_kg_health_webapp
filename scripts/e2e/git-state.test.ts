@@ -16,7 +16,9 @@ function repo(): string {
     GIT_COMMITTER_EMAIL: 'test@example.com',
   }
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8', env })
-  git('init', '-q')
+  // `-b main` so the assertion is about the harness, not about the runner's default branch
+  // (GitHub's is still `master` on some images, which is exactly how this test first failed in CI).
+  git('init', '-q', '-b', 'main')
   writeFileSync(join(dir, 'a.txt'), 'one\n')
   git('add', 'a.txt')
   git('commit', '-qm', 'first')
