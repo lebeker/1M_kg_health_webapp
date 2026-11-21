@@ -9,7 +9,8 @@
     {
       "id": "src-1",
       "label": "Discharge note, cardiology, 2021-05-14",
-      "kind": "source",
+      "kind": "document",
+      "when": "2021-05-14",
       "confirmed": true,
       "valid_from": "2021-05-14"
     },

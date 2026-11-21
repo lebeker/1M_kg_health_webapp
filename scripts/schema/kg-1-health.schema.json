@@ -1,22 +1,23 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:kg:1-health:1.0.0",
+  "$id": "urn:kg:1-health:2.0.0",
   "title": "kg/1-health — a health record in kg/1",
-  "description": "The machine-readable form of docs/DATA-CONTRACT.md. A document whose meta.app is health-viewer must match this schema; the base kg/1 format is thin on purpose (any kind, any key) and this file is the health profile that makes it strict. What JSON Schema cannot state — that a node's `source` names a source node in the same document, that an edge's ends carry the kinds its relation allows, that only a dated node may carry a validity window — is in scripts/lib/kg-contract.ts, which is the validator that reads this file.",
-  "x-contract-version": "1.0.0",
+  "description": "The machine-readable form of docs/DATA-CONTRACT.md. A document whose meta.app is health-viewer must match this schema; the base kg/1 format is thin on purpose (any kind, any key) and this file is the health profile that makes it strict. What JSON Schema cannot state — that a node's `source` names a document in the same document, that an edge's ends carry the kinds its relation allows, that only a node that can be in force may carry a validity window — is in scripts/lib/kg-contract.ts, which is the validator that reads this file.",
+  "x-contract-version": "2.0.0",
   "x-contract-document": "kg/1",
   "x-contract-profile": "health-viewer",
-  "x-contract-source": "docs/DATA-CONTRACT.md (rev 5)",
+  "x-contract-source": "docs/DATA-CONTRACT.md (rev 5, T06 event model)",
+  "x-contract-change": "2.0.0 — T06: `source` is renamed to `document` (the document is the provenance and has the date printed on it), `procedure` becomes its own event kind, and the six event kinds are the spine of the model: condition, observation, encounter, medication, procedure, document. A summary and a prediction stay non-events (a marker and a simulation).",
   "x-contract-snapshot": "There is no stored snapshot shape. A snapshot is derived, not recorded: the state at date D is every node whose `when` is on or before D plus every edge whose validity window holds at D (DATA-CONTRACT §Temporal rule). The immutable snapshot store is proposal T08, explicitly not approved (PLAN §B2), so this contract covers the snapshot by making that derivation well-defined — an event always has a date, and a temporary relation is closed with valid_from/valid_to instead of deleted.",
   "x-relations": {
     "tracks": { "from": ["observation"], "to": ["condition"] },
     "treated_by": { "from": ["condition"], "to": ["medication"] },
     "contradicts": { "from": ["observation"], "to": ["condition"] },
     "preceded_by": {
-      "from": ["condition", "observation", "encounter", "medication", "summary"],
-      "to": ["condition", "observation", "encounter", "medication", "summary"]
+      "from": ["condition", "observation", "encounter", "medication", "procedure", "document"],
+      "to": ["condition", "observation", "encounter", "medication", "procedure", "document"]
     },
-    "derived_from": { "from": ["*"], "to": ["source"] },
+    "derived_from": { "from": ["*"], "to": ["document"] },
     "advised": { "from": ["encounter"], "to": ["medication", "observation"] },
     "projected": { "from": ["prediction"], "to": ["condition", "observation"] },
     "part_of": { "from": ["observation"], "to": ["observation"] }
@@ -90,19 +91,23 @@
     "node": {
       "type": "object",
       "required": ["id", "kind", "confirmed"],
-      "description": "a fact or a thing in the record. Fields outside this list are carried through untouched, which is how the viewer gains a key without the contract changing — and a field the contract puts on one kind (an observation's value, a condition's status) is typed only where the contract puts it.",
+      "description": "eight kinds, six of them events. An event is a fact in the record with a date in `when` and, unless it is the document itself, a `source` naming the document it came from. A summary is a virtual marker and a prediction is a simulation: both are visible, neither is an event. Fields outside this list are carried through untouched, which is how the viewer gains a key without the contract changing — and a field the contract puts on one kind (an observation's value, a condition's status) is typed only where the contract puts it.",
       "properties": {
         "id": { "type": "string", "minLength": 1, "description": "unique and stable; never reused for different content" },
         "label": { "type": "string" },
         "kind": {
-          "enum": ["condition", "observation", "encounter", "medication", "summary", "prediction", "source"],
-          "description": "seven kinds, no free-form ones: the template has a layout for each and nothing for the rest"
+          "enum": ["condition", "observation", "encounter", "medication", "procedure", "document", "summary", "prediction"],
+          "description": "eight kinds, no free-form ones: the template has a layout for each and nothing for the rest. Six of them are events: condition, observation, encounter, medication, procedure, document"
         },
         "confirmed": {
           "type": "boolean",
           "description": "true when a human confirmed it; otherwise false and the UI says \"not confirmed\""
         },
-        "source": { "type": "string", "minLength": 1, "description": "id of the source node this fact came from" },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "id of the document node this fact came from; a document node carries none, because it is the provenance"
+        },
         "when": { "$ref": "#/$defs/when" },
         "confidence": { "$ref": "#/$defs/confidence" },
         "valid_from": { "$ref": "#/$defs/date" },
@@ -146,6 +151,26 @@
           "required": ["when", "status", "source"]
         },
         {
+          "description": "a procedure needs the date it was performed and the document it came from",
+          "properties": {
+            "kind": { "const": "procedure" },
+            "code": { "type": "string", "description": "SNOMED CT, ICD-10-PCS or OPCS-4 — as the document printed it" }
+          },
+          "required": ["when", "source"]
+        },
+        {
+          "description": "a document needs the date printed on it: it is the provenance every other fact points at, so it has none of its own",
+          "properties": {
+            "kind": { "const": "document" },
+            "link": { "type": "string", "minLength": 1, "description": "where the file lives, relative to the document (sources/discharge-2021-05-14.pdf)" }
+          },
+          "required": ["when"],
+          "not": {
+            "required": ["source"],
+            "description": "a document node is the provenance, it does not point at one"
+          }
+        },
+        {
           "description": "a summary needs the end of the period it rolls up and the document it came from",
           "properties": {
             "kind": { "const": "summary" },
@@ -157,14 +182,6 @@
           "description": "a prediction needs the document it came from; its target, horizon and delta arrive with T18, which extends this schema",
           "properties": { "kind": { "const": "prediction" } },
           "required": ["source"]
-        },
-        {
-          "description": "a source is the document itself: it is the provenance, so it points at none",
-          "properties": { "kind": { "const": "source" } },
-          "not": {
-            "required": ["source"],
-            "description": "a source node is the provenance, it does not point at one"
-          }
         }
       ]
     },
@@ -188,7 +205,7 @@
           ],
           "description": "the relation; the list is closed, and a new relation needs an entry in docs/DATA-CONTRACT.md first"
         },
-        "source": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1, "description": "id of the document node this relation came from" },
         "confidence": { "$ref": "#/$defs/confidence" },
         "valid_from": { "$ref": "#/$defs/date" },
         "valid_to": { "oneOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }] }
