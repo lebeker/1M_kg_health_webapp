@@ -1,0 +1,8 @@
+{
+  "meta": { "title": "The same id twice", "schema": "kg/1", "app": "viewer" },
+  "nodes": [
+    { "id": "pub-1", "label": "A paper", "kind": "publication" },
+    { "id": "pub-1", "label": "The same paper, again", "kind": "publication" }
+  ],
+  "edges": []
+}

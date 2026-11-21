@@ -1,0 +1,17 @@
+{
+  "meta": {
+    "title": "Two papers and the lab that wrote them",
+    "schema": "kg/1",
+    "app": "viewer",
+    "requires": { "skills": ["kg", "citations"], "plugins": [], "tools": [] }
+  },
+  "nodes": [
+    { "id": "pub-1", "label": "A trial of atorvastatin", "kind": "publication", "link": "10.1126/science.abn9257" },
+    { "id": "lab-1", "label": "Cardiology lab", "kind": "lab" },
+    { "id": "res-1", "label": "A researcher", "kind": "researcher", "x": 12.5, "y": -4 }
+  ],
+  "edges": [
+    { "from": "pub-1", "to": "res-1", "label": "authored by", "power": 1 },
+    { "from": "res-1", "to": "lab-1", "label": "works at", "power": 0.5 }
+  ]
+}

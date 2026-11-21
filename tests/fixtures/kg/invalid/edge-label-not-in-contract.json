@@ -1,0 +1,17 @@
+{
+  "meta": {
+    "title": "An invented relation",
+    "schema": "kg/1",
+    "app": "health-viewer",
+    "profile": { "sex": "male", "year_of_birth": 1961 }
+  },
+  "nodes": [
+    { "id": "src-1", "label": "Discharge note", "kind": "source", "confirmed": true },
+    { "id": "obs-1", "label": "LDL cholesterol", "kind": "observation", "when": "2026-11-12", "value": 4.9, "unit": "mmol/L", "confirmed": true, "source": "src-1" },
+    { "id": "cond-1", "label": "Hyperlipidaemia", "kind": "condition", "status": "active", "when": { "from": "2021-05-14" }, "confirmed": true, "source": "src-1" }
+  ],
+  "edges": [
+    { "from": "obs-1", "to": "cond-1", "label": "causes" },
+    { "from": "obs-1", "to": "src-1", "label": "derived_from" }
+  ]
+}
