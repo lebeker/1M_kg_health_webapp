@@ -32,6 +32,7 @@ import { type Card, missingPromptHelp, readCard } from './card'
 import { findArtifacts, keepRoomCopy, prepareCleanRoom, runAgent } from './cleanroom'
 import type { ToolCall } from './hermes'
 import { inject } from './inject'
+import { hostAppCalls, outsideRoomCalls } from './policy'
 
 type Check = { name: string; ok: boolean; detail: string; hard?: boolean }
 
@@ -169,35 +170,30 @@ function run(command: string, args: string[], cwd: string): { ok: boolean; outpu
 }
 
 /**
- * Desktop applications are out of bounds for a bot (owner policy), and this gate is where that
- * has to be visible: a child that starts its own browser produced a picture of something the
- * harness did not choose. The capture session's `browser_*` calls are the sanctioned route.
+ * Desktop applications are out of bounds for a bot (owner policy), and a machine-wide search is
+ * the other half of the same boundary: `find /` crosses `/Volumes` and makes macOS ask this
+ * machine's owner for permission. Both checks live in `policy.ts`, where they are unit tested;
+ * this gate is where they are enforced — a child that did either produced evidence the harness
+ * did not choose, and the run fails rather than reports it as a note.
  */
-const HOST_APP_PATTERNS: Array<[RegExp, string]> = [
-  [/Google Chrome for Testing/i, 'the packaged Chrome binary'],
-  [/Chrome\.app\/Contents\/MacOS/i, 'a Chrome binary'],
-  [/Chromium\.app/i, 'a Chromium binary'],
-  [/--remote-debugging/i, 'a raw CDP port'],
-  [/--dump-dom/i, 'a headless-chrome dump'],
-  [/headless=new/i, 'a headless-chrome launch'],
-  [/\bosascript\b/i, 'AppleScript'],
-  [/\bopen\s+-a\b/i, 'launching a mac app'],
-  [/\bplaywright\b/i, 'Playwright'],
-  [/\bpuppeteer\b/i, 'Puppeteer'],
-]
-
-function hostAppCalls(calls: ToolCall[]): string[] {
-  const found: string[] = []
-  for (const call of calls) {
-    const text = JSON.stringify(call.input)
-    for (const [pattern, what] of HOST_APP_PATTERNS) {
-      if (pattern.test(text)) {
-        found.push(`${call.name}: ${what}`)
-        break
-      }
-    }
-  }
-  return found
+function policyChecks(sessionCalls: ToolCall[], roomCalls: ToolCall[]): Check[] {
+  const hostApps = hostAppCalls(sessionCalls)
+  const escapes = outsideRoomCalls(roomCalls)
+  return [
+    {
+      name: 'policy.no-host-apps',
+      ok: hostApps.length === 0,
+      detail: hostApps.length === 0 ? `${sessionCalls.length} child tool calls, none launched or attached to a desktop app` : hostApps.join(' / '),
+    },
+    {
+      name: 'policy.stays-in-room',
+      ok: escapes.length === 0,
+      detail:
+        escapes.length === 0
+          ? `${roomCalls.length} clean-room tool calls, none searched or read outside the room`
+          : escapes.join(' / '),
+    },
+  ]
 }
 
 type PageValues = {
@@ -349,6 +345,8 @@ async function main() {
 
   const checks: Check[] = []
   const allCalls: ToolCall[] = []
+  /** Only the clean-room agent's calls: the room's boundary, not the capture session's file URLs. */
+  const roomCalls: ToolCall[] = []
   let captures: PageCapture[] = []
   let document: KgDocument = {}
   let agentLog = join(evidence, 'agent.jsonl')
@@ -366,6 +364,7 @@ async function main() {
   try {
     const agent = await runAgent(room, card.prompt, { logPath: agentLog, timeoutMs: options.timeoutMs })
     allCalls.push(...agent.calls)
+    roomCalls.push(...agent.calls)
     agentLog = agent.logPath
     console.log(`agent   exit ${agent.code} in ${agent.seconds}s, ${agent.calls.length} tool calls (${agent.logPath})`)
     checks.push({
@@ -396,6 +395,7 @@ async function main() {
       if (card.mode === 'full') pages.push({ label: 'replay', url: `file://${replayPage}`, expect: card.expect })
 
       const capture = await capturePages({ pages, outDir: evidence })
+      allCalls.push(...capture.calls)
       captureLog = capture.logPath
       captures = capture.pages
       writeFileSync(join(evidence, 'capture.tools.json'), `${JSON.stringify(capture.tools, null, 2)}\n`)
@@ -427,12 +427,7 @@ async function main() {
     await room.close()
   }
 
-  const offenders = hostAppCalls(allCalls)
-  checks.push({
-    name: 'policy.no-host-apps',
-    ok: offenders.length === 0,
-    detail: offenders.length === 0 ? `${allCalls.length} child tool calls, none launched or attached to a desktop app` : offenders.join(' / '),
-  })
+  checks.push(...policyChecks(allCalls, roomCalls))
 
   const failed = checks.filter((check) => !check.ok)
   const report = {

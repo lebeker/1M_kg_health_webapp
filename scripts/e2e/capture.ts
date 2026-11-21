@@ -18,7 +18,7 @@
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { browserEnv, endpointConfig, packagedAgentBrowser, runChat, writeHermesHome } from './hermes'
+import { browserEnv, endpointConfig, packagedAgentBrowser, runChat, writeHermesHome, type ToolCall } from './hermes'
 
 export type Page = { label: string; url: string; expect: string[] }
 
@@ -41,6 +41,8 @@ export type CaptureRun = {
   pages: PageCapture[]
   /** Every tool the capture session called, in order — the log a reviewer can read. */
   tools: string[]
+  /** The same calls, whole: the harness scans them for host-application use. */
+  calls: ToolCall[]
   seconds: number
   code: number
   logPath: string
@@ -278,6 +280,7 @@ export async function capturePages(options: CaptureOptions): Promise<CaptureRun>
   return {
     pages: captures,
     tools,
+    calls: run.calls,
     seconds: run.seconds,
     code: run.code,
     logPath,

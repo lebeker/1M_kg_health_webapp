@@ -92,7 +92,12 @@ no memory), strips the board and session environment, and starts its shell in th
 thing shared with the machine is the model endpoint. The room also carries the app's own contract
 checker (`check/validate.ts`, the same file the harness runs): the skill's `validate` knows the base
 kg/1 shape, and a document that keeps only that shape is refused by this app, so the rules the
-document is judged by have to be in the room with the agent. Shape, never content.
+document is judged by have to be in the room with the agent. Shape, never content. The skill, that
+checker and the output all sit inside the directory the agent starts in, and its `AGENTS.md` forbids
+searching outside it — no `find /`, no `/Volumes`, `/System`, `/Applications` or `/Users`, no
+`mdfind`, no `diskutil` — because a root walk crosses the mounted volumes and makes macOS ask the
+machine's owner for permission. The scan behind that rule (`policy.stays-in-room`) fails the run on
+any tool call that did it anyway.
 
 **Prompt.** Carried by the card, in an `## e2e` block beside its acceptance — one sentence a user
 would say, plus the text that must be visible when the card is done:

@@ -39,6 +39,13 @@ comment with the screenshots attached). Exit 2 = the card declares no user quest
    deep, and the harness was judging the agent on rules it had no way to see. It carries the
    shape of a document, never its content, and the harness runs the same file afterwards.
 
+   Everything the agent needs — `kg/`, `check/`, `storage/` — is inside the directory it starts
+   in. The room's `AGENTS.md` says so, forbids searching outside it (`find /`, `ls /`,
+   `/Volumes`, `/System`, `/Applications`, `/Users`, `mdfind`, `diskutil`), and
+   `policy.stays-in-room` fails the run if a tool call did anyway: a `find /` walk crosses
+   `/Volumes` and makes macOS ask the machine's owner for a permission it should never have been
+   asked.
+
 4. **Asks the question** with one `hermes chat -q` and lets the agent do whatever the skill
    tells it to do. The agent gets `terminal` and `file`; the harness never touches the graph
    while the agent is working.
@@ -143,6 +150,9 @@ any machine that has those four things.
   hostile or very weak model could pass a weak `expect:` or fail a good one. That is why the
   card's claim is written down and asserted, rather than judged from a screenshot by eye.
 - The clean room is a directory, not a container: the agent *could* wander out of it. It is
-  clean because nothing there points at the repo, not because it is jailed.
+  clean because nothing there points at the repo, not because it is jailed — which is why the
+  boundary is also a check (`policy.stays-in-room`): a tool call that searches from `/`, lists
+  `/`, names `/Volumes`, `/System`, `/Applications`, `/Users`, runs `mdfind` or `diskutil` fails
+  the run. A rule in a prompt is a request; the scan is what makes it true.
 - `--prompt` overrides the card so a harness bug can be debugged. It is recorded as
   `prompt_source: override` in `card.json`, and an override run is not card evidence.

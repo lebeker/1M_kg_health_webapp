@@ -60,14 +60,15 @@ export type PrepareOptions = {
 /** The working rules the room starts with. Infrastructure, not part of the user's question. */
 export const ROOM_RULES = `# Working rules for this workspace
 
-This directory is a user's own machine as far as this task is concerned: one skill, one
-installed app, and the empty space to write in.
+This directory — the one you start in — is a user's own machine as far as this task is
+concerned: one skill, one installed app, and the empty space to write in. Everything this task
+needs is inside it.
 
 ## Where things live
 
-- The skill is \`../kg\` (also installed as \`skills/kg\` in this home). Its \`scripts/kg.py\`
-  is the engine; the app it can render is already in \`assets/\`.
-- The app ships its own contract checker at \`check/validate.ts\`. \`bun check/validate.ts
+- The skill is \`./kg\`. \`kg/scripts/kg.py\` is the engine; the app it can render is already
+  installed in \`kg/assets/\`.
+- The app ships its own contract checker at \`./check/validate.ts\`. \`bun check/validate.ts
   <graph.json>\` prints every rule this app needs a document to keep, and exits 0 only when it
   keeps all of them. \`kg.py validate\` checks the base kg/1 shape; this app is stricter, and
   its checker lists the difference. It is the same checker the harness runs afterwards.
@@ -75,7 +76,12 @@ installed app, and the empty space to write in.
 
 ## What is out of bounds
 
-- Directories above this one are not part of this task. Read and write here only.
+- Stay inside this directory. Never search or read outside it: no \`find /\`, no \`ls /\`, no
+  \`/Volumes\`, \`/System\`, \`/Applications\` or \`/Users\`, no \`mdfind\`, no \`diskutil\`. A search
+  from the root walks every mounted volume and makes macOS ask the machine's owner for
+  permission, which is a thing this run must not do to somebody's laptop. Locate a file by the
+  path named here, or with a relative grep inside this directory — every file you need is
+  named above.
 - Desktop applications are out of bounds, browsers included: no browser binary, no \`open\`,
   no AppleScript. Rendering is done with the skill. Pages are photographed after this run,
   by the harness, with Hermes's own browser tools — this session has none.
@@ -172,13 +178,13 @@ function catalogueEntry(manifest: Record<string, unknown>, appId: string, mirror
 }
 
 /** Install through the skill's own command, not by copying files behind its back. */
-async function installApp(room: string, appId: string, mirrorUrl: string): Promise<void> {
+async function installApp(skill: string, work: string, appId: string, mirrorUrl: string): Promise<void> {
   // Asynchronous on purpose: the mirror lives in this process, so a synchronous child
   // would block the event loop the fetch is waiting on.
   const child = spawn(
     'python3',
     [
-      join(room, 'kg', 'scripts', 'kg.py'),
+      join(skill, 'scripts', 'kg.py'),
       'fetch-app',
       appId,
       '--url',
@@ -186,7 +192,7 @@ async function installApp(room: string, appId: string, mirrorUrl: string): Promi
       '--manifest-url',
       `${mirrorUrl}/${appId}.app.json`,
     ],
-    { cwd: room, stdio: ['ignore', 'pipe', 'pipe'] },
+    { cwd: work, stdio: ['ignore', 'pipe', 'pipe'] },
   )
   let output = ''
   child.stdout?.on('data', (chunk: Buffer) => {
@@ -207,12 +213,16 @@ export async function prepareCleanRoom(options: PrepareOptions): Promise<CleanRo
   const dir = mkdtempSync(join(tmpdir(), 'kg-e2e-room-'))
   const work = join(dir, 'work')
   const home = join(dir, 'home')
-  const skill = join(dir, 'kg')
+  // The skill and the app's checker live *inside* the directory the agent is told to stay in, so
+  // that nothing it needs is one `..` away: the first version put them beside it, and a fresh
+  // agent went looking with `find /`, which walks /Volumes and makes macOS ask the owner for
+  // permission. A rule the agent has no reason to break is worth more than one it must remember.
+  const skill = join(work, 'kg')
   mkdirSync(work, { recursive: true })
   mkdirSync(join(home, 'skills'), { recursive: true })
   copySkill(options.skillPath, skill, appId)
   copySkill(options.skillPath, join(home, 'skills', 'kg'), appId)
-  installChecker(options.worktree, dir)
+  installChecker(options.worktree, work)
   writeFileSync(join(work, 'AGENTS.md'), ROOM_RULES)
 
   const mirror = await startMirror(options.buildPath, options.manifestPath, appId)
@@ -230,7 +240,7 @@ export async function prepareCleanRoom(options: PrepareOptions): Promise<CleanRo
     else apps.push(entry)
     writeFileSync(appsPath, `${JSON.stringify({ ...catalogue, apps }, null, 2)}\n`)
 
-    await installApp(dir, appId, mirror.url)
+    await installApp(skill, work, appId, mirror.url)
 
     const installed = join(skill, 'assets', `${appId}.html`)
     if (!existsSync(installed)) throw new Error(`fetch-app reported success but ${installed} is missing`)
