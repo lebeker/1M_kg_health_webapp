@@ -1,78 +1,160 @@
 /**
- * The `kg/1` contract, as a checker — base rules for every document, health rules for a document
+ * The `kg/1` contract, as a checker: base rules for every document, `kg/1-health` for a document
  * whose `meta.app` is `health-viewer`.
  *
- * Source of truth: `docs/DATA-CONTRACT.md` (rev 5) and the renderer's own types in `src/kg.ts`.
- * The base part is deliberately thin, because the renderer only needs `nodes[].id` and
- * `edges[].{from,to}`: a research map may carry any other key and the app must not care. The health
- * part is strict, because a health document that invents a kind or forgets a date draws a picture
- * that quietly lies.
+ * The declarative half is `scripts/schema/kg-1-health.schema.json` (draft 2020-12, versioned in
+ * `x-contract-version`); this file reads it — no copy of the kind list, the relation list or the
+ * status list lives here — and adds the rules a JSON Schema cannot state, because they are about
+ * other members of the same document:
  *
- * T04 owns the JSON Schema version of this (`kg/1-health`). When it lands, it replaces this
- * implementation behind the same command — `bun run test:contract` — so CI does not move.
+ *   - an id is unique, and an edge's ends are nodes that exist;
+ *   - a node's `source` names a node whose kind is `source`;
+ *   - an edge's ends carry the kinds its relation allows (`x-relations` in the schema);
+ *   - only a dated node may carry a validity window, and a window does not end before it starts.
+ *
+ * The base part stays deliberately thin, because the renderer only needs `nodes[].id` and
+ * `edges[].{from,to}`: a research map may carry any other key and the app must not care. The
+ * health part is strict, because a health document that invents a kind or forgets a date draws
+ * a picture that quietly lies.
+ *
+ * Source of truth: `docs/DATA-CONTRACT.md` (rev 5) and the renderer's own types in `src/kg.ts`.
  */
+import { readFileSync } from 'node:fs'
+import { type Issue, validateAgainstSchema } from './json-schema'
 
-export type Issue = { path: string; message: string }
+export type { Issue }
 
-export const HEALTH_KINDS = [
-  'condition',
-  'observation',
-  'encounter',
-  'medication',
-  'summary',
-  'prediction',
-  'source',
-] as const
+type Json = Record<string, unknown>
 
-/** Kinds that carry a date in `when`. A `source` and a `prediction` have their own dates. */
-export const HEALTH_EVENT_KINDS = ['condition', 'observation', 'encounter', 'medication', 'summary'] as const
+const SCHEMA_URL = new URL('../schema/kg-1-health.schema.json', import.meta.url)
 
-export const CONDITION_STATUS = ['active', 'resolved', 'suspected', 'stopped'] as const
-export const OBSERVATION_FLAGS = ['low', 'normal', 'high', 'critical'] as const
-
-/** The closed relation list: relation → which kinds may sit on each end. `*` is "any". */
-export const HEALTH_EDGE_LABELS: Record<string, { from: readonly string[]; to: readonly string[] }> = {
-  tracks: { from: ['observation'], to: ['condition'] },
-  treated_by: { from: ['condition'], to: ['medication'] },
-  contradicts: { from: ['observation'], to: ['condition'] },
-  preceded_by: { from: [...HEALTH_EVENT_KINDS], to: [...HEALTH_EVENT_KINDS] },
-  derived_from: { from: ['*'], to: ['source'] },
-  advised: { from: ['encounter'], to: ['medication', 'observation'] },
-  projected: { from: ['prediction'], to: ['condition', 'observation'] },
-  part_of: { from: ['observation'], to: ['observation'] },
-}
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?$/
-const TOP_LEVEL_KEYS = new Set(['meta', 'nodes', 'edges'])
-
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
+const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const isNonEmptyString = (value: unknown): value is string => typeof value === 'string' && value.trim() !== ''
 
-const isHealthDocument = (doc: Record<string, unknown>): boolean => {
-  const meta = doc.meta
-  return isObject(meta) && meta.app === 'health-viewer'
+/** The contract itself, as the file says it. Exported so a test can hold the two halves together. */
+export const HEALTH_SCHEMA = JSON.parse(readFileSync(SCHEMA_URL, 'utf8')) as Json
+
+export const HEALTH_SCHEMA_VERSION = String(HEALTH_SCHEMA['x-contract-version'] ?? '')
+
+function definition(name: string): Json {
+  const defs = isObject(HEALTH_SCHEMA.$defs) ? HEALTH_SCHEMA.$defs : {}
+  const found = defs[name]
+  if (!isObject(found)) throw new Error(`scripts/schema/kg-1-health.schema.json has no $defs.${name}`)
+  return found
 }
+
+function declared(def: Json, name: string): Json {
+  const properties = isObject(def.properties) ? def.properties : {}
+  const found = properties[name]
+  if (!isObject(found)) throw new Error(`scripts/schema/kg-1-health.schema.json declares no property "${name}"`)
+  return found
+}
+
+function strings(value: unknown, what: string): readonly string[] {
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+    throw new Error(`scripts/schema/kg-1-health.schema.json: ${what} must be an array of strings`)
+  }
+  return value as readonly string[]
+}
+
+const NODE = definition('node')
+const EDGE = definition('edge')
+
+/** The seven kinds, and no free-form ones: the template has a layout for each and nothing for the rest. */
+export const HEALTH_KINDS = strings(declared(NODE, 'kind').enum, '$defs.node.properties.kind.enum')
+
+const NODE_BRANCHES = Array.isArray(NODE.oneOf) ? NODE.oneOf.filter(isObject) : []
+
+const branchKind = (branch: Json): string => {
+  const kind = isObject(branch.properties) && isObject(branch.properties.kind) ? branch.properties.kind.const : undefined
+  return typeof kind === 'string' ? kind : ''
+}
+
+function branchFor(kind: string): Json {
+  const found = NODE_BRANCHES.find((branch) => branchKind(branch) === kind)
+  if (!found) throw new Error(`scripts/schema/kg-1-health.schema.json has no $defs.node branch for kind "${kind}"`)
+  return found
+}
+
+/**
+ * Kinds that carry a date in `when` — read off the schema, which is the only place that says so:
+ * a kind is an event when its branch requires `when`. A `source` and a `prediction` have their
+ * own dates (a document date, a target date) and are not events in this sense.
+ */
+export const HEALTH_EVENT_KINDS = NODE_BRANCHES.filter(
+  (branch) => Array.isArray(branch.required) && branch.required.includes('when'),
+).map(branchKind)
+
+/**
+ * Kinds whose own existence is dated. A validity window (`valid_from`/`valid_to`) is a relation's
+ * device: a stable thing — a document, an organ — has no window, and a dated node states its date
+ * in `when`. The line between the two is DATA-CONTRACT §Temporal rule.
+ */
+export const TEMPORAL_NODE_KINDS = [...HEALTH_EVENT_KINDS, 'prediction'] as const
+
+export const CONDITION_STATUS = strings(
+  declared(branchFor('condition'), 'status').enum,
+  '$defs.node[condition].properties.status.enum',
+)
+export const OBSERVATION_FLAGS = strings(
+  declared(branchFor('observation'), 'flag').enum,
+  '$defs.node[observation].properties.flag.enum',
+)
+
+const RELATIONS = isObject(HEALTH_SCHEMA['x-relations']) ? HEALTH_SCHEMA['x-relations'] : {}
+
+/** The closed relation list: relation → which kinds may sit on each end. `*` is "any". */
+export const HEALTH_EDGE_LABELS: Record<string, { from: readonly string[]; to: readonly string[] }> =
+  Object.fromEntries(
+    Object.entries(RELATIONS).map(([label, rule]) => {
+      if (!isObject(rule)) throw new Error(`scripts/schema/kg-1-health.schema.json: x-relations.${label} is not an object`)
+      return [label, { from: strings(rule.from, `x-relations.${label}.from`), to: strings(rule.to, `x-relations.${label}.to`) }]
+    }),
+  )
+
+// The label list and the endpoint table are two statements of one fact; a document may not pass
+// one and fail the other, so the file is refused at load rather than drifting quietly.
+const LABEL_ENUM = strings(declared(EDGE, 'label').enum, '$defs.edge.properties.label.enum')
+if (LABEL_ENUM.join(',') !== Object.keys(HEALTH_EDGE_LABELS).join(',')) {
+  throw new Error(
+    `scripts/schema/kg-1-health.schema.json: $defs.edge.properties.label.enum and x-relations disagree (${LABEL_ENUM.join(', ')} vs ${Object.keys(HEALTH_EDGE_LABELS).join(', ')})`,
+  )
+}
+
+const BASE_TOP_LEVEL = new Set(['meta', 'nodes', 'edges'])
+
+const isHealthDocument = (doc: Json): boolean => isObject(doc.meta) && doc.meta.app === 'health-viewer'
 
 /** Validate one parsed document. An empty array means it conforms. */
 export function validateKg(doc: unknown): Issue[] {
-  const issues: Issue[] = []
+  if (!isObject(doc)) return [{ path: '$', message: 'the document is not a JSON object' }]
 
-  if (!isObject(doc)) {
-    return [{ path: '$', message: 'the document is not a JSON object' }]
+  if (isHealthDocument(doc)) {
+    const issues = relabelToIds(validateAgainstSchema(doc, HEALTH_SCHEMA), doc)
+    issues.push(...crossReferences(doc, true))
+    return dedupe(issues)
   }
 
+  const issues = validateBase(doc)
+  issues.push(...crossReferences(doc, false))
+  return dedupe(issues)
+}
+
+/** The base kg/1 shape: an envelope, an id per node, an existing node at both ends of an edge. */
+function validateBase(doc: Json): Issue[] {
+  const issues: Issue[] = []
+
   for (const key of Object.keys(doc)) {
-    if (!TOP_LEVEL_KEYS.has(key)) {
+    if (!BASE_TOP_LEVEL.has(key)) {
       issues.push({ path: `$.${key}`, message: 'unknown top-level key; a kg/1 document is meta, nodes, edges' })
     }
   }
 
-  const meta = doc.meta
-  if (!isObject(meta)) {
+  if (!isObject(doc.meta)) {
     issues.push({ path: '$.meta', message: 'missing meta object' })
   } else {
+    const meta = doc.meta
     if (!isNonEmptyString(meta.title)) issues.push({ path: '$.meta.title', message: 'missing title' })
     if (meta.schema !== 'kg/1') {
       issues.push({ path: '$.meta.schema', message: `schema must be "kg/1", found ${JSON.stringify(meta.schema)}` })
@@ -80,159 +162,126 @@ export function validateKg(doc: unknown): Issue[] {
     if (!isNonEmptyString(meta.app)) issues.push({ path: '$.meta.app', message: 'missing app id' })
   }
 
-  const nodes = doc.nodes
-  const edges = doc.edges
-  if (!Array.isArray(nodes)) issues.push({ path: '$.nodes', message: 'nodes must be an array' })
-  if (!Array.isArray(edges)) issues.push({ path: '$.edges', message: 'edges must be an array' })
-  if (!Array.isArray(nodes) || !Array.isArray(edges)) return issues
+  const nodes = Array.isArray(doc.nodes) ? doc.nodes : undefined
+  const edges = Array.isArray(doc.edges) ? doc.edges : undefined
+  if (!nodes) issues.push({ path: '$.nodes', message: 'nodes must be an array' })
+  if (!edges) issues.push({ path: '$.edges', message: 'edges must be an array' })
 
-  const byId = new Map<string, Record<string, unknown>>()
-  nodes.forEach((node, index) => {
+  nodes?.forEach((node, index) => {
     const path = `$.nodes[${index}]`
     if (!isObject(node)) {
       issues.push({ path, message: 'node is not an object' })
       return
     }
-    if (!isNonEmptyString(node.id)) {
-      issues.push({ path: `${path}.id`, message: 'node has no id' })
-      return
-    }
-    if (byId.has(node.id)) {
-      issues.push({ path: `${path}.id`, message: `duplicate node id "${node.id}"` })
-      return
-    }
-    byId.set(node.id, node)
+    if (!isNonEmptyString(node.id)) issues.push({ path: `${path}.id`, message: 'node has no id' })
     if (node.label !== undefined && typeof node.label !== 'string') {
       issues.push({ path: `${path}.label`, message: 'label must be a string' })
     }
   })
 
-  edges.forEach((edge, index) => {
+  edges?.forEach((edge, index) => {
     const path = `$.edges[${index}]`
     if (!isObject(edge)) {
       issues.push({ path, message: 'edge is not an object' })
       return
     }
+    // An edge is two ids and nothing else is promised (src/kg.ts): with no `to` it is not a
+    // relation, and the renderer drops it without a word, so this is the only place that says so.
     for (const end of ['from', 'to'] as const) {
-      const value = edge[end]
-      if (!isNonEmptyString(value)) {
-        issues.push({ path: `${path}.${end}`, message: `edge has no ${end}` })
-      } else if (!byId.has(value)) {
-        issues.push({ path: `${path}.${end}`, message: `edge points at "${value}", which is not a node in this document` })
-      }
+      if (!isNonEmptyString(edge[end])) issues.push({ path: `${path}.${end}`, message: `edge has no ${end}` })
     }
     if (edge.label !== undefined && typeof edge.label !== 'string') {
       issues.push({ path: `${path}.label`, message: 'label must be a string' })
     }
   })
 
-  if (isHealthDocument(doc)) validateHealth(doc, byId, issues)
   return issues
 }
 
-function validateHealth(
-  doc: Record<string, unknown>,
-  byId: Map<string, Record<string, unknown>>,
-  issues: Issue[],
-): void {
-  const meta = doc.meta as Record<string, unknown>
+/**
+ * What one member of the document owes another. `health` turns on the rules that only make sense
+ * once the kinds are closed and every fact has a provenance.
+ */
+function crossReferences(doc: Json, health: boolean): Issue[] {
+  const issues: Issue[] = []
+  const nodes = Array.isArray(doc.nodes) ? doc.nodes.filter(isObject) : []
+  const edges = Array.isArray(doc.edges) ? doc.edges.filter(isObject) : []
 
-  const profile = meta.profile
-  if (!isObject(profile)) {
-    issues.push({ path: '$.meta.profile', message: 'a health document must carry meta.profile' })
-  } else {
-    if (!isNonEmptyString(profile.sex)) issues.push({ path: '$.meta.profile.sex', message: 'profile.sex is required' })
-    const year = profile.year_of_birth
-    if (!Number.isInteger(year) || (year as number) < 1900 || (year as number) > 2200) {
-      issues.push({ path: '$.meta.profile.year_of_birth', message: 'profile.year_of_birth must be an integer year' })
+  const byId = new Map<string, Json>()
+  nodes.forEach((node, index) => {
+    if (!isNonEmptyString(node.id)) return
+    if (byId.has(node.id)) {
+      issues.push({ path: `$.nodes[${index}].id`, message: `duplicate node id "${node.id}"` })
+      return
     }
-  }
+    byId.set(node.id, node)
+  })
+
+  edges.forEach((edge, index) => {
+    const path = `$.edges[${index}]`
+    for (const end of ['from', 'to'] as const) {
+      const value = edge[end]
+      if (!isNonEmptyString(value)) continue // an absent end is reported by validateBase, or by the schema on the health path
+      if (!byId.has(value)) {
+        issues.push({ path: `${path}.${end}`, message: `edge points at "${value}", which is not a node in this document` })
+      }
+    }
+  })
+
+  if (!health) return issues
 
   for (const [id, node] of byId) {
     const path = `$.nodes[${id}]`
-    const kind = node.kind
-    if (!isNonEmptyString(kind) || !(HEALTH_KINDS as readonly string[]).includes(kind)) {
-      issues.push({
-        path: `${path}.kind`,
-        message: `kind ${JSON.stringify(kind)} is not one of ${HEALTH_KINDS.join(', ')}`,
-      })
-      continue
-    }
+    const kind = typeof node.kind === 'string' ? node.kind : ''
 
-    if (typeof node.confirmed !== 'boolean') {
-      issues.push({ path: `${path}.confirmed`, message: 'confirmed is required and must be a boolean' })
-    }
-
-    if (kind === 'source') {
-      if (node.source !== undefined) {
-        issues.push({ path: `${path}.source`, message: 'a source node is the provenance, it does not point at one' })
-      }
-    } else {
-      const source = node.source
-      if (!isNonEmptyString(source)) {
-        issues.push({ path: `${path}.source`, message: 'every fact needs the id of the source it came from' })
-      } else {
-        const parent = byId.get(source)
-        if (!parent) {
-          issues.push({ path: `${path}.source`, message: `source "${source}" is not a node in this document` })
-        } else if (parent.kind !== 'source') {
-          issues.push({ path: `${path}.source`, message: `"${source}" is a ${String(parent.kind)} node, not a source` })
-        }
+    if (kind !== 'source' && isNonEmptyString(node.source)) {
+      const parent = byId.get(node.source)
+      if (!parent) {
+        issues.push({ path: `${path}.source`, message: `source "${node.source}" is not a node in this document` })
+      } else if (parent.kind !== 'source') {
+        issues.push({
+          path: `${path}.source`,
+          message: `"${node.source}" is a ${String(parent.kind)} node, not a source`,
+        })
       }
     }
 
-    if ((HEALTH_EVENT_KINDS as readonly string[]).includes(kind)) {
-      const when = node.when
-      if (when === undefined) {
-        issues.push({ path: `${path}.when`, message: `${kind} is an event and needs a date in when` })
-      } else if (!isValidWhen(when)) {
-        issues.push({ path: `${path}.when`, message: 'when must be an ISO date or an interval {from, to}' })
+    const window = validityWindow(node)
+    if (window !== undefined) {
+      if (!(TEMPORAL_NODE_KINDS as readonly string[]).includes(kind)) {
+        issues.push({
+          path: `${path}.${window.field}`,
+          message: `${window.field} on a non-temporal node: a ${kind || 'node'} is not a dated thing, so it has no validity window — its own date goes in when, and a relation's window goes on the edge`,
+        })
       }
-    }
-
-    if (kind === 'observation') {
-      if (typeof node.value !== 'number' || !Number.isFinite(node.value)) {
-        issues.push({ path: `${path}.value`, message: 'value must be a number, not a string — "4.9 mmol/L" cannot be plotted' })
-      }
-      if (!isNonEmptyString(node.unit)) {
-        issues.push({ path: `${path}.unit`, message: 'unit is required and must be a separate string' })
-      }
-      for (const bound of ['ref_low', 'ref_high'] as const) {
-        if (node[bound] !== undefined && typeof node[bound] !== 'number') {
-          issues.push({ path: `${path}.${bound}`, message: `${bound} must be a number` })
-        }
-      }
-      if (node.flag !== undefined && !(OBSERVATION_FLAGS as readonly string[]).includes(String(node.flag))) {
-        issues.push({ path: `${path}.flag`, message: `flag must be one of ${OBSERVATION_FLAGS.join(', ')}` })
-      }
-    }
-
-    if ((kind === 'condition' || kind === 'medication') && !(CONDITION_STATUS as readonly string[]).includes(String(node.status))) {
-      issues.push({ path: `${path}.status`, message: `a ${kind} needs status: ${CONDITION_STATUS.join(', ')}` })
-    }
-
-    const confidence = node.confidence
-    if (confidence !== undefined && (typeof confidence !== 'number' || confidence < 0 || confidence > 1)) {
-      issues.push({ path: `${path}.confidence`, message: 'confidence is 0..1' })
+      const reversed = reversedWindow(window)
+      if (reversed !== undefined) issues.push({ path, message: reversed })
     }
   }
 
-  const edges = doc.edges as unknown[]
   edges.forEach((edge, index) => {
-    if (!isObject(edge)) return
     const path = `$.edges[${index}]`
+    if (isNonEmptyString(edge.source)) {
+      const parent = byId.get(edge.source)
+      if (!parent) {
+        issues.push({ path: `${path}.source`, message: `edge source "${edge.source}" is not a node in this document` })
+      } else if (parent.kind !== 'source') {
+        issues.push({
+          path: `${path}.source`,
+          message: `edge source "${edge.source}" is a ${String(parent.kind)} node, not a source`,
+        })
+      }
+    }
+
+    const reversed = reversedWindow(validityWindow(edge))
+    if (reversed !== undefined) issues.push({ path, message: reversed })
+
     const label = edge.label
     const rule = isNonEmptyString(label) ? HEALTH_EDGE_LABELS[label] : undefined
-    if (!rule) {
-      issues.push({
-        path: `${path}.label`,
-        message: `relation ${JSON.stringify(label)} is not in the contract: ${Object.keys(HEALTH_EDGE_LABELS).join(', ')}`,
-      })
-      return
-    }
-    const from = byId.get(String(edge.from))
-    const to = byId.get(String(edge.to))
-    if (!from || !to) return // reported by the base pass
+    if (!rule) return // the schema says which relations exist
+    const from = isNonEmptyString(edge.from) ? byId.get(edge.from) : undefined
+    const to = isNonEmptyString(edge.to) ? byId.get(edge.to) : undefined
+    if (!from || !to) return
     if (!rule.from.includes('*') && !rule.from.includes(String(from.kind))) {
       issues.push({
         path: `${path}.from`,
@@ -243,14 +292,57 @@ function validateHealth(
       issues.push({ path: `${path}.to`, message: `${label} ends at ${String(to.kind)}, expected ${rule.to.join(' or ')}` })
     }
   })
+
+  return issues
 }
 
-function isValidWhen(when: unknown): boolean {
-  if (typeof when === 'string') return ISO_DATE.test(when)
-  if (!isObject(when)) return false
-  if (!isNonEmptyString(when.from) || !ISO_DATE.test(when.from)) return false
-  if (when.to !== undefined && when.to !== null) {
-    return isNonEmptyString(when.to) && ISO_DATE.test(when.to)
+type Window = { field: string; from: string; to?: string | null }
+
+function validityWindow(holder: Json): Window | undefined {
+  const from = holder.valid_from
+  const to = holder.valid_to
+  if (from === undefined && to === undefined) return undefined
+  return {
+    field: from !== undefined ? 'valid_from' : 'valid_to',
+    from: typeof from === 'string' ? from : '',
+    to: typeof to === 'string' || to === null ? to : undefined,
   }
-  return true
+}
+
+function reversedWindow(window: Window | undefined): string | undefined {
+  if (window === undefined) return undefined
+  if (window.from === '' || typeof window.to !== 'string') return undefined
+  if (window.to >= window.from) return undefined
+  return `valid_to ${window.to} is before valid_from ${window.from}: a window that ends before it starts never holds`
+}
+
+/**
+ * Schema issues address a node by its index, because that is where the value is. A reader knows
+ * the card by its id. Rename the index when the id is unambiguous — a duplicated id stays at its
+ * index, so the two rows that collide do not both print the same path.
+ */
+function relabelToIds(issues: Issue[], doc: Json): Issue[] {
+  const nodes = Array.isArray(doc.nodes) ? doc.nodes : []
+  const ids = nodes.map((node) => (isObject(node) && isNonEmptyString(node.id) ? node.id : undefined))
+  const counts = new Map<string, number>()
+  for (const id of ids) if (id !== undefined) counts.set(id, (counts.get(id) ?? 0) + 1)
+
+  return issues.map((issue) => {
+    const match = /^\$\.nodes\[(\d+)\]/.exec(issue.path)
+    if (!match) return issue
+    const index = Number(match[1])
+    const id = ids[index]
+    if (id === undefined || (counts.get(id) ?? 0) > 1) return issue
+    return { ...issue, path: issue.path.replace(`$.nodes[${index}]`, `$.nodes[${id}]`) }
+  })
+}
+
+function dedupe(issues: Issue[]): Issue[] {
+  const seen = new Set<string>()
+  return issues.filter((issue) => {
+    const key = `${issue.path}\u0000${issue.message}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }

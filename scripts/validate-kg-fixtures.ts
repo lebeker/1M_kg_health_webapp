@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Contract gate (G1) — the `kg/1` rules over fixtures.
+ * Contract gate (G1) — the `kg/1-health` contract over fixtures.
  *
  *   bun scripts/validate-kg-fixtures.ts              # tests/fixtures/kg/{valid,invalid}
  *   bun scripts/validate-kg-fixtures.ts some.json    # any document you name must conform
@@ -8,15 +8,22 @@
  * A fixture in `valid/` must produce no issues. A fixture in `invalid/` must produce at least one,
  * and the failure is printed with its reasons. The invalid half is the point: a checker that cannot
  * go red is a checker that never fails, and the two halves are read from the same directory so
- * neither can be quietly dropped.
+ * neither can be quietly dropped. T04 named six fixtures — three valid, three invalid — so the
+ * directory is required to hold at least that many of each: a suite that lost its teeth fails here
+ * rather than passing quietly.
+ *
+ * The contract is `scripts/schema/kg-1-health.schema.json`, read from disk; this runs headless,
+ * needs no network and no `node_modules`, and exits non-zero on a bad fixture.
  *
  * Exit 0 = both halves behave, 1 = the contract is broken (or the fixtures stopped testing it).
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { type Issue, validateKg } from './lib/kg-contract'
+import { type Issue, HEALTH_SCHEMA_VERSION, validateKg } from './lib/kg-contract'
 
 const FIXTURES = 'tests/fixtures/kg'
+const MIN_VALID = 3
+const MIN_INVALID = 3
 
 type Result = { file: string; ok: boolean; issues: Issue[] }
 
@@ -40,6 +47,8 @@ function main(argv: string[]): number {
   const results: Result[] = []
   let failures = 0
 
+  console.log(`contract kg/1-health ${HEALTH_SCHEMA_VERSION}`)
+
   if (named.length > 0) {
     for (const file of named) {
       const issues = validateKg(readJson(file))
@@ -54,12 +63,12 @@ function main(argv: string[]): number {
 
     const valid = collect(join(FIXTURES, 'valid'))
     const invalid = collect(join(FIXTURES, 'invalid'))
-    if (valid.length === 0) {
-      console.error(`FAIL: no valid fixtures in ${FIXTURES}/valid`)
+    if (valid.length < MIN_VALID) {
+      console.error(`FAIL: ${valid.length} valid fixture(s) in ${FIXTURES}/valid, the card names ${MIN_VALID}`)
       return 1
     }
-    if (invalid.length === 0) {
-      console.error(`FAIL: no invalid fixtures in ${FIXTURES}/invalid — the checker is untested`)
+    if (invalid.length < MIN_INVALID) {
+      console.error(`FAIL: ${invalid.length} invalid fixture(s) in ${FIXTURES}/invalid — the checker is undertested`)
       return 1
     }
 
@@ -86,7 +95,9 @@ function main(argv: string[]): number {
     if (result.issues.length > 6) console.log(`         … and ${result.issues.length - 6} more`)
   }
 
-  console.log(`\n${results.length} fixture(s), ${failures} failure(s)`)
+  const accepted = results.filter((r) => !r.file.endsWith('(must be rejected)')).length
+  const summary = named.length > 0 ? `${results.length} document(s)` : `${results.length} fixture(s) (${accepted} valid, ${results.length - accepted} invalid)`
+  console.log(`\n${summary}, ${failures} failure(s)`)
   return failures === 0 ? 0 : 1
 }
 

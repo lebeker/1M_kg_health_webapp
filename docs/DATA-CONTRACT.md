@@ -40,6 +40,11 @@ first, then in the engine, then in the template. Not the other way round.
 **No identity anywhere else.** Not in `nodes`, not in `desc`, not in the template's JavaScript. The
 birth date `1984-03-01` hardcoded in `body/index.html` is a defect, not a default.
 
+`requires` and `colors` are marked required because a document the app writes always carries them.
+The schema does not reject a document without them: the template supplies its own defaults (the
+health kinds ship their hex values), so a hand-written or foreign document is not turned away for
+a key the viewer would have filled in anyway.
+
 ## Node kinds
 
 Seven kinds, and no free-form ones. A kind that is not on this list is a modelling error, because the
@@ -127,15 +132,35 @@ The template derives "state on date D" by taking every event with `when <= D` an
 
 ## Validation
 
+The machine-readable form of this file is `scripts/schema/kg-1-health.schema.json` (JSON Schema
+draft 2020-12, version in `x-contract-version`), and the checker that reads it is
+`scripts/lib/kg-contract.ts`. `bun run test:contract` runs both over `tests/fixtures/kg/`: a fixture
+in `valid/` must pass, a fixture in `invalid/` must be rejected, and the run exits non-zero when
+either half misbehaves. It needs no network and no `node_modules` — `bun` is the whole install.
+
 The document is valid when:
 
-- `kg.py validate` passes for `kg/1`;
-- every `kind` is in the list above;
-- every event has `when`, every observation has `value` + `unit`;
-- every node has `source` pointing at an existing `source` node;
-- no node carries a date it should not (a `condition` without `onset` is fine; a `medication` without
-  `started` is not);
+- it matches the schema: the envelope, the seven kinds, the eight relations, the fields as typed
+  (a `value` is a number, a `when` is a real calendar date), and per kind the fields that kind
+  cannot do without (an observation its date, value, unit and source; a condition its onset, status
+  and source; an encounter its date and source);
+- `id` is unique, and every edge's `from` and `to` are nodes in the same document;
+- every node's `source` points at an existing node whose kind is `source` — and a `source` node
+  points at none, because it is the provenance;
+- an edge's ends carry the kinds its relation allows (`x-relations` in the schema: `tracks` runs
+  observation → condition, `derived_from` anything → source, and so on);
+- no node but a dated one carries a validity window: `valid_from` / `valid_to` are a relation's
+  device. A stable thing — a document, an organ — has no window, and a dated node states its date
+  in `when`. A window that ends before it starts is rejected on both nodes and edges;
 - `meta.profile.sex` and `meta.profile.year_of_birth` exist.
 
-The health-specific checks are **not implemented yet**: they are task T04 in the plan. Until they
-exist, `validate` proves the document is well-formed `kg/1`, not that it is a valid health record.
+What the schema deliberately does not describe: a stored snapshot. A snapshot is derived, not
+recorded — the state at date D is every node whose `when` is on or before D, plus every edge whose
+validity window holds at D (§Temporal rule). The immutable snapshot store is proposal T08 and is
+not approved, so the contract covers the snapshot by keeping that derivation well-defined rather
+than by inventing a shape for it.
+
+The base `kg/1` shape stays thin: a document whose `meta.app` is not `health-viewer` is checked
+only for an envelope, an id per node and, per edge, both ends named and resolving to a node in the
+document — an edge with a missing or empty `from`/`to` is not a relation, and the renderer drops it
+without a word. Any other key is carried through untouched.

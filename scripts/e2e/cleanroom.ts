@@ -110,14 +110,20 @@ export function checkerDir(work: string): string {
  * a source behind every fact, a date on every event) that only the app's checker states. A
  * fresh agent that is never handed that checker produces a document the skill calls conformant
  * and the app refuses — one smoke run did exactly that, 15 issues deep, and no amount of
- * harness strictness would have let the agent see it. So the room gets the two files the app's
- * own CI runs, verbatim, and the harness runs the same file afterwards: one checker on both
- * sides of the gate. It carries the shape of a document, never its content.
+ * harness strictness would have let the agent see it. So the room gets the files the app's own
+ * CI runs, verbatim, and the harness runs the same file afterwards: one checker on both sides
+ * of the gate. It carries the shape of a document, never its content.
+ *
+ * The schema comes along because the checker reads it at run time (`../schema/…` from `lib/`),
+ * and so does the small JSON Schema evaluator beside it: the room has no `node_modules`, and
+ * `bun` is the whole runtime.
  */
 function installChecker(worktree: string, work: string) {
   const files: Array<[string, string]> = [
     ['scripts/validate-kg-fixtures.ts', 'check/validate.ts'],
     ['scripts/lib/kg-contract.ts', 'check/lib/kg-contract.ts'],
+    ['scripts/lib/json-schema.ts', 'check/lib/json-schema.ts'],
+    ['scripts/schema/kg-1-health.schema.json', 'check/schema/kg-1-health.schema.json'],
   ]
   for (const [from, to] of files) {
     const source = join(worktree, from)

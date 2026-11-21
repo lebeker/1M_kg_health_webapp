@@ -32,7 +32,8 @@ comment with the screenshots attached). Exit 2 = the card declares no user quest
    in scope and that desktop applications (browsers included) are not.
 
    The room also gets the **app's own contract checker** (`check/validate.ts`, verbatim from
-   the worktree, with `check/lib/kg-contract.ts` beside it). The skill's `validate` checks the
+   the worktree, with `check/lib/` and the `check/schema/kg-1-health.schema.json` it reads
+   beside it). The skill's `validate` checks the
    base kg/1 shape; this app adds rules (a `meta.profile`, a source behind every fact, a date
    on every event) that only the app's checker states. Without it in the room, an agent can
    produce a document the skill calls conformant and the app rejects — that happened, 15 issues
