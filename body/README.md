@@ -86,6 +86,20 @@ of each node stays inside the frustum clear of the rail and the open panel. Fram
 box in the body's plane and aiming at z = 0 is what left five of six systems off screen
 (LIST OF PROBLEMS 2).
 
+## State at date — the left list (T10)
+
+The left column is one list, newest on top: the future above, the past below, no FUTURE/PAST
+captions, and the row the reader picked marked black. It mixes what the document holds — analyses,
+diagnoses, decisions — with two rows the page makes itself: an annual marker stamped `01-01` of
+the year after the one it covers, and the today summary, which is the first row and is generated at
+launch, never stored as an event. Clicking a row moves the ruler to that day and scrolls the row to
+the middle of the panel.
+
+The rules (order, annual marker, today row) live in `lib/state-list.js`, pure and DOM-free, so
+`scripts/state-list.test.ts` can state them as dates. The page only decides what a row looks like.
+The body's layer rail now sits under the list in the same column; the collapse button folds the
+whole column, which is the width the stage's framing maths has always assumed.
+
 ## Earlier interface experiment
 
 The Forma/constellation experiment has been moved to `constellation.html`; it is not the

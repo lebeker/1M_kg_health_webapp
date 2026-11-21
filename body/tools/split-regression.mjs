@@ -178,7 +178,9 @@ function makeDocument() {
 
 const LIBS = ["lib/three.min.js", "lib/GLTFLoader.js", "lib/OrbitControls.js",
   "lib/d3-dispatch.min.js", "lib/d3-quadtree.min.js", "lib/d3-octree.min.js",
-  "lib/d3-timer.min.js", "lib/d3-force-3d.min.js"];
+  "lib/d3-timer.min.js", "lib/d3-force-3d.min.js",
+  // the page's own modules, loaded the way its <script src> tags load them: after the vendors
+  "lib/timeline-step.js", "lib/state-list.js"];
 
 async function loadPage() {
   const page = await fetchOrDie(pageUrl, "the page");

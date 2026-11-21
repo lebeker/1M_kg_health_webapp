@@ -110,6 +110,36 @@
         { "organ": "pancreas", "how": "beta cells are meeting demand — no sign of strain" },
         { "organ": "cardio-vascular", "how": "normal fasting glucose keeps the metabolic CV risk low" }
       ]
+    },
+    {
+      "id": "dx-2024-hypertension",
+      "kind": "condition",
+      "label": "hypertension, stage 1",
+      "date": "2024-10-22",
+      "organ": "cardio-vascular",
+      "status": "active",
+      "confirmed": true,
+      "source": "bp-2024-10",
+      "summary": "A doctor's note after the October home readings: stage 1 hypertension. It is a diagnosis, not a measurement — the note holds what was decided next, and the later 150/110 shows this one did not hold."
+    },
+    {
+      "id": "decision-2024-bp-diary",
+      "kind": "decision",
+      "label": "home blood-pressure diary",
+      "date": "2024-10-25",
+      "confirmed": true,
+      "source": "dx-2024-hypertension",
+      "summary": "Two weeks of twice-daily home readings before any drug, so the number that gets treated is the average and not one nervous morning in a clinic."
+    },
+    {
+      "id": "plan-2026-bp-check",
+      "kind": "prediction",
+      "label": "repeat blood pressure check",
+      "date": "2026-12-01",
+      "organ": "heart",
+      "confirmed": false,
+      "source": "bp-2026-10",
+      "summary": "Planned check after the stage 2 reading: a repeat average and a decision on treatment. Planned is not done — until it happens this row is a plan, not a record."
     }
   ],
   "edges": []
