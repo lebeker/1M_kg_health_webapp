@@ -1,6 +1,6 @@
 {
   "//": "Kanban profile -> Jira account id, for scripts/jira-sync.py. A null account_id means the person exists but the id is not recorded here yet: the sync warns loudly and leaves the Jira assignee alone rather than guessing.",
-  "//why": "Jira Cloud hides user search from this token ('Could not find account ID for user: <email>'), so the id has to be supplied, not looked up. Get it from the person's own Jira profile URL (…/jira/people/<accountId>) or from Atlassian admin user search.",
+  "//why": "Jira Cloud hides user search from this token ('Could not find account ID for user: <email>'), so the id has to be supplied, not looked up. Ids below were verified by exact email lookup in the SCRUM project and are pinned by scripts/test_jira_sync.py; do not replace them with a guess.",
   "profiles": {
     "mex": {
       "account_id": "712020:4a5a1d3d-2ab3-42fb-8fed-a98e441e9c18",
@@ -8,12 +8,14 @@
       "display_name": "Mex Viner"
     },
     "lia": {
-      "account_id": null,
-      "email": "lia.mijatovich@gmail.com"
+      "account_id": "712020:40bb33bc-7d90-4b80-ab8f-afea6579db65",
+      "email": "lia.mijatovich@gmail.com",
+      "display_name": "Lia Mijatovich"
     },
     "right": {
-      "account_id": null,
-      "email": "righ@ukr.net"
+      "account_id": "617d6aad3e3753006f48c6d3",
+      "email": "righ@ukr.net",
+      "display_name": "Кирил Ольжич"
     }
   }
 }

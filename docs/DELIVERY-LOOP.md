@@ -130,8 +130,8 @@ State as of 2026-11-21 (bootstrap card SCRUM-40):
 | # | Requirement | State |
 |---|---|---|
 | 1 | `liamijatovich` and `righ22` are repo collaborators with write | **done** — both have `push` |
-| 2 | `main` is protected: PR, 1 approval from another identity, dismiss stale, no self-approval, auto-merge | **pending admin** — `mex` holds `push`, not `admin`; see §8 for the exact command |
-| 3 | A required CI check exists (G1/G2) | **workflow exists** (`.github/workflows/verify.yml`, PR for SCRUM-40); *required* needs #2 |
+| 2 | `main` is protected: PR, 1 approval from another identity, dismiss stale, no self-approval, auto-merge | **done** — `main` reports `"protected": true` and a repo-admin applied the auto-merge setting; `mex` cannot read the protection payload (admin-only), so the settings are recorded in §8 and verified by PR behaviour (`REVIEW_REQUIRED` on an otherwise green PR) |
+| 3 | A required CI check exists (G1/G2) | **done** — `.github/workflows/verify.yml` on `chore/SCRUM-40_delivery-workflow`: `branch-name`, `verify`, `sync-selftest` |
 | 4 | The agentic e2e harness exists (section 3) | **not built** — card E01 (SCRUM-41), and it blocks product cards |
 | 5 | Dispatcher running with per-profile concurrency caps | config ready (§7), dispatcher start is the parent's call |
 
@@ -152,10 +152,18 @@ implement one card and review another. What an identity may *not* do is approve 
 is GitHub's rule, enforced at the platform, not a prompt.
 
 **Concurrency, per identity.** `lia` and `right` each get **one implementation run plus one
-independent review run** — at most one card in `running` at a time, and review work on a *different*
-card. A total cap of two is not enough: it would still allow two implementations. That is
-`kanban.max_in_progress_per_profile: 1` in the dispatcher's config (review runs are dispatched from
-the `review` column and are not implementation runs). `mex` takes product cards one at a time.
+independent review run**, and never two implementations. The dispatcher enforces this with
+`kanban.max_in_progress_per_profile: 1`, and what that setting actually does is stricter than the
+name suggests: it counts *every* `status = 'running'` row per assignee
+(`hermes_cli/kanban_db_dispatch.py`, the `per_profile_running` query) and applies the same cap to
+both the `ready` and the `review` lane — a claimed review is itself a `running` row
+(`claim_review_task` moves `review → running`). So a profile has **one run in flight at a time, full
+stop**: while it implements one card its review of another waits in the queue, and while it reviews,
+its next implementation waits. That can never produce two implementations, which is the hard
+requirement; it also means the dev-plus-review pairing is serialized, not concurrent. Making those two
+lanes genuinely parallel would need a role-aware count (implementation rows capped at one *plus* one
+review row), which the dispatcher does not have today — do not assume `2` gets you there, it would
+allow two implementations. `mex` takes product cards one at a time.
 
 **Field ownership.** Two stores, one writer each, so nothing is updated by two places:
 
@@ -164,7 +172,7 @@ the `review` column and are not implementation runs). `mex` takes product cards 
 | card status, assignee, comments, runs | Kanban board `health` | the worker that owns the card; the lead creates and splits |
 | Jira status | `scripts/jira-sync.py` | derived from card status (§ mapping in the script docstring) |
 | Jira assignee | `scripts/jira-sync.py` | derived from card assignee via `scripts/jira-identities.json` |
-| Jira comments | `scripts/jira-sync.py` | running / review / blocked / done, deduped by marker |
+| Jira comments | `scripts/jira-sync.py` | running / review / blocked / changes_requested / done, deduped by marker |
 | plan, contract, gates | `docs/PLAN-health-2026-11-12.md`, `docs/DATA-CONTRACT.md`, this file | the owner (lead) |
 
 A human never edits a status in Jira by hand: if the two disagree, the card is the truth and the sync
@@ -183,8 +191,10 @@ Done by `mex` on branch `chore/SCRUM-40_delivery-workflow`:
   its status stayed *To Do*.
 - The branch-name rule added and tested (15 cases in the CLI, plus unit tests).
 
-**Two operations only a repository admin can perform.** `mex` holds `push`, so both return `404 Not
-Found` (GitHub hides admin-only endpoints from non-admins):
+**Two operations only a repository admin can perform — now applied.** `mex` holds `push`, so both
+return `404 Not Found` from `mex` (GitHub hides admin-only endpoints from non-admins); a repo admin
+applied them on 2026-11-21. This is the exact payload that is meant to be live, kept here so it can be
+re-checked rather than re-invented:
 
 ```sh
 # 1. allow auto-merge at the repository level (needed before a bot can arm it)
@@ -215,8 +225,9 @@ JSON
 `dismiss_stale_reviews` is what stops an approval covering code it never saw. Neither has a
 substitute in an agent's instructions.
 
-**One operator value still missing.** `scripts/jira-identities.json` has no `account_id` for `lia` or
-`right`, because Jira Cloud refuses the lookup from this token (`Could not find account ID for user:
-<email>`). Until the ids are filled in (Jira profile URL: `…/jira/people/<accountId>`), the sync
-warns and leaves those assignees alone — 18 warnings on the current board. The ids are the whole
-difference between a ledger that says who owns a card and one that does not.
+**The operator value is filled in.** `scripts/jira-identities.json` now carries verified `account_id`s
+for all three identities — `mex`, `lia` (`712020:40bb33bc-…`), `right` (`617d6aad3e3753006f48c6d3`) —
+so the sync assigns every card instead of warning about two of them. Jira Cloud still refuses the
+lookup from this token (`Could not find account ID for user: <email>`), which is why the ids are
+committed rather than resolved at run time; `scripts/test_jira_sync.py` pins them so a later edit
+cannot quietly put a null back and turn the assignee into a silent no-op.
