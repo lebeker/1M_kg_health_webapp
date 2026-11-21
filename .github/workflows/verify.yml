@@ -1,0 +1,63 @@
+# Deterministic checks only. The agentic end-to-end run (a fresh agent driving the built page in a
+# headless browser) is local by design — see docs/DELIVERY-LOOP.md §3 and card E01. GitHub never hosts
+# an agent, and a check that needs a model is not a check.
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # The rule `(fix|feat|chore)/<JIRA-TICKET>_<description>` is enforced before anything is built,
+  # and it is the same function a worker can run locally: `bun scripts/check-branch-name.ts`.
+  branch-name:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.5
+      - name: branch name
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: bun scripts/check-branch-name.ts "$HEAD_REF"
+
+  # G1 (contract) and G2 (lint + types + unit). Required check: `verify`.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.5
+      - run: bun install --frozen-lockfile
+      - name: lint
+        run: bun run lint
+      - name: typecheck
+        run: bun run typecheck
+      - name: unit
+        run: bun run test
+      - name: contract fixtures
+        run: bun run test:contract
+      - name: build
+        run: bun run build
+
+  # The Jira sync is automation that writes to the ledger; its logic is unit-tested with a fake
+  # client, so a mapping or read-back regression fails here rather than on a live ticket.
+  sync-selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: jira sync unit tests
+        run: python3 -m unittest discover -s scripts -p 'test_jira_sync.py' -v

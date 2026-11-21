@@ -1,0 +1,86 @@
+{
+  "meta": {
+    "title": "Andrei, 65",
+    "schema": "kg/1",
+    "app": "health-viewer",
+    "requires": { "skills": ["kg"], "plugins": [], "tools": [] },
+    "colors": { "condition": "#c0504d", "observation": "#4f81bd", "medication": "#93c47d" },
+    "profile": { "sex": "male", "year_of_birth": 1961, "name": "Andrei" },
+    "timezone": "Europe/Berlin"
+  },
+  "nodes": [
+    {
+      "id": "src-discharge-2021",
+      "label": "Discharge note, cardiology, p.2",
+      "kind": "source",
+      "confirmed": true,
+      "link": "sources/discharge-2021-05-14.pdf"
+    },
+    {
+      "id": "cond-hyperlipidaemia",
+      "label": "Hyperlipidaemia",
+      "kind": "condition",
+      "status": "active",
+      "origin": "doctor",
+      "when": { "from": "2021-05-14" },
+      "confirmed": true,
+      "source": "src-discharge-2021",
+      "code": "E78.5"
+    },
+    {
+      "id": "obs-ldl-2026-11",
+      "label": "LDL cholesterol",
+      "kind": "observation",
+      "when": "2026-11-12",
+      "value": 4.9,
+      "unit": "mmol/L",
+      "ref_low": 0,
+      "ref_high": 3,
+      "flag": "high",
+      "code": "13457-7",
+      "confirmed": true,
+      "source": "src-discharge-2021"
+    },
+    {
+      "id": "med-atorvastatin",
+      "label": "Atorvastatin 20 mg",
+      "kind": "medication",
+      "status": "active",
+      "when": { "from": "2026-08-19" },
+      "confirmed": true,
+      "source": "src-discharge-2021"
+    },
+    {
+      "id": "enc-cardiology-2021-05-14",
+      "label": "Cardiology visit, 2021-05-14",
+      "kind": "encounter",
+      "when": "2021-05-14",
+      "confirmed": true,
+      "source": "src-discharge-2021"
+    },
+    {
+      "id": "sum-2025",
+      "label": "2025 annual summary",
+      "kind": "summary",
+      "when": "2026-01-01",
+      "origin": "generated",
+      "confirmed": false,
+      "source": "src-discharge-2021"
+    },
+    {
+      "id": "pred-ldl-2028",
+      "label": "LDL below 3.0 by 2028",
+      "kind": "prediction",
+      "confirmed": false,
+      "confidence": 0.6,
+      "source": "src-discharge-2021"
+    }
+  ],
+  "edges": [
+    { "from": "obs-ldl-2026-11", "to": "cond-hyperlipidaemia", "label": "tracks" },
+    { "from": "cond-hyperlipidaemia", "to": "med-atorvastatin", "label": "treated_by", "valid_from": "2026-08-19" },
+    { "from": "enc-cardiology-2021-05-14", "to": "med-atorvastatin", "label": "advised" },
+    { "from": "pred-ldl-2028", "to": "obs-ldl-2026-11", "label": "projected", "confidence": 0.6 },
+    { "from": "obs-ldl-2026-11", "to": "src-discharge-2021", "label": "derived_from" }
+  ]
+}

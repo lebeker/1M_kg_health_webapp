@@ -1,0 +1,13 @@
+{
+  "meta": {
+    "title": "An encounter nobody dated",
+    "schema": "kg/1",
+    "app": "health-viewer",
+    "profile": { "sex": "female", "year_of_birth": 1984 }
+  },
+  "nodes": [
+    { "id": "src-1", "label": "Discharge note", "kind": "source", "confirmed": true },
+    { "id": "enc-1", "label": "Cardiology visit", "kind": "encounter", "confirmed": true, "source": "src-1" }
+  ],
+  "edges": [{ "from": "enc-1", "to": "src-1", "label": "derived_from" }]
+}

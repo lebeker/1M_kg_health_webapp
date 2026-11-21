@@ -1,0 +1,13 @@
+{
+  "meta": {
+    "title": "A kind the contract does not have",
+    "schema": "kg/1",
+    "app": "health-viewer",
+    "profile": { "sex": "male", "year_of_birth": 1961 }
+  },
+  "nodes": [
+    { "id": "src-1", "label": "Discharge note", "kind": "source", "confirmed": true },
+    { "id": "sym-1", "label": "Dizziness", "kind": "symptom", "when": "2026-11-12", "confirmed": true, "source": "src-1" }
+  ],
+  "edges": [{ "from": "sym-1", "to": "src-1", "label": "derived_from" }]
+}
