@@ -122,6 +122,9 @@ this number (a treatment effect, a prediction that has been met) carries `score2
 percentage points to `risk`, in that unit, with its own citation.
 
 `src/score2.ts` is a coefficient model with published citations and no free parameters; T16 (Lee
-index, `docs/LEE.md`) is additive and ships as a rule set on the same engine. The explanation view
-(T17) therefore has to handle two shapes: `Estimate` (base + deltas) and `Score2Risk` (a coefficient
-model). This document, not the code, is where that split is decided.
+index, `docs/LEE.md`) is additive and ships as a rule set on the same engine. The explanation (T17,
+`docs/EXPLANATIONS.md`) therefore handles two shapes: `Estimate` (base + deltas) and `Score2Risk` (a
+coefficient model). For this model it does not pretend the risk is a sum: it cuts the *linear
+predictor* into per-term steps — the only additive quantity on the scale — and takes each step
+through `calibrate()` in Supplementary Table 2's order, so the rows add to the change while the
+document says out loud that the split is a function of that order.

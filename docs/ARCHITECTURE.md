@@ -103,8 +103,13 @@ citation and a confidence.
 The first shipped set is the **Lee index** (T16, `src/lee.ts`, `docs/LEE.md`): twelve published
 weights, one citation each, seventeen rows of points over an index of 0–26. It is additive, so it is
 the set the engine was built for; it refuses a person with a missing item rather than score that
-item as zero, and it prints a band of a group's mortality, never a percentage for a person. The
-explanation (T17) is what is still missing.
+item as zero, and it prints a band of a group's mortality, never a percentage for a person.
+
+The explanation (T17, `src/explain.ts`, `docs/EXPLANATIONS.md`) is the second consumer: it scores
+both dates with the same set and reports the rules that started or stopped firing, each with its Δ,
+its cause and a link a reader can open. A rule that moved the number and whose `source` is not
+addressable is refused, not printed. The same file explains SCORE2 by cutting its linear predictor,
+because that is the only quantity on a coefficient model that adds up.
 
 ### The one scale that is not a rule set
 
@@ -120,7 +125,11 @@ percentage points, which is what the version is for.
 
 So T17 has two shapes to explain — `Estimate` (base + deltas) and `Score2Risk` (a coefficient model)
 — and two things never to do: add a delta to a number whose scale it does not name, and print a
-coefficient model as if it were a sum.
+coefficient model as if it were a sum. It ships both shapes (`src/explain.ts`): rules as rows that
+started or stopped firing, SCORE2 as the steps of its linear predictor in the paper's table order,
+with the model's own limits carried through. Where those rows are drawn is still open — the drift
+view (T13) and the right panel (widgets 19–25) are parked, and `docs/WIDGETS.md` is the registry of
+that decision, not this file.
 
 **Today this file is a byte-for-byte copy of the science app** (`id: "viewer"`, `title: "Research
 field map"`). Fixing it is task T02 in the plan, and until it is fixed every agent that reads this

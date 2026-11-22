@@ -24,6 +24,7 @@
     "test:fold": "bun test src/fold.test.ts",
     "score2": "bun scripts/score2.ts",
     "lee": "bun scripts/lee.ts",
+    "explain": "bun scripts/explain.ts",
     "test:split": "node body/tools/split-regression.mjs"
   },
   "dependencies": {

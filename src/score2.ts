@@ -199,6 +199,33 @@ const LIMITS: readonly string[] = [
 ] as const
 
 /**
+ * The paper's two steps, in one place: the uncalibrated risk for a linear predictor, the region's
+ * recalibration, and the log-log value between them (which the interval is carried through).
+ *
+ * Exported because an explanation of a change has to evaluate the *same* function at intermediate
+ * linear predictors: if the explanation carried its own copy of this arithmetic, a number and its
+ * explanation could drift apart while both looked right (T17).
+ */
+export function calibrate(
+  linearPredictor: number,
+  sex: Sex,
+  region: Region,
+): { uncalibrated: number; calibrated: number; calibratedZ: number } {
+  const uncalibrated = 1 - SCORE2.models[sex].baselineSurvival ** Math.exp(linearPredictor)
+  // The equations are defined on any positive input, but far enough outside the published charts
+  // a double rounds the probability to 0 or 1 and the log-log step would print a confident zero.
+  // Refuse instead of answering, and say which door the input came through.
+  if (!(uncalibrated > 0 && uncalibrated < 1)) {
+    throw new Score2Error([
+      `input: at these values the model's probability is not a number strictly between 0 and 1 (linear predictor ${linearPredictor.toFixed(4)}); the published charts stop long before this, and the equations are extrapolating`,
+    ])
+  }
+  const [intercept, slope] = SCORE2.calibration[sex][region]
+  const calibratedZ = intercept + slope * Math.log(-Math.log(1 - uncalibrated))
+  return { uncalibrated, calibrated: 1 - Math.exp(-Math.exp(calibratedZ)), calibratedZ }
+}
+
+/**
  * The published 10-year risk, recalibrated to a region.
  *
  * Pure and deterministic: same input, same bytes. Nothing here reads the clock, the locale or
@@ -226,20 +253,8 @@ export function score2(input: Score2Input, region: Region): Score2Risk {
   }, 0)
   const linearPredictorSe = Math.sqrt(variance)
 
-  const uncalibrated = 1 - model.baselineSurvival ** Math.exp(linearPredictor)
-  // The equations are defined on any positive input, but far enough outside the published charts
-  // a double rounds the probability to 0 or 1 and the log-log step would print a confident zero.
-  // Refuse instead of answering, and say which door the input came through.
-  if (!(uncalibrated > 0 && uncalibrated < 1)) {
-    throw new Score2Error([
-      `input: at these values the model's probability is not a number strictly between 0 and 1 (linear predictor ${linearPredictor.toFixed(4)}); the published charts stop long before this, and the equations are extrapolating`,
-    ])
-  }
-  const [intercept, slope] = SCORE2.calibration[input.sex][region]
-  const z = Math.log(-Math.log(1 - uncalibrated))
-  const calibrated = 1 - Math.exp(-Math.exp(intercept + slope * z))
-  const calibratedZ = intercept + slope * z
-  const calibratedSe = slope * linearPredictorSe
+  const { uncalibrated, calibrated, calibratedZ } = calibrate(linearPredictor, input.sex, region)
+  const calibratedSe = SCORE2.calibration[input.sex][region][1] * linearPredictorSe
 
   return {
     model: 'SCORE2',
@@ -366,3 +381,44 @@ function inputProblems(input: unknown, region: unknown): string[] {
 
   return problems
 }
+
+/**
+ * The document's fact names for the six inputs. The only place the two vocabularies meet, and the
+ * reason it is here rather than in each command: two copies of this table is how `systolic_bp`
+ * silently becomes a missing systolic blood pressure in one tool and not the other.
+ */
+export const SCORE2_FACTS: readonly { fact: string; input: keyof Score2Input }[] = [
+  { fact: 'age', input: 'age' },
+  { fact: 'sex', input: 'sex' },
+  { fact: 'current_smoker', input: 'currentSmoker' },
+  { fact: 'systolic_bp', input: 'systolicBp' },
+  { fact: 'total_cholesterol', input: 'totalCholesterol' },
+  { fact: 'hdl_cholesterol', input: 'hdlCholesterol' },
+]
+
+/**
+ * A facts file as the model's input. A key that is not one of the six is passed through rather
+ * than dropped, so the model refuses it by name: `hdl` typed for `hdl_cholesterol` would otherwise
+ * read as a missing HDL, which is a different and much quieter failure. A `note` is fixture prose
+ * for a human and never reaches the model.
+ */
+export function inputFromFacts(raw: unknown): Score2Input {
+  if (!isObject(raw)) {
+    throw new Score2Error([
+      'facts: a flat JSON object: {"age": 50, "sex": "male", "current_smoker": true, "systolic_bp": 140, "total_cholesterol": 6.3, "hdl_cholesterol": 1.4}',
+    ])
+  }
+
+  const known = new Set(SCORE2_FACTS.map((field) => field.fact))
+  const input: Record<string, unknown> = {}
+
+  for (const key of Object.keys(raw)) {
+    if (key === 'note') continue
+    if (!known.has(key)) input[key] = raw[key]
+  }
+  for (const field of SCORE2_FACTS) {
+    if (raw[field.fact] !== undefined) input[field.input] = raw[field.fact]
+  }
+  return input as Score2Input
+}
+
