@@ -37,8 +37,17 @@ first, then in the engine, then in the template. Not the other way round.
 | `profile` | **yes** | the only place identity lives. `sex` and `year_of_birth` are required; a full date and a name are optional |
 | `timezone` | no | IANA name; without it, "today" is the machine's today |
 
-**No identity anywhere else.** Not in `nodes`, not in `desc`, not in the template's JavaScript. The
-birth date `1984-03-01` hardcoded in `body/index.html` is a defect, not a default.
+**No identity anywhere else.** Not in `nodes`, not in `desc`, not in the template's JavaScript. A birth
+date hard-coded in the page is a defect, not a default: the page used to carry `1984-03-01` in a
+constant, and T01 removed it. The birthday now appears once, in the document that invented the person
+(`body/demo/graph.json`, labelled `meta.demo: true`).
+
+This file is one of the four in the contract set — `docs/PRODUCT.md` (what it is for),
+`docs/ARCHITECTURE.md` (how the parts fit), this file (what a document may contain), and
+[`../ANATOMY-VOCABULARIES.md`](../ANATOMY-VOCABULARIES.md) (how anatomy is named). Where another file
+describes a document differently, this file and `scripts/schema/kg-1-health.schema.json` are the
+contract and the other file is corrected. Issues live in Jira (`SCRUM` on `lebeker.atlassian.net`), not
+in this repository.
 
 `requires` and `colors` are marked required because a document the app writes always carries them.
 The schema does not reject a document without them: the template supplies its own defaults (the
@@ -207,6 +216,27 @@ Every edge carries `source` and `confidence` when they are known, and `valid_fro
 the relation itself is temporary. A relation that was true between two dates and is not true now is
 still a fact about the past — do not delete it, close it.
 
+## Anatomy, and the vocabularies outside this file
+
+[`../ANATOMY-VOCABULARIES.md`](../ANATOMY-VOCABULARIES.md) says how anatomy is named: Uberon and FMA
+for organs and parts, CL and GO for cells and processes, ChEBI for compounds, LOINC for tests, UCUM
+for units, SNOMED and ICD for diagnoses, and a CURIE (`UBERON:0000995`) as the identifier. It is the
+reference for **what to call a thing**, and it is not a second shape. A `kg/1-health` document is not
+the place its kind list applies.
+
+Where the two files meet, this one is the contract:
+
+| `ANATOMY-VOCABULARIES.md` says | in a health document |
+|---|---|
+| a node is `organ`, `tissue`, `cell`, `organelle`, `compound`, `marker`, `protocol` | the `kind` is one of the eight (§Node kinds). Anatomy is not a node kind: an organ enters a document as the `code` of a `condition` or a `procedure`, or as the `organ` key the health page reads when it is there. Both `organ` and `mesh` are outside the schema, so they are carried through untouched and never validated |
+| `id` is a CURIE, and `source` names the vocabulary | `source` is the id of a `document` node, always (§Node fields). A CURIE belongs in `code` (LOINC, ICD-10, SNOMED) or in `id`, and the vocabulary is then read off its prefix |
+| `confidence` is `established` / `draft` / `not confirmed` | `confidence` is a number `0..1`; the established / not-confirmed distinction is `confirmed: true/false`, and `not confirmed` is the mark the UI draws for `false` |
+| edge labels include `part_of`, `located_in`, `measured_by`, `indicates`, `site_of`, `treats`, `contraindicates`, `affects`, `documented_in` | the eight relations (§Edge relations). `part_of` is a different relation in each file — here it is a marker inside a panel — so a document that means "this organ is part of that system" has no edge for it yet. The vocabulary names it; this file does not carry it |
+| a node with a `mesh` but no CURIE is a drawing, not a fact | the same rule holds, and it is enforced by the same field: `confirmed: false` is what makes a drawing visible as unconfirmed |
+
+Adding anatomy to a health document is therefore a **vocabulary** decision, not a schema change: it
+adds ids and `code` values. Adding a kind or a relation is a schema change, and it starts here.
+
 ## Temporal rule
 
 Dates do not live on stable entities. An organ has no date. Its removal has one.
@@ -266,6 +296,15 @@ The document is valid when:
 - a `prediction` carries all six of its fields, its `condition` is a well-formed predicate, its
   `target` is a condition or an observation in the same document, its `horizon` is not before the
   date printed on its own document, and it carries no `when`.
+
+The document the page ships is the honest example of all of this: `body/demo/graph.json`, an invented
+65-year-old man with twenty years of records and `meta.demo: true` (its long form is
+`body/demo/README.md`). It is checked like any other document — `bun scripts/validate-kg-fixtures.ts
+body/demo/graph.json` reports 0 issues at 2.1.0 — so a reader who wants to see the contract applied
+reads it, and an agent that wants to know whether a document is a real person looks for `meta.demo`
+first. `meta.demo` is not one of the envelope keys above: it is an extra key the schema carries
+through, and the page and its tests treat it as the mark of an invented person. The fixtures in
+`tests/fixtures/kg/` are the minimal cases, one field each; the demo is a whole record.
 
 What the schema deliberately does not describe: a stored snapshot. A snapshot is derived, not
 recorded — the state at date D is every node whose `when` is on or before D, plus every edge whose

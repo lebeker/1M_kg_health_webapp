@@ -11,6 +11,27 @@ Four layers, one document. Nothing else is shared.
    ../../1M_kg_skill            user data                    this repo                  not built
 ```
 
+## The contract set — four files, and this is how they divide
+
+Every agent and every manager reads the same four files, and each has one subject:
+
+| file | answers | corrected here, not there, when they disagree |
+|---|---|---|
+| `docs/PRODUCT.md` | what the thing is for, and what it refuses | nothing — it is the promise, not a description |
+| `docs/ARCHITECTURE.md` (this file) | how the four layers fit, and where the seams are | any other description of the layout |
+| `docs/DATA-CONTRACT.md` + `scripts/schema/kg-1-health.schema.json` | what a document may contain, and the gate that refuses one | any other description of a document — `../ANATOMY-VOCABULARIES.md` included |
+| `../ANATOMY-VOCABULARIES.md` | how anatomy is named (Uberon, CL, GO, ChEBI, LOINC, SNOMED) | nothing — it is a naming reference, not a shape |
+
+The long forms hang off these and are linked from the subject they belong to: `docs/MAIN-VIEW.md`,
+`docs/WIDGETS.md`, `docs/LEE.md`, `docs/SCORE2.md`, `docs/EXPLANATIONS.md`, `docs/PREDICTIONS.md`,
+`docs/STRATEGIES.md`, `docs/EXPORT.md`, `docs/ADD-PREDICTION.md`. `docs/PLAN-health-2026-11-12.md`
+says what is built in which order and `docs/DELIVERY-LOOP.md` says how a card moves; the decisions in
+those two belong to the owner — a card may carry an approved decision into them, not make one.
+
+**Issues live in Jira** — the `SCRUM` project on `lebeker.atlassian.net` — not in this repository. A
+file here is a specification or a record of what already happened. A defect, an open question and an
+undecided choice are issues, and they are tracked there.
+
 ## Layer 1 — the skill
 
 `../../1M_kg_skill` (`SKILL.md`, `scripts/kg.py`, `references/format.md`, `references/apps.md`).
@@ -54,20 +75,34 @@ Two companions travel with it and never mix:
 
 ## Layer 3 — the template
 
-This repo. A single-file HTML app that reads the inlined document and draws three columns.
+This repo, and two pages in it, because a page here has two different jobs:
+
+| page | built from | what it is |
+|---|---|---|
+| `dist/index.html` | `src/` (React, `bun run build`) | the viewer a skill ships: the whole `kg/1` graph in sigma 2D and in the 3D force graph, with the notes beside it. `scripts/bundle.mjs` copies it into a skill as `assets/viewer.html` |
+| `body/index.html` | hand-written, no build step | the health page: the body, the timeline, the records list, one main view per event type. Pulls its three.js and its `body/lib/*.js` modules from the folder beside it; no network |
+
+Both read the same `kg/1-health` document, and neither writes it.
 
 **Owns:** layout, widget behaviour, empty states, what is shown when a field is missing, and the
 arithmetic that turns facts into an estimate (`src/rules.ts`).
 **Does not own:** facts, defaults that look like data, editing.
 
-The build inlines the document:
+The shipped viewer inlines the document:
 
 ```html
 <script id="kg-graph" type="application/json">__KG_GRAPH__</script>
 ```
 
 because a page opened from `file://` cannot `fetch()` a sidecar. Whatever produces the final page
-replaces that text and changes nothing else.
+replaces that text and changes nothing else. The health page reads the same element when a renderer
+has written one into it; the checked-in `body/index.html` carries no placeholder, so a reader who opens
+it starts empty and loads the invented demo (`body/demo/graph.json`, `meta.demo: true`) on request.
+
+The right panel (widgets 19–25) and the drift view are parked, so no score or forecast an engine
+computes is drawn yet: the ruler shades future years with the page's own `annualRisk(age)`, which is not
+a SCORE2 or Lee number, and the commands and tests are the surface the engines have
+(`bun run rules`, `score2`, `lee`, `explain`). `docs/WIDGETS.md` is the registry of that decision.
 
 `app.json` is the template's own declaration and lives beside it:
 
@@ -80,6 +115,11 @@ replaces that text and changes nothing else.
 | `edges` | relation patterns that make it readable |
 | `requires` | what has to be installed before a graph can be built |
 | `tool_notes` | why each requirement exists |
+
+It is final (T02), and `scripts/app-manifest.test.ts` holds it to the contract: a kind the schema does
+not know, an edge `name` with a space in it, or an edge whose ends the relation forbids fails the gate.
+That matters because the skill seeds a graph from those `name` tokens — a display string in that field
+would make every document the app creates non-conformant.
 
 ### Estimates
 
@@ -169,10 +209,6 @@ The demo document (`tests/fixtures/kg/valid/health-strategies.json`) is all five
 record, and it is a valid contract fixture: the strategies cannot write a document the contract would
 refuse without `bun run test:contract` going red. Nothing draws a prediction yet — the panel and the
 drift view are parked (`docs/WIDGETS.md`) — so the command is the surface this card ships.
-
-**Today this file is a byte-for-byte copy of the science app** (`id: "viewer"`, `title: "Research
-field map"`). Fixing it is task T02 in the plan, and until it is fixed every agent that reads this
-repo will build a research map.
 
 ## Layer 4 — the service (not built; do not start)
 
