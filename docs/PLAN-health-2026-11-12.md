@@ -3,7 +3,7 @@
 Date: 2026-11-12 (rev 3); §5 resolved and tasks amended 2026-11-20 (rev 5). Basis: audit of
 `1M_kg_health_webapp`, `1M_kg_ATEST_health/FINDINGS.md`,
 `HANDOVER.md`, `body/README.md`, `PROMPT.md`, `HISTORY.md`, wireframes
-`docs/wireframe-health-v11-analysis.svg`, `docs/wireframe-health-v11b-diagnosis.svg`, `docs/wireframe-health-v11c-summary.svg`, `docs/wireframe-health-v13-past-then-now.svg`.
+`docs/wireframe-health-v11-analysis.svg`, `docs/wireframe-health-v11b-diagnosis.svg`, `docs/wireframe-health-v11c-summary.svg`, `docs/wireframe-health-v11d-profile.svg`, `docs/wireframe-health-v13-past-then-now.svg`.
 
 **Language rule:** every definition, contract and doc in this repo is written in English. Bots and
 agents work in English; Russian lives only in user-facing copy.
