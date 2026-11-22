@@ -113,6 +113,10 @@ read from the observation itself. The diet, activity and restriction lines are i
 the contract has no decision kind to hang them on. There is no stored summary and no prediction in
 the file — the page generates its annual markers (T10) and forecasts have their own fixtures.
 
+Loading it is a view and never a record: the page has no write path, so a clean reader who loads
+the demo still has nothing of their own stored. `scripts/demo-user.test.ts` (T23) executes the
+page's own `loadDemo` against this file with an empty storage and fails if a single key appears.
+
 ## Export — how a marker leaves, and how it does not
 
 The page writes nothing: there is no download button, no export panel, no second place where a
