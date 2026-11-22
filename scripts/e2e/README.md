@@ -8,7 +8,14 @@ bun run e2e --card path/to/card.md    # a card written as a file
 ```
 
 Exit 0 = the card's claim was visible in the product. Exit 1 = it was not (the card gets a
-comment with the screenshots attached). Exit 2 = the card declares no user question.
+comment with the screenshots attached, its `e2e` status goes red, and the card leaves `review`).
+Exit 2 = the card declares no user question.
+
+A pass also does two things beyond writing the directory: it comments on the card with the replay
+counts, the DOM bytes and sha256 per stage, the screenshots and the three policy checks, and it
+posts one `e2e` commit status on the exact head it built. That status is the receipt
+`scripts/e2e/ci-gate.ts` requires in CI — see `docs/E2E-GATE.md`. `--no-status` exists for a probe
+run and takes the branch out of the gate with it.
 
 ## What it actually does
 
@@ -154,6 +161,9 @@ Two consequences a reviewer should know:
 Nothing here runs in `.github/workflows/verify.yml`: a check that needs a model is not a
 deterministic check, and the CI comment says so on purpose. G3 runs locally, or headless on
 any machine that has those four things.
+
+What CI does run is `scripts/e2e/ci-gate.ts`: it reads the receipt this harness posts, and fails a
+pull request whose diff moves the app surface without one. That is the gate — `docs/E2E-GATE.md`.
 
 ## Honest limits
 
