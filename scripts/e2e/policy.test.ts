@@ -94,6 +94,80 @@ describe('the guard reads a command, not the shape of a string', () => {
     expect(outsideRoomCalls([call('terminal', { command: 'sudo find / -name kg.py' })])).toHaveLength(1)
   })
 
+  test("reads `env -S`'s value as the command line it is", () => {
+    // `env -S` exists to split a string into a command line and run it, so its value is a command,
+    // not an environment variable. Round 2's review measured it swallowed as an option value.
+    const escapes = [
+      "env -S 'find / -name x'",
+      "env --split-string 'ls /'",
+      'env --split-string="find / -name x"',
+      "sudo env -S 'find / -name x'",
+    ]
+    for (const command of escapes) {
+      expect([command, outsideRoomCalls([call('terminal', { command })]).length]).toEqual([command, 1])
+    }
+    expect(outsideRoomCalls([call('terminal', { command: `env -S 'grep -o "2D / 3D" kg/assets/health-viewer.html'` })])).toEqual([])
+  })
+
+  test('reads the command an executor runs elsewhere, and the host a container is handed', () => {
+    // `ssh` joins its arguments and hands the line to the remote shell, so quoting does not survive
+    // it; `docker`/`podman` pass argv through, so the tail is read as words. A bind mount is where a
+    // container is actually handed the host — `-v /:/host` mounts the whole machine — and the tail
+    // being a container path does not make that harmless.
+    const escapes = [
+      'ssh host ls /',
+      "ssh host 'ls /'",
+      'ssh -p 22 host find / -name kg.py',
+      'docker run --rm alpine ls /',
+      'docker exec -it kg ls /',
+      'podman run --rm alpine find / -name kg.py',
+      'docker run --rm -v /:/host alpine true',
+      'docker run --rm --volume=/:/host alpine true',
+      'docker run --rm --mount type=bind,source=/,target=/host alpine true',
+    ]
+    for (const command of escapes) {
+      expect([command, outsideRoomCalls([call('terminal', { command })]).length]).toEqual([command, 1])
+    }
+    const allowed = [
+      'ssh host ls kg',
+      'docker ps',
+      'docker run --rm -v ./kg:/app alpine ls /app',
+      'docker run --rm alpine grep -v /app/x.html kg/a.html',
+      'docker run --rm alpine grep -o "2D / 3D" /app/kg/assets/health-viewer.html',
+    ]
+    for (const command of allowed) {
+      expect([command, outsideRoomCalls([call('terminal', { command })])]).toEqual([command, []])
+    }
+  })
+
+  test('reads the command a one-line program visibly runs, and nothing else', () => {
+    // A program is not a shell command line: `os.listdir('.')` is not an `ls`, and a string that is
+    // never handed to a shell is data. Reading every literal in a program as a command would be
+    // this check's own mistake in reverse, so only the calls that do run a string are read.
+    const escapes = [
+      `perl -e 'system("ls /")'`,
+      `ruby -e 'exec("find / -name x")'`,
+      `php -r 'system("ls /");'`,
+      `node -e 'require("child_process").execSync("find / -name x")'`,
+      `python3 -c "import os; os.system('ls /')"`,
+    ]
+    for (const command of escapes) {
+      expect([command, outsideRoomCalls([call('terminal', { command })]).length]).toEqual([command, 1])
+    }
+    expect(outsideRoomCalls([call('terminal', { command: `python3 -c "import os; print(os.listdir('.'))"` })])).toEqual([])
+    expect(outsideRoomCalls([call('terminal', { command: `perl -e 'print "a / b\\n"'` })])).toEqual([])
+    expect(outsideRoomCalls([call('terminal', { command: 'python3 kg/scripts/kg.py --help' })])).toEqual([])
+  })
+
+  test('does not invent a walk out of the rest of an xargs command', () => {
+    // Round 2's review listed `xargs -0 -I{} sh -c 'find {} -name x' /` as a lost catch. It is not
+    // a walk: `{}` is filled from stdin, and the trailing `/` is the command *name* `sh` was given —
+    // `sh -c 'printf "%s" "$0"' /` prints `/` with `$#` 0 — so nothing is handed it. The pre-fix
+    // regex matched the shape `find … /`, which is the class this card exists to remove.
+    expect(outsideRoomCalls([call('terminal', { command: "xargs -0 -I{} sh -c 'find {} -name x' /" })])).toEqual([])
+    expect(outsideRoomCalls([call('terminal', { command: 'find . -name "*.json" | xargs -0 grep -l x' })])).toEqual([])
+  })
+
   test("finds the command behind an assignment, a wrapper and the wrapper's own arguments", () => {
     // Round 1 on SCRUM-55 measured all of these as missed once the command word had to be found:
     // the wrapper's own words hid the command the segment actually runs.

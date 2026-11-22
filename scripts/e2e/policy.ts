@@ -77,9 +77,25 @@ export const OUTSIDE_ROOM_PATHS: Array<[RegExp, string]> = [
  * leading assignments and a wrapper's own options, option values and positional arguments are
  * skipped before the command word is read. That word says which of its words are paths; those
  * words are then judged whole — `/` is a word, never a character inside one — so a quoted page
- * label, a regex alternation or a sentence is not read as a place to search. `sh -c '…'`, `eval`
- * and a substitution are read recursively, because a command is still a command when it is
- * quoted.
+ * label, a regex alternation or a sentence is not read as a place to search.
+ *
+ * A command is often a command *inside* another word, so the check follows it there too:
+ *
+ *  - a nested command line — `sh -c '…'`, `bash -lc '…'`, `eval …`, a `$(…)`, a backtick, and
+ *    `env -S '…'` / `env --split-string '…'`, whose whole job is to split a string into a command
+ *    line — is read as text, because that is what the other shell will receive;
+ *  - an executor's tail is a command run somewhere else. `ssh host CMD` joins its arguments with
+ *    spaces and hands the line to the remote shell, so quoting is lost and the tail is read as
+ *    text (`ssh host 'ls /'` and `ssh host ls /` are the same walk). `docker run|create IMAGE CMD`
+ *    and `docker exec CONTAINER CMD` (and `podman`) pass argv through untouched, so their tail is
+ *    read as words and a quoted `"2D / 3D"` stays one argument. A bind mount is the place a
+ *    container is actually handed the host — `docker run -v /:/host …` mounts the whole machine —
+ *    so a mount's source is judged as a path of its own;
+ *  - an interpreter's `-e`/`-c`/`-r` argument is a *program*, not a command line, and is not
+ *    parsed as one: `os.listdir('/')` is not an `ls`, and reading every string in a program as a
+ *    command would be this check's original mistake in the other direction. What is read is where
+ *    a program hands a string to a shell — `system("…")`, `exec*`, `spawn*`, `popen*` and a
+ *    backtick — because there the string *is* a command.
  *
  * This is not a whitelist of permitted commands: any command may run. What changed is where the
  * check looks for a path — at the arguments a search will actually act on — not how strictly it
@@ -140,6 +156,80 @@ const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh'])
 
 /** `find` predicates whose value is a pattern, not a path. */
 const FIND_PATTERNS = new Set(['-name', '-iname', '-path', '-ipath', '-regex', '-iregex', '-lname', '-ilname'])
+
+/** How deep a command line is followed inside another one before the check gives up. */
+const MAX_DEPTH = 3
+
+/**
+ * A command whose arguments are a command run somewhere else.
+ *
+ * `ssh` joins its arguments with single spaces and hands the line to the remote shell, so quoting
+ * does not survive the trip and its tail is read as text. `docker`/`podman` pass argv through
+ * untouched, so their tail is read as words, and only `run`/`create`/`exec` have one at all —
+ * `docker ps` has no command behind its options.
+ */
+interface Executor {
+  /** Its own options that take a value, so the value is not mistaken for the host or image. */
+  valueOptions: Set<string>
+  /** Positional words before the command: the host, or the image/container. */
+  positionals: number
+  /** Whether the tail is joined and re-read as text (`ssh`) or kept as words (`docker`). */
+  join: boolean
+  /** The subcommands whose tail is a command, when the tool is not itself the runner. */
+  subcommands?: Set<string>
+}
+
+/** The container subcommands that end in a command. */
+const CONTAINER_RUNS = new Set(['run', 'create', 'exec'])
+
+/** `docker`/`podman` options that take a value, so `-v /:/host` is not read as the image. */
+const CONTAINER_VALUE_OPTIONS = new Set([
+  '-a', '--attach', '--add-host', '--annotation', '--blkio-weight', '--cap-add', '--cap-drop',
+  '-c', '--cpu-shares', '--cidfile', '--cpus', '--cpuset-cpus', '--cpuset-mems', '--device',
+  '--device-cgroup-rule', '--dns', '--dns-option', '--dns-search', '--domainname', '--entrypoint',
+  '-e', '--env', '--env-file', '--expose', '--gpus', '--group-add', '--health-cmd',
+  '--health-interval', '--health-retries', '--health-start-period', '--health-timeout', '-h',
+  '--hostname', '--ipc', '-l', '--label', '--label-file', '--link', '--link-local-ip',
+  '--log-driver', '--log-opt', '-m', '--memory', '--memory-reservation', '--memory-swap',
+  '--memory-swappiness', '--mount', '--name', '--net', '--network', '--network-alias',
+  '--oom-score-adj', '--pid', '-p', '--publish', '--platform', '--pull', '--restart', '--runtime',
+  '--security-opt', '--shm-size', '--stop-signal', '--stop-timeout', '--storage-opt', '--sysctl',
+  '--tmpfs', '-u', '--user', '--ulimit', '--userns', '--uts', '-v', '--volume', '--volume-driver',
+  '--volumes-from', '-w', '--workdir',
+])
+
+const EXECUTORS = new Map<string, Executor>([
+  ['ssh', {
+    valueOptions: new Set([
+      '-p', '-i', '-l', '-o', '-F', '-L', '-R', '-D', '-e', '-b', '-c', '-m', '-S', '-W', '-J',
+      '-P', '-Q', '-O', '-B', '-E', '-I', '-w',
+    ]),
+    positionals: 1,
+    join: true,
+  }],
+  ['docker', { valueOptions: CONTAINER_VALUE_OPTIONS, positionals: 1, join: false, subcommands: CONTAINER_RUNS }],
+  ['podman', { valueOptions: CONTAINER_VALUE_OPTIONS, positionals: 1, join: false, subcommands: CONTAINER_RUNS }],
+])
+
+/** Tools that hand a container a host directory. */
+const CONTAINER_TOOLS = new Set(['docker', 'podman'])
+
+/**
+ * Interpreters whose `-e`-style argument is a program rather than a command line.
+ *
+ * These are read narrowly: only the command strings a program hands to a shell, not every literal
+ * in it. See `programEscape`.
+ */
+const INTERPRETERS = new Set(['perl', 'ruby', 'php', 'node', 'deno', 'bun', 'python', 'python2', 'python3'])
+
+/** The options an interpreter takes its program in. */
+const PROGRAM_OPTIONS = new Set(['-e', '-E', '-r', '-c', '--eval', '--command'])
+
+/** A program's call that runs a command string: `system("ls /")`, `execSync(…)`, `os.popen(…)`. */
+const CODE_CALL = /\b[\w.]*(?:system|exec|spawn|popen|capture)[\w.]*\s*\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|`((?:\\.|[^`\\])*)`)/gi
+
+/** A program's backtick, which is a command string too: `` `ls /` ``. */
+const CODE_BACKTICK = /`([^`]*)`/g
 
 /** Tool calls whose input carries a shell command. */
 const SHELL_TOOLS = new Set(['terminal', 'shell', 'bash', 'sh', 'exec', 'run_command', 'process'])
@@ -283,6 +373,152 @@ function nestedCommand(name: string, rest: ShellWord[]): string | null {
 }
 
 /**
+ * The command line `env -S` / `env --split-string` was handed.
+ *
+ * `env -S 'find / -name x'` splits that string into words and runs the first as a command — the
+ * option exists for exactly that — so its value is a command line, not an environment variable.
+ */
+function splitStringArgument(words: ShellWord[]): string | null {
+  for (let i = 0; i < words.length; i += 1) {
+    if (commandName(words[i]) !== 'env') continue
+    for (let j = i + 1; j < Math.min(words.length, i + 5); j += 1) {
+      const word = words[j]
+      if (word === '--') return null
+      if (word === '-S' || word === '--split-string') return words[j + 1] ?? null
+      const inline = /^(?:-S|--split-string=?)(.+)$/.exec(word)
+      if (inline) return inline[1]
+      if (!word.startsWith('-')) continue
+    }
+  }
+  return null
+}
+
+/**
+ * The words an executor will run, and whether they are joined as text.
+ *
+ * Its own options and the values they take are skipped, then its positional arguments — the host
+ * for `ssh`, the image or container for `docker` — and what is left is the command.
+ */
+function executorTail(name: string, rest: ShellWord[]): { words: ShellWord[]; join: boolean } | null {
+  const executor = EXECUTORS.get(name)
+  if (!executor) return null
+  let i = 0
+  if (executor.subcommands) {
+    if (!executor.subcommands.has(rest[i] ?? '')) return null
+    i += 1
+  }
+  let positionals = executor.positionals
+  for (; i < rest.length; i += 1) {
+    const word = rest[i]
+    if (word === '--') {
+      i += 1
+      break
+    }
+    if (word.length > 1 && word.startsWith('-')) {
+      if (executor.valueOptions.has(word)) i += 1
+      continue
+    }
+    if (positionals > 0) {
+      positionals -= 1
+      continue
+    }
+    break
+  }
+  const tail = rest.slice(i)
+  return tail.length > 0 ? { words: tail, join: executor.join } : null
+}
+
+/** The host path a container is handed: `-v /:/host`, `--volume=/:/host`, `--mount source=/`. */
+function mountEscape(rest: ShellWord[]): string | null {
+  // Only the option region: `docker run alpine grep -v /app` is `grep -v`, not a mount.
+  let i = CONTAINER_RUNS.has(rest[0] ?? '') ? 1 : 0
+  for (; i < rest.length; i += 1) {
+    const word = rest[i]
+    if (!(word.length > 1 && word.startsWith('-'))) break
+    const match = /^(?:-v|--volume|--mount)(?:=(.*))?$/.exec(word)
+    const value = match ? match[1] ?? rest[i + 1] : null
+    if (match && value) {
+      const source = word.startsWith('--mount')
+        ? /(?:^|,)(?:source|src)=([^,]+)/.exec(value)?.[1]
+        : value.split(':')[0]
+      if (source) {
+        const finding = wordEscape(source, 'a container mount of the filesystem root')
+        if (finding) return finding
+      }
+    }
+    if (CONTAINER_VALUE_OPTIONS.has(word)) i += 1
+  }
+  return null
+}
+
+/** The program an interpreter was handed: its `-e`/`-c`/`-r` argument. */
+function programArgument(rest: ShellWord[]): string | null {
+  for (let i = 0; i < rest.length; i += 1) {
+    const word = rest[i]
+    if (PROGRAM_OPTIONS.has(word)) return rest[i + 1] ?? null
+    const inline = /^(?:--eval|--command)=(.+)$/.exec(word)
+    if (inline) return inline[1]
+    const short = /^-(?:e|E|r|c)(.+)$/.exec(word)
+    if (short) return short[1]
+  }
+  return null
+}
+
+/**
+ * The first escape a one-line program makes, or null.
+ *
+ * A program is not a shell command line, so it is not parsed as one — `os.listdir('/')` is not an
+ * `ls`, and reading every string in a program as a command would be this check's own mistake in
+ * reverse. What is read is where a program hands a string to a shell: `system("ls /")`, `exec`,
+ * `spawn`, `popen`, and a backtick. There the string *is* a command.
+ */
+function programEscape(program: string, depth: number): string | null {
+  for (const match of program.matchAll(CODE_CALL)) {
+    const inner = commandEscape(match[1] ?? match[2] ?? match[3] ?? '', depth + 1)
+    if (inner) return inner
+  }
+  for (const match of program.matchAll(CODE_BACKTICK)) {
+    const inner = commandEscape(match[1], depth + 1)
+    if (inner) return inner
+  }
+  return null
+}
+
+/** The first escape one segment's command makes, or null. */
+function segmentEscape(words: ShellWord[], depth: number): string | null {
+  if (depth > MAX_DEPTH) return null
+  const split = splitStringArgument(words)
+  if (split) {
+    const inner = commandEscape(split, depth + 1)
+    if (inner) return inner
+  }
+  const index = commandIndex(words)
+  if (index < 0) return null
+  const name = commandName(words[index])
+  const rest = words.slice(index + 1)
+  if (name === 'mdfind') return 'a Spotlight search over the whole machine'
+  if (name === 'diskutil') return 'a disk query'
+  if (name === 'eval' || SHELLS.has(name)) {
+    const nested = nestedCommand(name, rest)
+    return nested ? commandEscape(nested, depth + 1) : null
+  }
+  if (EXECUTORS.has(name)) {
+    const mounted = CONTAINER_TOOLS.has(name) ? mountEscape(rest) : null
+    if (mounted) return mounted
+    const tail = executorTail(name, rest)
+    if (!tail) return null
+    return tail.join ? commandEscape(tail.words.join(' '), depth + 1) : segmentEscape(tail.words, depth + 1)
+  }
+  if (INTERPRETERS.has(name)) {
+    const program = programArgument(rest)
+    return program ? programEscape(program, depth + 1) : null
+  }
+  const spec = PATH_COMMANDS.get(name)
+  if (!spec) return null
+  return operandsEscape(name, spec, rest)
+}
+
+/**
  * The word a segment will actually run, or -1 when the segment runs nothing.
  *
  * The command is not always the first word: `X=1 find /` starts with an assignment, `xargs -0 grep`
@@ -323,26 +559,6 @@ function commandIndex(words: ShellWord[]): number {
     return i
   }
   return -1
-}
-
-/** The first escape one segment's command makes, or null. */
-function segmentEscape(words: ShellWord[], depth: number): string | null {
-  const index = commandIndex(words)
-  if (index < 0) return null
-  const name = commandName(words[index])
-  if (name === 'mdfind') return 'a Spotlight search over the whole machine'
-  if (name === 'diskutil') return 'a disk query'
-  if (name === 'eval' || SHELLS.has(name)) {
-    const nested = nestedCommand(name, words.slice(index + 1))
-    if (nested && depth < 3) {
-      const inner = commandEscape(nested, depth + 1)
-      if (inner) return inner
-    }
-    return null
-  }
-  const spec = PATH_COMMANDS.get(name)
-  if (!spec) return null
-  return operandsEscape(name, spec, words.slice(index + 1))
 }
 
 /** The first escape a command line makes, read the way the shell would run it. */
