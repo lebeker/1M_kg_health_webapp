@@ -45,8 +45,11 @@ Keys the page reads that the contract does not type are carried through untouche
 measurement on the body and in the legend, `summary` is its plain-language meaning, `affects` is
 what it touches, and `lab` / `publisher` / `address` / `link` on a document are where the numbers
 came from. `meta.birth` is not used: the ruler derives the birth day from
-`meta.profile.year_of_birth`, because identity lives in one place only. The page scales the
-contract's `confidence` (0..1) to its own 0..100 for the colour of a mark.
+`meta.profile.year_of_birth`, because identity lives in one place only. Certainty is not spent as
+an effect size: the page paints a mark by `evidence`, weight, which this case authors nowhere and
+so every mark is neutral (baseline 74.0 → 74.0, +0.0 years); the contract's `confidence` (0..1) is
+carried as how solid a fact looks, scaled to the page's 0..100, never as the number that moves the
+projection.
 
 Two things the event model deliberately cannot carry here, so they are not faked as nodes:
 

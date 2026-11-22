@@ -2512,18 +2512,26 @@ function markersOf(node) {
             ref, flag: node.flag || undefined }];
 }
 
-/* The contract's `confidence` is 0..1; the page paints 0..100. Scale it here, once, and fall back
-   to the demo's own `evidence` (the older artifact's word for the same thing) and then to the
-   neutral middle — never to a number that looks like a measurement. A missing key is not a zero:
-   `Number(null)` is 0, which would paint every unmeasured thing as worthless. */
 function finiteOrNaN(value) {
   return value === undefined || value === null || value === "" ? Number.NaN : Number(value);
 }
+
 function evidenceOf(node) {
-  const confidence = finiteOrNaN(node && node.confidence);
+  /* `evidence` is the page's own weight: how much a fact bears on the body, 0..100, the only number
+     the projection is allowed to move. A kg/1-health document does not carry it — the contract types
+     `confidence`, which says how solid a fact is, not how much it harms or helps. An observation
+     without `evidence` is therefore neutral 50: no years added, no years taken. Certainty spent as
+     if it were an effect size is how a page promises a patient a decade it cannot back. */
   const evidence = finiteOrNaN(node && node.evidence);
-  const score = Number.isFinite(confidence) ? confidence * 100 : evidence;
-  return Math.max(0, Math.min(100, Number.isFinite(score) ? score : 50));
+  return Number.isFinite(evidence) ? Math.max(0, Math.min(100, evidence)) : 50;
+}
+/* The contract's `confidence` is 0..1 and the page paints 0..100; the older artifact wrote a
+   percentage already, so a value above 1 is read as one. A missing key is not a zero:
+   `Number(null)` is 0, which would paint every unmeasured thing as worthless. */
+function confidenceOf(node) {
+  const confidence = finiteOrNaN(node && node.confidence);
+  if (!Number.isFinite(confidence)) return 50;
+  return Math.max(0, Math.min(100, confidence <= 1 ? confidence * 100 : confidence));
 }
 
 function toAnalyses(nodes) {
@@ -2536,7 +2544,7 @@ function toAnalyses(nodes) {
       affects: Array.isArray(n.affects) ? n.affects : [], track: n.track || n.id, link: n.link || "",
       delta: Number.isFinite(delta) ? delta : null,
       evidence: evidenceOf(n),
-      confidence: evidenceOf(n),
+      confidence: confidenceOf(n),
       at: date ? dayOf(date) : null,
       node: null, line: null
     };
