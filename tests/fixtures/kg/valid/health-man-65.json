@@ -79,8 +79,12 @@
     },
     {
       "id": "pred-ldl-2028",
-      "label": "LDL below 3.0 by 2028",
+      "label": "LDL below 3.0 by 2028 on a statin",
       "kind": "prediction",
+      "target": "obs-ldl-2026-11",
+      "horizon": "2028-01-01",
+      "condition": { "fact": "on_statin", "op": "eq", "value": true },
+      "delta_median": -1.1,
       "confirmed": false,
       "confidence": 0.6,
       "source": "src-discharge-2021"

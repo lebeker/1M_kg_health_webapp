@@ -131,6 +131,25 @@ with the model's own limits carried through. Where those rows are drawn is still
 view (T13) and the right panel (widgets 19–25) are parked, and `docs/WIDGETS.md` is the registry of
 that decision, not this file.
 
+### Forecasts do not move the estimate; their conditions do
+
+A prediction (T18, `src/prediction.ts`, `docs/PREDICTIONS.md`) is the third consumer of the same
+arithmetic, and the only one whose input is a **condition over the facts** rather than a rule. It is
+a node kind (`kind: "prediction"`) with `target`, `horizon`, `condition`, `delta_median`, `source`
+and `confidence`; the schema refuses one that is missing any of the six, and the contract refuses a
+`target` that is not a condition or an observation in the same document.
+
+`applyPredictions` is the whole gate: it sums `delta_median` for the forecasts whose condition
+evaluates to `met`, and returns the rest in `withheld` with the reason. It reuses
+`evaluatePredicate` from the rules engine, so "a forecast is live" and "a rule fires" cannot mean two
+different things — including the third answer. A missing or mistyped fact is `unknown`, and unknown
+is not met: the estimate does not move, and the row stays visible as pending. A forecast that is
+merely *likely* is therefore never arithmetic; it is a row a reader can see and argue with.
+
+The gate needs the scale to name, and the document does not carry it: `delta_median` is a number in
+the unit of whichever scale it adjusts, so `applyPredictions` takes the `version` from the caller,
+exactly as `applyRules` takes the set. One call, one scale.
+
 **Today this file is a byte-for-byte copy of the science app** (`id: "viewer"`, `title: "Research
 field map"`). Fixing it is task T02 in the plan, and until it is fixed every agent that reads this
 repo will build a research map.

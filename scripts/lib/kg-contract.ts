@@ -11,6 +11,8 @@
  *   - a node's `source` names a node whose kind is `document` (a document is the provenance and
  *     carries no `source` of its own);
  *   - an edge's ends carry the kinds its relation allows (`x-relations` in the schema);
+ *   - a prediction's `target` is a condition or an observation in the same document, and its
+ *     `horizon` is not before the date printed on the document it came from;
  *   - only a dated node may carry a validity window, and a window does not end before it starts.
  *
  * The base part stays deliberately thin, because the renderer only needs `nodes[].id` and
@@ -137,6 +139,17 @@ export const OBSERVATION_FLAGS = strings(
   '$defs.node[observation].properties.flag.enum',
 )
 
+/**
+ * The six fields a prediction cannot do without, read off the schema's prediction branch so the
+ * list has one home. The card T18 names exactly these: a forecast that is missing any of them is
+ * either not about anything, not about any date, not waiting on anything, or not changing anything
+ * — and the last two are how a simulation gets mistaken for a fact.
+ */
+export const PREDICTION_REQUIRED = strings(
+  branchFor('prediction').required,
+  '$defs.node[prediction].required',
+)
+
 const RELATIONS = isObject(HEALTH_SCHEMA['x-relations']) ? HEALTH_SCHEMA['x-relations'] : {}
 
 /** The closed relation list: relation → which kinds may sit on each end. `*` is "any". */
@@ -158,6 +171,12 @@ if (LABEL_ENUM.join(',') !== Object.keys(HEALTH_EDGE_LABELS).join(',')) {
 }
 
 const BASE_TOP_LEVEL = new Set(['meta', 'nodes', 'edges'])
+
+/**
+ * Kinds a prediction may be about. Read off the `projected` relation rather than copied: the edge
+ * and the node's `target` say one thing, and a document may not have them disagree.
+ */
+export const PREDICTION_TARGET_KINDS: readonly string[] = HEALTH_EDGE_LABELS.projected?.to ?? []
 
 const isHealthDocument = (doc: Json): boolean => isObject(doc.meta) && doc.meta.app === 'health-viewer'
 
@@ -256,7 +275,7 @@ function crossReferences(doc: Json, health: boolean): Issue[] {
     const path = `$.edges[${index}]`
     for (const end of ['from', 'to'] as const) {
       const value = edge[end]
-      if (!isNonEmptyString(value)) continue // an absent end is reported by validateBase, or by the schema on the health path
+      if (!isNonEmptyString(value)) continue // an absent or blank end is reported by the schema ($defs.nonEmptyText), or by validateBase on the base path
       if (!byId.has(value)) {
         issues.push({ path: `${path}.${end}`, message: `edge points at "${value}", which is not a node in this document` })
       }
@@ -269,17 +288,30 @@ function crossReferences(doc: Json, health: boolean): Issue[] {
     const path = `$.nodes[${id}]`
     const kind = typeof node.kind === 'string' ? node.kind : ''
 
-    if (kind !== PROVENANCE_KIND && isNonEmptyString(node.source)) {
-      const parent = byId.get(node.source)
-      if (!parent) {
-        issues.push({ path: `${path}.source`, message: `source "${node.source}" is not a node in this document` })
-      } else if (parent.kind !== PROVENANCE_KIND) {
+    // Two sentences for a blank `source`, on purpose: the schema states the rule ($defs.nonEmptyText)
+    // and this says what the lookup did with it — an id of spaces names nothing, so there is nothing
+    // to resolve, and a check that quietly resolves nothing is how a fact ends up citing a document
+    // that is not there. A blank and a well-formed id that points at no node read differently.
+    if (kind !== PROVENANCE_KIND && node.source !== undefined) {
+      if (typeof node.source === 'string' && !isNonEmptyString(node.source)) {
         issues.push({
           path: `${path}.source`,
-          message: `"${node.source}" is a ${String(parent.kind)} node, not a document`,
+          message: `source is blank — a node that names no document cannot be traced to one`,
         })
+      } else if (isNonEmptyString(node.source)) {
+        const parent = byId.get(node.source)
+        if (!parent) {
+          issues.push({ path: `${path}.source`, message: `source "${node.source}" is not a node in this document` })
+        } else if (parent.kind !== PROVENANCE_KIND) {
+          issues.push({
+            path: `${path}.source`,
+            message: `"${node.source}" is a ${String(parent.kind)} node, not a document`,
+          })
+        }
       }
     }
+
+    if (kind === 'prediction') issues.push(...predictionProblems(node, path, byId))
 
     const window = validityWindow(node)
     if (window !== undefined) {
@@ -296,15 +328,22 @@ function crossReferences(doc: Json, health: boolean): Issue[] {
 
   edges.forEach((edge, index) => {
     const path = `$.edges[${index}]`
-    if (isNonEmptyString(edge.source)) {
-      const parent = byId.get(edge.source)
-      if (!parent) {
-        issues.push({ path: `${path}.source`, message: `edge source "${edge.source}" is not a node in this document` })
-      } else if (parent.kind !== PROVENANCE_KIND) {
+    if (edge.source !== undefined) {
+      if (typeof edge.source === 'string' && !isNonEmptyString(edge.source)) {
         issues.push({
           path: `${path}.source`,
-          message: `edge source "${edge.source}" is a ${String(parent.kind)} node, not a document`,
+          message: 'source is blank — a relation that names no document cannot be traced to one',
         })
+      } else if (isNonEmptyString(edge.source)) {
+        const parent = byId.get(edge.source)
+        if (!parent) {
+          issues.push({ path: `${path}.source`, message: `edge source "${edge.source}" is not a node in this document` })
+        } else if (parent.kind !== PROVENANCE_KIND) {
+          issues.push({
+            path: `${path}.source`,
+            message: `edge source "${edge.source}" is a ${String(parent.kind)} node, not a document`,
+          })
+        }
       }
     }
 
@@ -329,6 +368,53 @@ function crossReferences(doc: Json, health: boolean): Issue[] {
   })
 
   return issues
+}
+
+/**
+ * What a prediction owes the rest of the document, beyond the fields the schema already types:
+ *
+ *   - its `target` is a node here, and one of the kinds it may project onto (a condition or an
+ *     observation) — a forecast about a document or a medication names a thing that cannot carry
+ *     the outcome it claims;
+ *   - its `horizon` is not before the date printed on the document it came from. A forecast is made
+ *     on a date and is about a later one; one that looks back is a record with a forecast's clothes.
+ *
+ * The condition itself is checked by the schema (`$defs.predicate`), and whether it is *met* is not a
+ * question about the document at all — that is `src/prediction.ts`, which never lets an unmet or
+ * undecidable condition move an estimate.
+ */
+function predictionProblems(node: Json, path: string, byId: Map<string, Json>): Issue[] {
+  const issues: Issue[] = []
+
+  if (isNonEmptyString(node.target)) {
+    const target = byId.get(node.target)
+    if (!target) {
+      issues.push({ path: `${path}.target`, message: `target "${node.target}" is not a node in this document` })
+    } else if (!PREDICTION_TARGET_KINDS.includes(String(target.kind))) {
+      issues.push({
+        path: `${path}.target`,
+        message: `target "${node.target}" is a ${String(target.kind)} node, expected ${PREDICTION_TARGET_KINDS.join(' or ')}: a prediction is about an outcome, not about the paper it cites`,
+      })
+    }
+  }
+
+  const horizon = node.horizon
+  const made = isNonEmptyString(node.source) ? startOf(byId.get(node.source)?.when) : undefined
+  if (typeof horizon === 'string' && made !== undefined && horizon < made) {
+    issues.push({
+      path: `${path}.horizon`,
+      message: `horizon ${horizon} is before ${made}, the date printed on the document it came from: a forecast is about a later date, never an earlier one`,
+    })
+  }
+
+  return issues
+}
+
+/** The start of a `when`: a date, or the `from` of an interval. */
+function startOf(when: unknown): string | undefined {
+  if (typeof when === 'string') return when
+  if (isObject(when) && typeof when.from === 'string') return when.from
+  return undefined
 }
 
 type Window = { field: string; from: string; to?: string | null }

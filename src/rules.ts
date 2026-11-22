@@ -88,6 +88,9 @@ export type RuleSet = { version: string; rules: readonly Rule[] }
 /** Why a rule that did not fire did not fire. Shown to a reader, so it is a closed list. */
 export type SkipReason = 'missing-fact' | 'type-mismatch' | 'no-match'
 
+/** The three answers a condition over the facts can give: true, false, or undecidable. */
+export type PredicateVerdict = true | SkipReason
+
 /** What one fired rule did to the number — Δ, cause and source link, which is what T17 shows. */
 export type Contribution = {
   rule: string
@@ -189,7 +192,7 @@ export function applyRules(set: RuleSet, facts: Facts, base = 0): Estimate {
   let delta = 0
 
   for (const rule of ordered) {
-    const verdict = decide(rule.when, facts)
+    const verdict = evaluatePredicate(rule.when, facts)
     if (verdict !== true) {
       notApplied.push({ rule: rule.id, reason: verdict })
       continue
@@ -283,13 +286,18 @@ function ruleProblems(rule: unknown, path: string): string[] {
   if (!('when' in rule)) {
     problems.push(`${named}: missing when — a rule with no condition applies to everyone`)
   } else {
-    problems.push(...predicateProblems(rule.when, `${named}.when`))
+    problems.push(...conditionProblems(rule.when, `${named}.when`))
   }
 
   return problems
 }
 
-function predicateProblems(when: unknown, path: string): string[] {
+/**
+ * Every reason a condition over the facts is malformed — the checks a rule's `when` and a
+ * prediction's `condition` share. Exported so the second reader of this language (`src/prediction.ts`)
+ * refuses the same shapes with the same words, instead of growing a near-copy that drifts.
+ */
+export function conditionProblems(when: unknown, path: string): string[] {
   if (!isObject(when)) return [`${path}: a condition is an object`]
 
   const shapes = ['fact', 'all', 'any', 'not'].filter((key) => key in when)
@@ -311,9 +319,9 @@ function predicateProblems(when: unknown, path: string): string[] {
     if (!Array.isArray(children) || children.length === 0) {
       return [`${path}.${shape}: a condition that can never fire (an empty ${shape}) is a bug, not a rule`]
     }
-    return children.flatMap((child, index) => predicateProblems(child, `${path}.${shape}[${index}]`))
+    return children.flatMap((child, index) => conditionProblems(child, `${path}.${shape}[${index}]`))
   }
-  if (shape === 'not') return predicateProblems(when.not, `${path}.not`)
+  if (shape === 'not') return conditionProblems(when.not, `${path}.not`)
 
   const leaf = when as { fact?: unknown; op?: unknown; value?: unknown }
   const problems: string[] = []
@@ -339,18 +347,20 @@ function predicateProblems(when: unknown, path: string): string[] {
   return problems
 }
 
-type Verdict = true | SkipReason
-
 /**
+ * Decide one condition over the facts. Exported because a prediction's `condition` is the same
+ * language as a rule's `when` (`$defs.predicate` in the schema), and it has to get the same answer:
+ * a forecast that is live only where a rule would fire is a forecast nobody can argue with.
+ *
  * Three-valued, deliberately: a condition is true, false, or undecidable because a fact is missing
  * or of the wrong type. `not` over an undecidable condition stays undecidable — "we do not know
  * whether he is on a statin" is not "he is not on a statin", and a rule must never read it as one.
  */
-function decide(when: Predicate, facts: Facts): Verdict {
+export function evaluatePredicate(when: Predicate, facts: Facts): PredicateVerdict {
   if ('all' in when) {
     let unknown: SkipReason | undefined
     for (const child of when.all) {
-      const verdict = decide(child, facts)
+      const verdict = evaluatePredicate(child, facts)
       if (verdict === true) continue
       if (verdict === 'no-match') return 'no-match'
       unknown = unknown ?? verdict
@@ -361,7 +371,7 @@ function decide(when: Predicate, facts: Facts): Verdict {
   if ('any' in when) {
     let unknown: SkipReason | undefined
     for (const child of when.any) {
-      const verdict = decide(child, facts)
+      const verdict = evaluatePredicate(child, facts)
       if (verdict === true) return true
       if (verdict !== 'no-match') unknown = unknown ?? verdict
     }
@@ -369,7 +379,7 @@ function decide(when: Predicate, facts: Facts): Verdict {
   }
 
   if ('not' in when) {
-    const verdict = decide(when.not, facts)
+    const verdict = evaluatePredicate(when.not, facts)
     if (verdict === true) return 'no-match'
     if (verdict === 'no-match') return true
     return verdict
