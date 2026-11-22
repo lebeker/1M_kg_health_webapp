@@ -1,0 +1,9 @@
+{
+  "note": "The SCORE2 supplement's worked example (Supplementary Methods Table 4): a 50-year-old man who smokes, SBP 140 mmHg, total cholesterol 6.3 mmol/L, HDL 1.4 mmol/L. Uncalibrated 5.41%; in the high-risk region 8.81%. The earlier of the two dates in this card's example.",
+  "age": 50,
+  "sex": "male",
+  "current_smoker": true,
+  "systolic_bp": 140,
+  "total_cholesterol": 6.3,
+  "hdl_cholesterol": 1.4
+}

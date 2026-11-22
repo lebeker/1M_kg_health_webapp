@@ -20,17 +20,7 @@
  * Exit 0 = a risk was printed, 1 = the input was refused, 2 = no facts file or no region named.
  */
 import { readFileSync } from 'node:fs'
-import { type Region, Score2Error, type Score2Input, type Score2Risk, score2 } from '../src/score2'
-
-/** The facts file's names, and the model's. The only place the two vocabularies meet. */
-const FIELDS: readonly { fact: string; input: keyof Score2Input }[] = [
-  { fact: 'age', input: 'age' },
-  { fact: 'sex', input: 'sex' },
-  { fact: 'current_smoker', input: 'currentSmoker' },
-  { fact: 'systolic_bp', input: 'systolicBp' },
-  { fact: 'total_cholesterol', input: 'totalCholesterol' },
-  { fact: 'hdl_cholesterol', input: 'hdlCholesterol' },
-]
+import { type Region, Score2Error, type Score2Risk, inputFromFacts, score2 } from '../src/score2'
 
 function readJson(path: string): unknown {
   try {
@@ -49,33 +39,6 @@ function refuse(about: string, error: unknown): number {
   }
   console.error(`refused: ${about} — ${error instanceof Error ? error.message : String(error)}`)
   return 1
-}
-
-/**
- * The facts file as the model's input. A key that is not one of the six is refused rather than
- * ignored: `hdl` typed for `hdl_cholesterol` would otherwise read as a missing HDL, which is a
- * different and much quieter failure.
- */
-function toInput(raw: unknown): Score2Input {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    throw new Score2Error([
-      'facts: a flat JSON object: {"age": 50, "sex": "male", "current_smoker": true, "systolic_bp": 140, "total_cholesterol": 6.3, "hdl_cholesterol": 1.4}',
-    ])
-  }
-
-  const facts = raw as Record<string, unknown>
-  const known = new Set(FIELDS.map((field) => field.fact))
-  const input: Record<string, unknown> = {}
-
-  for (const key of Object.keys(facts)) {
-    // A fixture explains itself in a `note`; a model reads facts, so prose never reaches it.
-    if (key === 'note') continue
-    if (!known.has(key)) input[key] = facts[key] // let the model name it as an unknown key
-  }
-  for (const field of FIELDS) {
-    if (facts[field.fact] !== undefined) input[field.input] = facts[field.fact]
-  }
-  return input as Score2Input
 }
 
 function percent(value: number): string {
@@ -115,9 +78,9 @@ function main(argv: string[]): number {
     return refuse(files.slice(1).join(', '), new Error('expected one facts file'))
   }
 
-  let input: Score2Input
+  let input: ReturnType<typeof inputFromFacts>
   try {
-    input = toInput(readJson(files[0]))
+    input = inputFromFacts(readJson(files[0]))
   } catch (error) {
     return refuse(files[0], error)
   }

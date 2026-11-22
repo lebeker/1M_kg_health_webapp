@@ -1,0 +1,15 @@
+{
+  "note": "The same man two years later: he is 70 (a new age band, +3 points), a cancer has been recorded (+2), he stopped smoking (−2), and he now has difficulty bathing (+2). 3 age + 2 male + 1 diabetes + 2 cancer + 1 BMI + 2 bathing = 11 points, the paper's 10–13 band (42% 4-year mortality). Every difference is a fact in the document, not an opinion.",
+  "age": 70,
+  "sex": "male",
+  "bmi": 23.5,
+  "diabetes": true,
+  "cancer": true,
+  "lung_disease": false,
+  "heart_failure": false,
+  "current_smoker": false,
+  "difficulty_bathing": true,
+  "difficulty_walking_several_blocks": false,
+  "difficulty_managing_money": false,
+  "difficulty_pushing_large_objects": false
+}

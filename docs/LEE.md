@@ -151,7 +151,15 @@ nothing else is dropped.
 
 ## For T17
 
-The explanation view has an `Estimate` (base + deltas, and a skip list with a reason per rule) for
-this scale, and a `Score2Risk` (a coefficient model, and an interval) for SCORE2. The Lee index must
-never be printed as a percentage — its version says points, and its band is a string on purpose —
-and a delta must never be added to a number whose scale it does not name.
+The explanation (`src/explain.ts`, `docs/EXPLANATIONS.md`) scores both dates with `LEE_RULES` and
+reports every rule whose contribution changed, with the points it added or gave back, the citation
+and a link to PubMed:
+
+```
+bun run explain lee tests/fixtures/explain/lee-before.json tests/fixtures/explain/lee-after.json
+```
+
+The index must never be printed as a percentage — its version says points, and its band is a string
+on purpose — and a delta must never be added to a number whose scale it does not name. The same
+command with `score2` prints the other shape, which is not a sum of points and is not explained as
+one.
