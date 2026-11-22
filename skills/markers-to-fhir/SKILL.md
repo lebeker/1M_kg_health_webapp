@@ -603,12 +603,14 @@ def compare(cards, rows):
     if len(expected) != len(rows):
         mismatches.append({"field": "count", "expected": len(expected), "read_back": len(rows)})
     for want, got in zip(expected, rows):
-        for field in ("node", "panel", "name", "unit", "flag", "code", "date", "source"):
-            if want[field] != (got.get(field) or None if field == "panel" else got.get(field)):
-                if field == "panel" and want[field] is None and got.get("panel") is None:
-                    continue
+        for field in ("node", "name", "unit", "flag", "code", "date", "source"):
+            if want[field] != got.get(field):
                 mismatches.append({"marker": want.get("name"), "node": want["node"], "field": field,
                                    "expected": want[field], "read_back": got.get(field)})
+        # A single-test record has no report, so `panel` is None on both sides for it.
+        if want["panel"] != got.get("panel"):
+            mismatches.append({"marker": want["name"], "node": want["node"], "field": "panel",
+                               "expected": want["panel"], "read_back": got.get("panel")})
         if want["value"] != got["value"] and (want["value"] is None or got["value"] is None
                                               or abs(want["value"] - got["value"]) > 1e-9):
             mismatches.append({"marker": want["name"], "node": want["node"], "field": "value",
