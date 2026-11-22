@@ -1,0 +1,9 @@
+{
+  "note": "SCORE2 supplement, Supplementary Methods Table 4: the same risk factors in a 50-year-old woman. Published: uncalibrated 3.32%; recalibrated low 4.34%, moderate 5.23%, high 7.13%, very high 14.14%.",
+  "age": 50,
+  "sex": "female",
+  "current_smoker": true,
+  "systolic_bp": 140,
+  "total_cholesterol": 6.3,
+  "hdl_cholesterol": 1.4
+}

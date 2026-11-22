@@ -1,0 +1,9 @@
+{
+  "note": "Third known profile, at a different age and risk-factor shape: the non-diabetic 65-year-old man with SBP 160, total cholesterol 5.5 and HDL 1.2 who does not smoke. The ESC's own calculator (heartscore.escardio.org, SCORE2 quick calculator, high-risk region, examination date 22 November 2026) prints 14%; this model computes 14.21%. The calculator reports whole percent, so the test allows half a point.",
+  "age": 65,
+  "sex": "male",
+  "current_smoker": false,
+  "systolic_bp": 160,
+  "total_cholesterol": 5.5,
+  "hdl_cholesterol": 1.2
+}

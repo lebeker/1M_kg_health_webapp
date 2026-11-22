@@ -1,0 +1,9 @@
+{
+  "note": "Refused: a typo in a fact name is not a missing fact. `hdl` would otherwise read as an absent HDL and quietly change the person.",
+  "age": 50,
+  "sex": "male",
+  "current_smoker": false,
+  "systolic_bp": 140,
+  "total_cholesterol": 5.2,
+  "hdl": 1.3
+}
