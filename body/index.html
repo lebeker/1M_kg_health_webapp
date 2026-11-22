@@ -24,7 +24,8 @@
   .seg button[data-sex="female"].on { color:#f2a0bf; }
   .seg button[data-sex="male"].on { color:#7fb4f2; }
 
-  /* widget 6, the player: four buttons and the date they are standing on */
+  /* widget 6, the player: four buttons and the date they are standing on. It lives in the main
+     view's header (#main, below), at the centre column's top-right, not in the page bar. */
   .player { display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden; }
   .player button { border:0; border-radius:0; background:transparent; padding:5px 8px; color:#9fb3c6; }
   .player button + button { border-left:1px solid var(--line); }
@@ -32,7 +33,7 @@
   .player button:disabled { color:#47535f; cursor:default; }
   .player svg { display:block; }
   .tl-date { min-width:112px; color:var(--mut); font-size:11.5px; letter-spacing:.03em;
-             font-variant-numeric:tabular-nums; white-space:nowrap; }
+             font-variant-numeric:tabular-nums; white-space:nowrap; text-transform:none; }
 
   /* the left column: the records list (widget 7) on top, the body's layer list under it. One column,
      one collapse button: the same width the stage's layout maths has always assumed. */
@@ -181,6 +182,13 @@
     padding:8px 12px; border-bottom:1px solid var(--line); font-size:10.5px; letter-spacing:.09em;
     text-transform:uppercase; color:var(--mut); }
   #main header .btn { padding:2px 6px; border:1px solid transparent; background:transparent; color:var(--mut); }
+  /* the header's right-hand cluster, in the order v11 reads it: the date the timeline points at, the
+     player (four buttons), then the page's own close control at the very edge */
+  .mheadright { display:flex; align-items:center; gap:8px; margin-left:auto; }
+  /* the chosen date has no record: the column keeps its header — and with it the player — and the
+     body is not drawn. An empty panel would be a lie; a vanished navigator is a dead end. */
+  #main.bare { bottom:auto; }
+  #main.bare .mbody, #main.bare #mainClose { display:none; }
   #main .mbody { padding:14px 16px 18px; overflow:auto; }
   #main .mtitle { margin:0 0 2px; font-size:17px; font-weight:600; color:#eef4fa; }
   #main .msub { color:var(--mut); font-size:11px; letter-spacing:.05em; text-transform:uppercase; margin-bottom:14px; }
@@ -373,13 +381,9 @@
           title="3D layer — show where organs and diagnoses live">3D layer · off</button>
 
   <span class="spacer"></span>
-  <div class="player only-main" id="tlPlayer" role="group" aria-label="timeline player">
-    <button data-step="start" title="start — first event" aria-label="start"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><rect x="1" y="2" width="1.7" height="8" fill="currentColor"/><path d="M10.5 2.4 L4.2 6 L10.5 9.6 Z" fill="currentColor"/></svg></button>
-    <button data-step="prev" title="previous event" aria-label="previous event"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M9 2.4 L2.7 6 L9 9.6 Z" fill="currentColor"/></svg></button>
-    <button data-step="next" title="next event" aria-label="next event"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M3 2.4 L9.3 6 L3 9.6 Z" fill="currentColor"/></svg></button>
-    <button data-step="end" title="end — last event" aria-label="end"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M1.5 2.4 L7.8 6 L1.5 9.6 Z" fill="currentColor"/><rect x="9.3" y="2" width="1.7" height="8" fill="currentColor"/></svg></button>
-  </div>
-  <span class="tl-date only-main" id="tlDate" title="the date the timeline points at"></span>
+  <!-- widget 6 is not here: the player belongs to the main view's own header (see #main below), as
+       v11 draws it — four buttons in the centre column's top-right corner, beside the record's
+       subject line, not among the page's chrome. -->
   <!-- widget 1: one button, the graph in a view of its own. It is never part of the main flow, and
        it sits where the graph belongs in the header: in the right-hand cluster, glued to the left of
        the profile control, one control among its neighbours. -->
@@ -413,9 +417,24 @@
   </aside>
 </div>
 
-<!-- widget 9: the main view. One container in the centre; the event fills it. -->
+<!-- widget 9: the main view. One container in the centre; the event fills it. It is also the centre
+     column's own header: widget 6 (the player) sits at its top-right, where v11 draws it, and the box
+     stays on screen as a bare header when the chosen date carries no record — the navigator must not
+     vanish under the reader's hand. -->
 <section id="main" aria-label="record" hidden>
-  <header><span id="mainKicker">record</span><button class="btn" id="mainClose" title="close">✕</button></header>
+  <header>
+    <span id="mainKicker">record</span>
+    <div class="mheadright">
+      <span class="tl-date" id="tlDate" title="the date the timeline points at"></span>
+      <div class="player" id="tlPlayer" role="group" aria-label="timeline player">
+        <button data-step="start" title="start — first event" aria-label="start"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><rect x="1" y="2" width="1.7" height="8" fill="currentColor"/><path d="M10.5 2.4 L4.2 6 L10.5 9.6 Z" fill="currentColor"/></svg></button>
+        <button data-step="prev" title="previous event" aria-label="previous event"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M9 2.4 L2.7 6 L9 9.6 Z" fill="currentColor"/></svg></button>
+        <button data-step="next" title="next event" aria-label="next event"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M3 2.4 L9.3 6 L3 9.6 Z" fill="currentColor"/></svg></button>
+        <button data-step="end" title="end — last event" aria-label="end"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M1.5 2.4 L7.8 6 L1.5 9.6 Z" fill="currentColor"/><rect x="9.3" y="2" width="1.7" height="8" fill="currentColor"/></svg></button>
+      </div>
+      <button class="btn" id="mainClose" title="close">✕</button>
+    </div>
+  </header>
   <div class="mbody" id="mainBody"></div>
 </section>
 
@@ -2868,6 +2887,7 @@ function selectDate(d, id) {
   if (!d || isNaN(+d)) return;
   state.date = iso(d);
   state.event = id || null;     // a date picked on the ruler marks no single record, only its day
+  state.mainHidden = false;     // navigating to a day asks for its column back: ✕ must not be a dead end
   paintFade();
   buildTimeline();          // ends in refreshPick: the marker and the readout follow the date
 }
@@ -2879,7 +2899,11 @@ function tlStep(where) {
   const times = ANALYSES.map(a => +a.at);
   const from = state.date ? +dayOf(state.date) : NaN;
   const at = TimelineStep.step(times, from, where);
-  if (at !== null) selectDate(new Date(at));
+  if (at === null) return;
+  // a step is a jump to an event, not to a bare day: the record standing there opens with it, so
+  // the centre column never reads "no record on this date" on a date the player just stopped at
+  const hit = ANALYSES.find(a => +a.at === at);
+  selectDate(new Date(at), hit ? hit.id : null);
 }
 document.querySelectorAll("#tlPlayer button").forEach(b => {
   b.addEventListener("click", () => tlStep(b.dataset.step));
@@ -3362,7 +3386,22 @@ function renderMain() {
   const body = document.getElementById("mainBody");
   if (!box || !body) return;
   const row = state.event ? STATE_ROWS.find(r => r.id === state.event) : null;
-  if (!row || state.mainHidden) { box.hidden = true; return; }
+  if (state.mainHidden) { box.hidden = true; box.classList.remove("bare"); return; }
+  box.hidden = false;
+  if (!row) {
+    // the date carries no record — an empty stretch between two events. The centre column keeps its
+    // header, so widget 6 stays under the reader's hand (v11 puts the player there and nothing else);
+    // what it does not keep is a body, because there is nothing truthful to put in it.
+    box.classList.add("bare");
+    delete box.dataset.view;
+    delete box.dataset.record;
+    body.innerHTML = "";
+    const kicker = document.getElementById("mainKicker");
+    // "no records" is the empty document; "no record on this date" is a dated stretch between events
+    if (kicker) kicker.textContent = STATE_ROWS.some(r => r.stored) ? "no record on this date" : "no records";
+    return;
+  }
+  box.classList.remove("bare");
   const node = docById(row.id);
   const view = MainView.viewOf(row, node);
   const context = { nodes: DOC_NODES, edges: DOC_EDGES, byId: docById, today: iso(new Date()) };

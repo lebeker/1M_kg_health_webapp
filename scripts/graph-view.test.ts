@@ -91,9 +91,12 @@ describe('the graph button beside the profile control (SCRUM-49)', () => {
     const btn = at('id="openGraph"')
     const seg = at('<div class="seg" id="sex">')
     expect(btn).toBeGreaterThan(at('class="spacer"'))       // right of the spacer: the cluster's side
-    expect(btn).toBeGreaterThan(at('id="tlPlayer"'))        // after the timeline player
-    expect(btn).toBeGreaterThan(at('id="tlDate"'))          // and after the date it points at
     expect(btn).toBeLessThan(seg)
+    // the timeline player is widget 6 and no longer lives in this bar: it sits in the main view's
+    // header (scripts/timeline-player.test.ts pins that), so nothing of it stands between the graph
+    // button and the profile control
+    expect(bar).not.toContain('id="tlPlayer"')
+    expect(bar).not.toContain('id="tlDate"')
     // nothing but the button's own markup between it and the profile control
     expect(bar.slice(btn, seg)).toMatch(/^id="openGraph"[\s\S]*<\/svg><\/button>\s*$/)
   })

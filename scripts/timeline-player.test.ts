@@ -111,10 +111,41 @@ describe('the ruler the page draws', () => {
   })
 })
 
-describe('the player in the header', () => {
+describe('the player in the main view header', () => {
   test('four buttons, in the order the wireframe drew them: start, prev, next, end', () => {
     const steps = [...page.matchAll(/<button data-step="([a-z]+)"/g)].map((m) => m[1])
     expect(steps).toEqual(['start', 'prev', 'next', 'end'])
+  })
+
+  test('widget 6 sits at the centre column top-right, not in the page bar', () => {
+    // v11 draws the four buttons inside the main view's own header, right of the subject line; the
+    // page's top bar is the app's chrome and carries the graph button and the profile only.
+    const bar = page.slice(page.indexOf('<div class="bar">'), page.indexOf('<div id="leftCol">'))
+    expect(bar).not.toContain('id="tlPlayer"')
+    expect(bar).not.toContain('id="tlDate"')
+
+    const head = page.slice(page.indexOf('<section id="main"'), page.indexOf('id="mainBody"'))
+    expect(head).toContain('id="tlPlayer"')
+    expect(head).toContain('id="tlDate"')
+    // the header reads left to right: the subject line, the date, the four buttons, then the page's
+    // own close control at the very edge
+    expect(head.indexOf('id="mainKicker"')).toBeLessThan(head.indexOf('id="tlDate"'))
+    expect(head.indexOf('id="tlDate"')).toBeLessThan(head.indexOf('id="tlPlayer"'))
+    expect(head.indexOf('id="tlPlayer"')).toBeLessThan(head.indexOf('id="mainClose"'))
+  })
+
+  test('the column keeps its header, and the player with it, when the date has no record', () => {
+    // a click on the ruler selects a bare day. The navigator must not vanish under the reader's hand,
+    // so the box collapses to its header instead of closing; nothing is drawn in the empty body.
+    expect(page).toContain('box.classList.add("bare")')
+    expect(page).toContain('#main.bare .mbody, #main.bare #mainClose')
+    expect(page).not.toContain('if (!row || state.mainHidden) { box.hidden = true; return; }')
+  })
+
+  test('a step opens the event it lands on, not just the day', () => {
+    // stopping on a date and then being told there is no record there would be a lie about the click
+    expect(page).toContain('const hit = ANALYSES.find(a => +a.at === at)')
+    expect(page).toContain('selectDate(new Date(at), hit ? hit.id : null)')
   })
 
   test('the step maths is the tested module, not a second copy in the page', () => {
