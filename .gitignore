@@ -5,6 +5,10 @@ dist-multi/
 # G3 evidence: runs are inspected locally and attached to the card, not committed.
 .e2e/
 
+# Test scratch space, kept inside the repo so a test run writes nothing outside it.
+.cache/
+skills/**/__pycache__/
+
 # Generated candidate/Blender backups; final model and editable source are tracked.
 body/models/repair/reproductive-female.glb
 body/models/repair/*.blend1

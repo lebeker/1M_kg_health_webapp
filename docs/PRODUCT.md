@@ -66,6 +66,23 @@ interval — the split is gone and both halves become untrustworthy.
 
 ## Honest position today
 
-There is a working renderer, an honest defect list, three wireframes and no data. The app stores six
-sample values in HTML, has no `kg.json`, and its `app.json` still declares a research field map. It is
-a prototype that knows what it wants to be, which is more than most prototypes.
+The health page (`body/index.html`) draws the body, the timeline, the records list and one main view
+per event type, and it starts empty. The only document it loads is `body/demo/graph.json` — an invented
+man, 65, twenty years of records, labelled `meta.demo: true` — which passes the contract gate, and
+loading it writes nothing into a reader's own record (T21, T23). No `kg.json` of a real person ships in
+this repository: data lives beside the document, never in the template.
+
+The estimates are implemented and tested — SCORE2 (`src/score2.ts`), the Lee index (`src/lee.ts`), delta
+explanations (`src/explain.ts`), the forecast gate (`src/prediction.ts`) and five built-in strategies
+(`src/strategies.ts`) — and no panel draws them yet. The right panel (widgets 19–25) and the drift view
+are parked, so today those numbers are reachable through their commands and their tests, not on
+screen.
+
+Not built: the service (accounts, sharing, app registry), the graph button (T27), the 3D layer toggle
+with its size warning (T28), and the release itself (T26). `app.json` declares `health-viewer` and is
+guarded against the contract by a test.
+
+The rest of the contract set: [`DATA-CONTRACT.md`](DATA-CONTRACT.md) (what a document may contain),
+[`ARCHITECTURE.md`](ARCHITECTURE.md) (how the four layers fit),
+[`../ANATOMY-VOCABULARIES.md`](../ANATOMY-VOCABULARIES.md) (how anatomy is named). Issues live in Jira
+(`SCRUM` on `lebeker.atlassian.net`), not in this repository.

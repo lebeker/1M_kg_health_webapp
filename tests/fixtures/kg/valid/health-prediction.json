@@ -53,6 +53,10 @@
       "id": "pred-ldl-below-3-2031",
       "label": "LDL below 3.0 by 2031 with a statin",
       "kind": "prediction",
+      "target": "obs-ldl-2031-projected",
+      "horizon": "2031-03-04",
+      "condition": { "fact": "on_statin", "op": "eq", "value": true },
+      "delta_median": -0.5,
       "confidence": 0.55,
       "confirmed": false,
       "source": "src-lab-2026-03"

@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:kg:1-health:2.0.0",
+  "$id": "urn:kg:1-health:2.1.0",
   "title": "kg/1-health — a health record in kg/1",
-  "description": "The machine-readable form of docs/DATA-CONTRACT.md. A document whose meta.app is health-viewer must match this schema; the base kg/1 format is thin on purpose (any kind, any key) and this file is the health profile that makes it strict. What JSON Schema cannot state — that a node's `source` names a document in the same document, that an edge's ends carry the kinds its relation allows, that only a node that can be in force may carry a validity window — is in scripts/lib/kg-contract.ts, which is the validator that reads this file.",
-  "x-contract-version": "2.0.0",
+  "description": "The machine-readable form of docs/DATA-CONTRACT.md. A document whose meta.app is health-viewer must match this schema; the base kg/1 format is thin on purpose (any kind, any key) and this file is the health profile that makes it strict. What JSON Schema cannot state — that a node's `source` names a document in the same document, that an edge's ends carry the kinds its relation allows, that a prediction is about a condition or an observation in this document and never about a date before its own, that only a node that can be in force may carry a validity window — is in scripts/lib/kg-contract.ts, which is the validator that reads this file.",
+  "x-contract-version": "2.1.0",
   "x-contract-document": "kg/1",
   "x-contract-profile": "health-viewer",
-  "x-contract-source": "docs/DATA-CONTRACT.md (rev 5, T06 event model)",
-  "x-contract-change": "2.0.0 — T06: `source` is renamed to `document` (the document is the provenance and has the date printed on it), `procedure` becomes its own event kind, and the six event kinds are the spine of the model: condition, observation, encounter, medication, procedure, document. A summary and a prediction stay non-events (a marker and a simulation).",
+  "x-contract-source": "docs/DATA-CONTRACT.md (rev 5, T06 event model, T18 predictions)",
+  "x-contract-change": "2.1.0 — T18: a `prediction` is a simulation with a shape — `target` (what it is about), `horizon` (the date it is about), `condition` (the predicate it waits on), `delta_median` (the change it would make), `source` and `confidence` — and no `when`, because its date is the horizon. 2.0.0 — T06: `source` is renamed to `document` (the document is the provenance and has the date printed on it), `procedure` becomes its own event kind, and the six event kinds are the spine of the model: condition, observation, encounter, medication, procedure, document. A summary and a prediction stay non-events (a marker and a simulation).",
   "x-contract-snapshot": "There is no stored snapshot shape. A snapshot is derived, not recorded: the state at date D is every node whose `when` is on or before D plus every edge whose validity window holds at D (DATA-CONTRACT §Temporal rule). The immutable snapshot store is proposal T08, explicitly not approved (PLAN §B2), so this contract covers the snapshot by making that derivation well-defined — an event always has a date, and a temporary relation is closed with valid_from/valid_to instead of deleted.",
   "x-relations": {
     "tracks": { "from": ["observation"], "to": ["condition"] },
@@ -52,6 +52,145 @@
       ]
     },
     "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "nonEmptyText": {
+      "description": "a string with something in it. Both readers of this contract trim before they answer — `isNonEmptyString` in scripts/lib/kg-contract.ts, `conditionProblems` in src/rules.ts, `loadPredictions` in src/prediction.ts — so a string of spaces is empty to them, while a bare `minLength: 1` counts it as content. A document this file accepted would then be thrown out by the loader, which is the disagreement this gate exists to prevent, so the rule is spelled once here and referred to by the fields that are read that way: a node id, a fact name, a forecast's target and source, and the two ends of an edge.",
+      "type": "string",
+      "not": {
+        "pattern": "^\\s*$",
+        "description": "must not be blank — an empty or whitespace-only string names nothing"
+      }
+    },
+    "factValue": {
+      "description": "one value a fact may hold, and so one value a comparison may compare it with",
+      "oneOf": [{ "type": "number" }, { "type": "string" }, { "type": "boolean" }]
+    },
+    "predicate": {
+      "description": "a condition over the facts of a record — one comparison, or a group of them joined by all / any / not. Deliberately the same vocabulary a rule uses (src/rules.ts): a rule's `when` and a prediction's `condition` are one language, so the engine that decides whether a rule fires decides whether a forecast is live. A condition is about facts — `age`, `current_smoker`, `ldl_cholesterol` — and never about time; dates live on nodes. What a comparison's `value` may be is decided operator by operator, because the engine (`conditionProblems`) refuses an `exists` that carries a value and a list where one value belongs: a condition this file accepts is a condition the engine reads, and one it refuses is refused here first.",
+      "oneOf": [
+        {
+          "description": "one comparison: a fact, an operator, and the value it is compared with",
+          "type": "object",
+          "required": ["fact", "op"],
+          "properties": {
+            "op": {
+              "enum": ["eq", "ne", "lt", "le", "gt", "ge", "in", "exists"],
+              "description": "eq, ne, lt, le, gt, ge compare one value; `in` takes a non-empty list; `exists` asks only whether the fact is known"
+            }
+          },
+          "oneOf": [
+            {
+              "description": "eq: the fact equals one value",
+              "type": "object",
+              "required": ["op", "value"],
+              "additionalProperties": false,
+              "properties": {
+                "fact": { "$ref": "#/$defs/nonEmptyText" },
+                "op": { "const": "eq" },
+                "value": { "$ref": "#/$defs/factValue" }
+              }
+            },
+            {
+              "description": "ne: the fact is not one value",
+              "type": "object",
+              "required": ["op", "value"],
+              "additionalProperties": false,
+              "properties": {
+                "fact": { "$ref": "#/$defs/nonEmptyText" },
+                "op": { "const": "ne" },
+                "value": { "$ref": "#/$defs/factValue" }
+              }
+            },
+            {
+              "description": "lt: the fact is below one value",
+              "type": "object",
+              "required": ["op", "value"],
+              "additionalProperties": false,
+              "properties": {
+                "fact": { "$ref": "#/$defs/nonEmptyText" },
+                "op": { "const": "lt" },
+                "value": { "$ref": "#/$defs/factValue" }
+              }
+            },
+            {
+              "description": "le: the fact is at or below one value",
+              "type": "object",
+              "required": ["op", "value"],
+              "additionalProperties": false,
+              "properties": {
+                "fact": { "$ref": "#/$defs/nonEmptyText" },
+                "op": { "const": "le" },
+                "value": { "$ref": "#/$defs/factValue" }
+              }
+            },
+            {
+              "description": "gt: the fact is above one value",
+              "type": "object",
+              "required": ["op", "value"],
+              "additionalProperties": false,
+              "properties": {
+                "fact": { "$ref": "#/$defs/nonEmptyText" },
+                "op": { "const": "gt" },
+                "value": { "$ref": "#/$defs/factValue" }
+              }
+            },
+            {
+              "description": "ge: the fact is at or above one value",
+              "type": "object",
+              "required": ["op", "value"],
+              "additionalProperties": false,
+              "properties": {
+                "fact": { "$ref": "#/$defs/nonEmptyText" },
+                "op": { "const": "ge" },
+                "value": { "$ref": "#/$defs/factValue" }
+              }
+            },
+            {
+              "description": "in: the fact is one of a non-empty list of values",
+              "type": "object",
+              "required": ["op", "value"],
+              "additionalProperties": false,
+              "properties": {
+                "fact": { "$ref": "#/$defs/nonEmptyText" },
+                "op": { "const": "in" },
+                "value": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/factValue" } }
+              }
+            },
+            {
+              "description": "exists: the fact is known — the operator asks whether it is there, so it takes no value",
+              "type": "object",
+              "required": ["op"],
+              "additionalProperties": false,
+              "properties": {
+                "fact": { "$ref": "#/$defs/nonEmptyText" },
+                "op": { "const": "exists" },
+                "value": { "not": { "description": "exists takes no value — it asks only whether the fact is there" } }
+              }
+            }
+          ]
+        },
+        {
+          "description": "all of these comparisons hold",
+          "type": "object",
+          "required": ["all"],
+          "additionalProperties": false,
+          "properties": { "all": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/predicate" } } }
+        },
+        {
+          "description": "at least one of these comparisons holds",
+          "type": "object",
+          "required": ["any"],
+          "additionalProperties": false,
+          "properties": { "any": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/predicate" } } }
+        },
+        {
+          "description": "this comparison does not hold",
+          "type": "object",
+          "required": ["not"],
+          "additionalProperties": false,
+          "properties": { "not": { "$ref": "#/$defs/predicate" } }
+        }
+      ]
+    },
     "meta": {
       "type": "object",
       "required": ["title", "schema", "app", "profile"],
@@ -93,7 +232,7 @@
       "required": ["id", "kind", "confirmed"],
       "description": "eight kinds, six of them events. An event is a fact in the record with a date in `when` and, unless it is the document itself, a `source` naming the document it came from. A summary is a virtual marker and a prediction is a simulation: both are visible, neither is an event. Fields outside this list are carried through untouched, which is how the viewer gains a key without the contract changing — and a field the contract puts on one kind (an observation's value, a condition's status) is typed only where the contract puts it.",
       "properties": {
-        "id": { "type": "string", "minLength": 1, "description": "unique and stable; never reused for different content" },
+        "id": { "$ref": "#/$defs/nonEmptyText", "description": "unique and stable; never reused for different content" },
         "label": { "type": "string" },
         "kind": {
           "enum": ["condition", "observation", "encounter", "medication", "procedure", "document", "summary", "prediction"],
@@ -104,8 +243,7 @@
           "description": "true when a human confirmed it; otherwise false and the UI says \"not confirmed\""
         },
         "source": {
-          "type": "string",
-          "minLength": 1,
+          "$ref": "#/$defs/nonEmptyText",
           "description": "id of the document node this fact came from; a document node carries none, because it is the provenance"
         },
         "when": { "$ref": "#/$defs/when" },
@@ -179,9 +317,25 @@
           "required": ["when", "source"]
         },
         {
-          "description": "a prediction needs the document it came from; its target, horizon and delta arrive with T18, which extends this schema",
-          "properties": { "kind": { "const": "prediction" } },
-          "required": ["source"]
+          "description": "a prediction is a simulation, not a fact: it needs what it is about, the date it is about, the condition it waits on and the median change it would make",
+          "properties": {
+            "kind": { "const": "prediction" },
+            "target": {
+              "$ref": "#/$defs/nonEmptyText",
+              "description": "id of the condition or observation this forecast is about"
+            },
+            "horizon": { "$ref": "#/$defs/date", "description": "the date the forecast is about — not the day it was made, which is the date printed on its source document" },
+            "condition": { "$ref": "#/$defs/predicate", "description": "the condition that has to be met before this forecast may move an estimate" },
+            "delta_median": {
+              "type": "number",
+              "description": "the median change the forecast would make to the estimate of its scale, in that scale's unit, once its condition is met"
+            }
+          },
+          "required": ["target", "horizon", "condition", "delta_median", "source", "confidence"],
+          "not": {
+            "required": ["when"],
+            "description": "a prediction is not an event: its date is the horizon, and a second date in `when` would be the second kind of time this contract exists to prevent"
+          }
         }
       ]
     },
@@ -190,8 +344,8 @@
       "required": ["from", "to", "label"],
       "description": "a relation. `source` and `confidence` are carried when they are known; `valid_from`/`valid_to` when the relation itself is temporary — a relation that was true between two dates and is not true now is still a fact about the past, so it is closed, not deleted.",
       "properties": {
-        "from": { "type": "string", "minLength": 1 },
-        "to": { "type": "string", "minLength": 1 },
+        "from": { "$ref": "#/$defs/nonEmptyText" },
+        "to": { "$ref": "#/$defs/nonEmptyText" },
         "label": {
           "enum": [
             "tracks",
@@ -205,7 +359,7 @@
           ],
           "description": "the relation; the list is closed, and a new relation needs an entry in docs/DATA-CONTRACT.md first"
         },
-        "source": { "type": "string", "minLength": 1, "description": "id of the document node this relation came from" },
+        "source": { "$ref": "#/$defs/nonEmptyText", "description": "id of the document node this relation came from" },
         "confidence": { "$ref": "#/$defs/confidence" },
         "valid_from": { "$ref": "#/$defs/date" },
         "valid_to": { "oneOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }] }

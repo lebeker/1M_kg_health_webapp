@@ -1,5 +1,17 @@
-"""CDP screenshot and interaction harness, using local Chrome. No npm dependencies."""
+"""CDP screenshot and interaction harness, using local Chrome. No npm dependencies.
+
+OWNER-ONLY manual tool: it starts the local Chrome app over CDP. An agent never runs it — agent
+verification is Hermes `browser_*` against a served build — and it refuses to start a host browser
+under an agent harness unless --force-host-browser is passed. See host_browser_guard.py.
+
+usage: browser_qa.py [shot-name-prefix]
+"""
 import base64,json,os,subprocess,sys,time,urllib.parse,urllib.request
+sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
+# Before anything that could start a browser — the launch below is at import time — and before the
+# third-party import, so an agent harness gets the refusal rather than a traceback.
+from host_browser_guard import begin
+ARGS=begin('browser_qa.py',sys.argv[1:],"usage: browser_qa.py [shot-name-prefix]")
 import websocket
 ROOT=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PORT=9347
@@ -38,11 +50,11 @@ for _ in range(100):
  if js('window.__ready?.()'):break
  time.sleep(.2)
 time.sleep(1)
-shot(sys.argv[1]+'-body' if len(sys.argv)>1 else 'pass1-body')
+shot(ARGS[0]+'-body' if len(ARGS)>0 else 'pass1-body')
 print('METRICS',js('window.__health.metrics()'),flush=True)
 print('ORGANS',js('window.__health.organs()'),flush=True)
-js("window.__setMode('out','organs')");time.sleep(1);shot(sys.argv[1]+'-layer' if len(sys.argv)>1 else 'pass1-layer')
-js("window.__openOrgan('heart')");time.sleep(.6);shot(sys.argv[1]+'-heart' if len(sys.argv)>1 else 'pass1-heart')
+js("window.__setMode('out','organs')");time.sleep(1);shot(ARGS[0]+'-layer' if len(ARGS)>0 else 'pass1-layer')
+js("window.__openOrgan('heart')");time.sleep(.6);shot(ARGS[0]+'-heart' if len(ARGS)>0 else 'pass1-heart')
 print('ERRORS',errors,flush=True)
 # Optional test code runs with cmd/js/shot helpers.
 if os.environ.get('FORMA_QA_EXTRA'):exec(open(os.environ['FORMA_QA_EXTRA']).read())

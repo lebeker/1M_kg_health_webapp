@@ -104,8 +104,34 @@ item with neither a record nor a file is shown, not clickable, and says why.
 
 ## Demo
 
-`body/demo/graph.json` carries one record per view so all of it can be seen without a real
-document: a four-row lipid panel with a lab, an address, a scan and two printed flags; a
-cardiologist's note with five assignment groups and all four marks; a generated diagnosis with the
-`not confirmed` badge and no doctor; a stored 2025 summary with its own four lists; and a
-`contradicts` edge that puts the yellow triangle on the 2024 hypertension note.
+`body/demo/graph.json` is the T21 case — a `kg/1-health` document of 62 events over twenty years —
+and it carries the records that make each view visible without a real document: four-marker lipid
+panels with a lab, an address, a scan and printed flags; a cardiologist's note that put a
+condition on the record and a drug under `treated_by`; a note that stopped a drug for its cough; a
+colonoscopy with its polyp; and single tests (troponin, HbA1c, eGFR) whose one-row analysis view is
+read from the observation itself. The diet, activity and restriction lines are in the notes' text:
+the contract has no decision kind to hang them on. There is no stored summary and no prediction in
+the file — the page generates its annual markers (T10) and forecasts have their own fixtures.
+
+Loading it is a view and never a record: the page has no write path, so a clean reader who loads
+the demo still has nothing of their own stored. `scripts/demo-user.test.ts` (T23) executes the
+page's own `loadDemo` against this file with an empty storage and fails if a single key appears.
+
+## Export — how a marker leaves, and how it does not
+
+The page writes nothing: there is no download button, no export panel, no second place where a
+marker is defined. The markers defined above leave through two skills the webapp hands to `kg`
+(`app.json` → `requires.skills`, fetched from `skills_url`), and they leave *these* rows, not a
+re-reading of the document:
+
+| skill | output | keeps |
+|---|---|---|
+| `markers-to-pdf` | one paginated PDF card per panel | value, reference, flag, date, source per row; missing fields printed; a range reading never dressed as the lab's |
+| `markers-to-fhir` | one HL7 FHIR R4 `Bundle` | the same five fields as `Observation`/`DiagnosticReport`, with a round trip that reads every row back |
+
+`docs/EXPORT.md` holds the survey of established health-record formats, the mapping and its
+losses. `scripts/skills.test.ts` runs both skills on this demo and compares their rows with
+`markers()` and `sourceOf()` here, so the export cannot quietly become a second opinion.
+
+A third skill, `add-prediction`, goes the other way: it writes a forecast into the document from a
+paper the user brings. It is not an export and it is not a screen either — `docs/ADD-PREDICTION.md`.

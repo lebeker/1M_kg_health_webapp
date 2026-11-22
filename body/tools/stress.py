@@ -1,19 +1,36 @@
 """Click everything, ten times, and say what broke.
 
+OWNER-ONLY manual tool: it starts the local Chrome app over CDP. An agent never runs it — agent
+verification is Hermes `browser_*` against a served build — and it refuses to start a host browser
+under an agent harness unless --force-host-browser is passed. See host_browser_guard.py.
+
+usage: stress.py [port] [rounds]
+
 The app has no test hooks beyond the ones it uses itself (select, toggleLayer, openAll,
 buildLegend, layout, selectAnalysis), so this drives those same entry points the DOM
 calls, plus real mouse clicks on the canvas. Every round checks the invariants that the
 last three bugs violated: the camera stays close, labels belong to nodes and die with
 them, no NaN in the graph, counts stay put.
 """
-import base64, json, subprocess, sys, time, urllib.request
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Before anything that could start a browser, and before the third-party import, so an agent
+# harness gets the refusal rather than a traceback.
+from host_browser_guard import begin
+
+ARGS = begin("stress.py", sys.argv[1:], "usage: stress.py [port] [rounds]")
+
+import base64, json, subprocess, time, urllib.request
 
 import websocket
 
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 URL = "http://127.0.0.1:8770/body/index.html"
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 10601
-ROUNDS = int(sys.argv[2]) if len(sys.argv) > 2 else 10
+PORT = int(ARGS[0]) if len(ARGS) > 0 else 10601
+ROUNDS = int(ARGS[1]) if len(ARGS) > 1 else 10
 
 
 def start():
