@@ -140,5 +140,12 @@ The separate female surface is the CC0 Blender Studio/Wikimedia scan by Dan Ulri
 Paul Kotelevets, Tonatiuh de San Julián and Julien Kaspar.
 
 The new female reproductive surfaces are original procedural model geometry, authored here
-rather than copied from atlas female collections (which are empty). three.js r146 and the
-vendored controls/loaders retain their MIT notices in `lib/`.
+rather than copied from atlas female collections (which are empty). three.js r146 is MIT and the
+two examples vendored beside it are MIT as well, but the vendored copies do not all carry their
+own notice: `three.min.js` does, `OrbitControls.js` and `GLTFLoader.js` do not, and the d3 files
+name a holder but not a licence. The notices that have to travel are therefore in
+[`LICENSES/`](../LICENSES/), mapped file by file in [`NOTICE.md`](../NOTICE.md).
+
+The repository-wide licence map — which path is MIT, CC BY-SA 4.0 or CC0, and the full texts —
+is [`NOTICE.md`](../NOTICE.md) and [`LICENSES/`](../LICENSES/). This section is the model-specific
+detail behind it.
