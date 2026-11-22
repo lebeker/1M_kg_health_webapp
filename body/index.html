@@ -211,6 +211,22 @@
   #main .mrow .mrv .mdetail { display:block; color:#93a4b5; font-size:11.5px; margin-top:1px; }
   #main .mgroup { font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:#a9b6c3;
     margin:10px 0 2px; }
+  /* widget 2's blocks (SCRUM-16): one row per fact, a glyph for its state, and the reason under it.
+     The row's `data-state` is what the acceptance run reads, so the page never has to be believed. */
+  #main .pvrow { display:flex; gap:8px; align-items:baseline; padding:3px 0; border-bottom:1px solid #171e26; }
+  #main .pvrow:last-child { border-bottom:0; }
+  #main .pvrow .pvmark { width:12px; flex:none; color:#7f8b98; }
+  #main .pvrow[data-state="supplied"] .pvmark { color:#7fb4f2; }
+  #main .pvrow[data-state="refused"] .pvmark { color:#e2725b; }
+  #main .pvrow .pvf { color:#dbe6f1; font-size:12.5px; min-width:150px; }
+  #main .pvrow .pvv { color:#93a4b5; font-size:11.5px; flex:1; min-width:0; }
+  #main .pvrow .pvwhy { display:block; color:#6f7c8a; font-size:11px; }
+  #main .pvrow .pvpts { color:#c9a86a; font-size:11px; white-space:nowrap; }
+  #main .pvlegend { color:#6f7c8a; font-size:11px; margin:6px 0 0; }
+  #main .pvspan { color:var(--mut); font-size:12px; line-height:1.45; margin:-8px 0 14px; }
+  #main .pvyear { width:62px; background:#18202b; color:#dbe6f1; border:1px solid var(--line);
+    border-radius:6px; padding:3px 6px; font:inherit; font-size:12px; font-variant-numeric:tabular-nums; }
+  #main .pvreset { padding:2px 7px; font-size:11px; }
   /* widget 10: the whole panel as a table — a lipid panel is four rows, a single test is one */
   #main table.mtab { width:100%; border-collapse:collapse; font-size:12.5px; margin-top:4px; }
   #main .mtab th { text-align:left; font-weight:600; color:#8b98a6; font-size:10px; letter-spacing:.07em;
@@ -483,10 +499,28 @@
   <!-- widget 2, the profile view (SCRUM-52's wireframe: docs/wireframe-health-v11d-profile.svg). It
        is the same shell as the record — same header, same ruler, same left list, same right panel —
        and only the centre column changes. The identity on it comes out of `meta.profile`; nothing
-       on it is written back, so the one knob it carries moves the forecast, never the document. -->
+       on it is written back, so the knobs move the reading, never the document.
+
+       SCRUM-16 added the blocks the wireframe names and the page had not got: the cohort the
+       estimate is measured against (27), what each model reads and refuses (28), what no model
+       reads (29), and the other three knobs (30). Their rows come from lib/profile-view.js, which
+       holds every table to the file that produces it (src/score2.ts, src/lee.ts) — no number on
+       this page is invented, and where a number is not derivable the row says so in words. -->
   <div class="mbody" id="profileBody" hidden>
     <h2 class="mtitle" id="pvWho">unnamed profile</h2>
     <div class="msub" id="pvSub">no profile in this document</div>
+    <div class="pvspan" id="pvSpan"></div>
+
+    <div class="msec">the cohort this forecast is measured against</div>
+    <div id="pvCohort"></div>
+
+    <div class="msec">what each model reads, and what it refuses</div>
+    <div id="pvInputs"></div>
+
+    <div class="msec">what no model reads</div>
+    <p class="mtext" id="pvBlind"></p>
+    <p class="mno" id="pvBlindWhy"></p>
+
     <div class="msec">what you may change</div>
     <div class="mrow">
       <span class="mrl">sex</span>
@@ -496,8 +530,32 @@
           <button data-sex="male" class="on" title="male" aria-label="male">&#9794;</button>
         </span>
         <span class="mdetail" id="sexNote">the forecast's baseline follows it; the document is not written</span>
+        <span class="mdetail" id="sexBase"></span>
       </span>
     </div>
+    <div class="mrow">
+      <span class="mrl">birth year</span>
+      <span class="mrv">
+        <input class="pvyear" id="pvBorn" inputmode="numeric" size="5" aria-label="year of birth">
+        <button class="btn pvreset" id="pvBornDoc" title="read the year in the document again">the document's year</button>
+        <span class="mdetail" id="bornNote"></span>
+      </span>
+    </div>
+    <div class="mrow">
+      <span class="mrl">smoker</span>
+      <span class="mrv">
+        <span class="seg" id="pvSmoke">
+          <button data-smoke="no" title="non-smoker">no</button>
+          <button data-smoke="yes" title="smoker">yes</button>
+        </span>
+        <span class="mdetail" id="smokeNote"></span>
+      </span>
+    </div>
+    <div class="mrow">
+      <span class="mrl">steps a day</span>
+      <span class="mrv"><span class="mdetail" id="stepsNote"></span></span>
+    </div>
+
     <div class="msec">who may see this record</div>
     <p class="mtext">one file on one device — whoever holds the file sees all of it. no accounts, no share
       link, no per-panel permission: there is no service behind this page to hold one.</p>
@@ -535,6 +593,7 @@
 <script src="lib/state-list.js"></script>
 <script src="lib/main-view.js"></script>
 <script src="lib/right-panel.js"></script>
+<script src="lib/profile-view.js"></script>
 <script>
 const LAYERS = [
   { id:"skin",     name:"skin · teeth · nails", color:0xe8c9a0, filesBySex:true,
@@ -593,6 +652,8 @@ const state = {
   mainHidden:false,         // ✕ on the main view: closing it is not a deselection
   graph:false,              // the graph view (widget 1): a view of its own, never the main flow
   profile:false,            // the profile view (widget 2), in the centre column of the same shell
+  born:null,                // widget 30's birth-year knob: the year the page reads, null = the document's
+  smoker:null,              // widget 30's smoking reading: true/false, null = the document says nothing
   anatomy3d:false           // the 3D layer inside that view (T28): off until the reader asks for it
 };
 const EYE_OUT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
@@ -2741,6 +2802,19 @@ document.querySelectorAll("#sex button").forEach(b => b.onclick = () => {
   renderRightPanel();   // the baseline is the profile's sex: the forecast follows the switch
   buildProfile();       // and the profile view's knob row says which reading is on screen
 });
+/* widget 30's other knobs (SCRUM-16): the birth year moves the page's ages, the smoking switch
+   moves the reading the Lee rows state. Both are readings — `the document says … · reading as … ·
+   the file is not written` — and neither reaches the document. */
+document.getElementById("pvBorn").addEventListener("change", e => {
+  const year = Number(String(e.target.value).trim());
+  setBorn(Number.isInteger(year) && year > 0 ? year : null);
+});
+document.getElementById("pvBornDoc").onclick = () => setBorn(null);
+document.querySelectorAll("#pvSmoke button").forEach(b => b.onclick = () => {
+  const want = b.dataset.smoke === "yes";
+  state.smoker = state.smoker === want ? null : want;
+  buildProfile();
+});
 document.getElementById("collapse").onclick = e => {
   state.collapsed = !state.collapsed;
   document.getElementById("leftCol").classList.toggle("collapsed", state.collapsed);
@@ -2862,6 +2936,7 @@ function birthOf(meta) {
 
 let TL_META = {};
 let BIRTH = null;
+let DOC_BIRTH = null;        // the document's own birth date, before widget 30's knob moves the reading
 let LE_BY_SEX = { male: 74, female: 80 };
 let ANALYSES = [];
 /* every dated record of the document, whatever its kind: the left list reads this, the ruler and
@@ -2879,6 +2954,7 @@ function applyDocument(doc) {
   const birth = meta.birth || meta.profile ? dayOf(birthOf(meta)) : null;
   TL_META = meta;
   BIRTH = birth && !isNaN(+birth) ? birth : null;
+  DOC_BIRTH = BIRTH;
   LE_BY_SEX = meta.life_expectancy || { male: 74, female: 80 };
   ANALYSES = toAnalyses(doc && doc.nodes);
   DOC_NODES = (doc && doc.nodes) || [];
@@ -3501,19 +3577,156 @@ function paintProfileButton() {
   if (p.sex) btn.dataset.sex = p.sex; else delete btn.dataset.sex;
   btn.title = p.name ? "profile — " + p.name : "profile — who this record is about";
 }
+/* Widget 30's birth-year knob (SCRUM-16). The page keeps one reading of the year and every age on
+   the page is computed from `BIRTH`, so the knob moves that one value and rebuilds what is drawn
+   from it — the date readout's age, the ruler's span, the profile's age today, the record's age
+   span and the age the right panel's projection reads. `state.born` is the reader's year and
+   nothing else: it is `null` until a year is typed, it never reaches the document, and
+   `setBorn(null)` reads the document's own year again. */
+function workingYear() {
+  const doc = profileOf().year;
+  return state.born && state.born !== doc ? state.born : doc;
+}
+/* the document, with the reader's year in place of the file's: the right panel's age factor and
+   anything else the panel derives from the profile read the page's reading, not the file's */
+function workingMeta() {
+  const year = workingYear();
+  const doc = profileOf().year;
+  if (!year || year === doc) return TL_META;
+  return Object.assign({}, TL_META,
+    { profile: Object.assign({}, TL_META.profile, { year_of_birth: year }) });
+}
+function setBorn(year) {
+  const doc = profileOf().year;
+  const wanted = Number.isInteger(year) && year >= 1900 && year <= 2200 && year !== doc ? year : null;
+  state.born = wanted;
+  BIRTH = wanted ? new Date(wanted, 0, 1) : DOC_BIRTH;
+  buildTimeline();   // the ruler starts at birth, and its window is the age-shaped years around today
+  refreshPick();     // the readout's age, the marked row, the centre and the right panel
+  buildProfile();    // and this view's own rows
+}
+/* The profile view's blocks come out of `ProfileView` (lib/profile-view.js): the cohort (27), the
+   inputs (28), the blind spots (29) and the knob notes (30). The page only decides what a row
+   looks like; every number in them is the module's, and the module's test holds each one to the
+   file that produces it. A block the document cannot support says why, in words. */
+function pvEl(tag, cls, txt) {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (txt != null) el.textContent = txt;
+  return el;
+}
+const PV_MARK = { supplied: "●", absent: "—", refused: "✗" };
+/* a count of people is read, not scanned: 11,701 not 11701. Grouping is written here rather than
+   taken from toLocaleString, so the page reads the same in every locale. */
+function grouped(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+function pvRows(box, rows) {
+  rows.forEach(r => {
+    const row = pvEl("div", "pvrow");
+    row.dataset.fact = r.key;
+    row.dataset.state = r.state;
+    row.appendChild(pvEl("span", "pvmark", PV_MARK[r.state] || "—"));
+    const name = pvEl("span", "pvf", r.label);
+    if (r.record) name.appendChild(pvEl("span", "pvwhy", r.record + (r.date ? " · " + r.date : "")));
+    row.appendChild(name);
+    const value = pvEl("span", "pvv", r.value || "");
+    if (r.detail) value.appendChild(pvEl("span", "pvwhy", r.detail));
+    row.appendChild(value);
+    if (r.points !== null) row.appendChild(pvEl("span", "pvpts", r.points + " pts"));
+    box.appendChild(row);
+  });
+}
+function renderProfileBlocks(v) {
+  const cohort = document.getElementById("pvCohort");
+  if (cohort) {
+    cohort.innerHTML = "";
+    const s = v.cohort.score2;
+    cohort.appendChild(pvEl("div", "mgroup", "SCORE2"));
+    cohort.appendChild(pvEl("p", "mtext",
+      s.title + " · derived for ages " + s.ages.min + "–" + s.ages.max +
+      " · four ESC regions: " + s.regions.join(", ") + " (src/score2.ts)."));
+    (s.refusals || []).forEach(r => cohort.appendChild(pvEl("div", "mgap", "✗ " + r)));
+    const l = v.cohort.lee;
+    cohort.appendChild(pvEl("div", "mgroup", "Lee"));
+    cohort.appendChild(pvEl("p", "mtext",
+      l.title + " · " + l.cohort + " · " + grouped(l.developed) + " people developed it, " +
+      grouped(l.validated) + " validated it · age " + l.ageMin + " and over (src/lee.ts, docs/LEE.md)."));
+    cohort.appendChild(pvEl("p", "mno",
+      "four printed bands, a group's observed 4-year mortality: " +
+      l.bands.map(b => b.from + (b.to === null ? "+" : "–" + b.to) + " → " + b.printed).join(" · ") +
+      " · discrimination c = " + l.discrimination.development + " development, " +
+      l.discrimination.validation + " validation. A band is a group's risk, not this person's probability."));
+  }
+
+  const inputs = document.getElementById("pvInputs");
+  if (inputs) {
+    inputs.innerHTML = "";
+    inputs.appendChild(pvEl("div", "mgroup", "SCORE2 reads"));
+    pvRows(inputs, v.inputs.score2.rows);
+    (v.inputs.score2.refusals || []).forEach(r =>
+      inputs.appendChild(pvEl("div", "mgap", "✗ no risk is printed: " + r)));
+    inputs.appendChild(pvEl("div", "mgroup", "Lee reads"));
+    pvRows(inputs, v.inputs.lee.rows);
+    const sum = v.inputs.lee.summary;
+    (v.inputs.lee.refusals || []).forEach(r =>
+      inputs.appendChild(pvEl("div", "mgap", "✗ no index is printed: " + r)));
+    inputs.appendChild(pvEl("p", "pvlegend",
+      PV_MARK.supplied + " supplied · " + PV_MARK.absent + " nobody asked · " + PV_MARK.refused +
+      " refused · supplied so far: " + sum.supplied + " of " + sum.items + " items, " +
+      sum.points + " of " + sum.maxPoints + " points"));
+  }
+
+  const blind = document.getElementById("pvBlind");
+  if (blind) blind.textContent = v.blind.map(b => b.name).join(" · ") +
+    " — named, not smoothed over: they stay in the record as facts, and neither estimate reads them.";
+  const blindWhy = document.getElementById("pvBlindWhy");
+  if (blindWhy) blindWhy.textContent = v.blind.map(b => b.name + " — " + b.why).join(" · ") + ".";
+
+  const sexBase = document.getElementById("sexBase");
+  if (sexBase) sexBase.textContent = v.knobs.sex.detail;
+  const born = document.getElementById("pvBorn");
+  if (born) {
+    const year = workingYear();
+    if (document.activeElement !== born) born.value = year ? String(year) : "";
+    born.dataset.document = v.knobs.birth.documentValue ? String(v.knobs.birth.documentValue) : "";
+  }
+  const bornNote = document.getElementById("bornNote");
+  if (bornNote) {
+    const k = v.knobs.birth;
+    bornNote.textContent =
+      (k.edited ? "the document says " + (k.documentValue || "no year") + " · reading as " + k.value + " · " : "") +
+      k.detail + (k.refusals.length ? " · " + k.refusals.join(" · ") : "");
+  }
+  const smokeNote = document.getElementById("smokeNote");
+  if (smokeNote) smokeNote.textContent = v.knobs.smoker.detail;
+  document.querySelectorAll("#pvSmoke button").forEach(b => b.classList.toggle("on",
+    (state.smoker === true && b.dataset.smoke === "yes") ||
+    (state.smoker === false && b.dataset.smoke === "no")));
+  const steps = document.getElementById("stepsNote");
+  if (steps) steps.textContent = v.knobs.steps.detail;
+
+  const span = document.getElementById("pvSpan");
+  if (span) {
+    const s = v.subject.span;
+    span.textContent = s
+      ? "the record runs from age " + s.fromAge + " to age " + s.toAge + " — " + s.dated +
+        (s.dated === 1 ? " dated event" : " dated events")
+      : "the record has no dated events to put an age on";
+  }
+}
 /* The profile view: the same shell as the record — the ruler, the left list and the right panel
    stay put, only the centre column changes — opened by widget 2 and closed by its back control.
-   It writes nothing: the identity is the document's, and the knob it carries moves the forecast's
-   baseline, never the file. */
+   It writes nothing: the identity is the document's, and the knobs move the reading the page
+   draws, never the file. */
 function buildProfile() {
   const p = profileOf();
-  const age = ageFromYear(p.year);
+  const year = workingYear();
+  const age = ageFromYear(year);
   const who = document.getElementById("pvWho");
   const sub = document.getElementById("pvSub");
   if (who) who.textContent = p.name || "unnamed profile";
   if (sub) sub.textContent = [
-    p.sex || "sex not in the document",
-    p.year ? "born " + p.year : "no birth year in the document",
+    state.sex || p.sex || "sex not in the document",
+    year ? "born " + year : "no birth year in the document",
     age !== null ? age + " today" : "no age to read"
   ].join(" · ");
   /* the subject speaks for the file, the knob for the reader. When the two differ the view says so
@@ -3523,6 +3736,17 @@ function buildProfile() {
     ? "the document says " + p.sex + " · reading as " + state.sex + "; the file is not written"
     : "the forecast's baseline follows it; the document is not written";
   document.querySelectorAll("#sex button").forEach(b => b.classList.toggle("on", b.dataset.sex === state.sex));
+  if (window.ProfileView) {
+    renderProfileBlocks(ProfileView.build({
+      meta: TL_META,
+      nodes: DOC_NODES,
+      sex: state.sex,
+      born: state.born,
+      smoker: state.smoker,
+      today: iso(new Date()),
+      leBySex: LE_BY_SEX
+    }));
+  }
 }
 
 function renderMain() {
@@ -3688,8 +3912,8 @@ function renderRightPanel() {
     sex: state.sex || profile.sex || "",
     byId: docById,
     /* the profile is where the age comes from: widget 21 lists age as a factor, and a document
-       carries a birth year, not an age */
-    meta: TL_META
+       carries a birth year, not an age — so the panel reads the year the page is reading */
+    meta: workingMeta()
   });
   box.dataset.past = panel.past ? "yes" : "no";
   box.dataset.states = String(panel.states.length);
@@ -4196,7 +4420,41 @@ window.__closeGraph = () => { setGraphView(false); return state.graph; };
 window.__profile = () => ({ open: state.profile, who: document.getElementById("profileWho").textContent,
                             name: document.getElementById("pvWho").textContent,
                             sub: document.getElementById("pvSub").textContent,
-                            sex: state.sex, date: state.date, event: state.event });
+                            sex: state.sex, date: state.date, event: state.event,
+                            born: state.born, smoker: state.smoker,
+                            span: document.getElementById("pvSpan").textContent });
+/* SCRUM-16: the profile view's blocks as the page actually drew them, and the two knobs the
+   acceptance run has to turn. `__setBorn` goes through the same `setBorn()` the input calls, so
+   what the run measures is the product's path and not a second one written for the test. */
+window.__profileBlocks = () => {
+  if (!window.ProfileView) return null;
+  const v = ProfileView.build({ meta: TL_META, nodes: DOC_NODES, sex: state.sex, born: state.born,
+                                smoker: state.smoker, today: iso(new Date()), leBySex: LE_BY_SEX });
+  return {
+    subject: v.subject,
+    cohort: v.cohort,
+    inputs: v.inputs,
+    blind: v.blind,
+    knobs: v.knobs,
+    drawn: [...document.querySelectorAll("#profileBody .pvrow")].map(row => ({
+      fact: row.dataset.fact, state: row.dataset.state, text: row.textContent
+    })),
+    legend: (document.querySelector("#profileBody .pvlegend") || {}).textContent || "",
+    span: document.getElementById("pvSpan").textContent
+  };
+};
+window.__setBorn = year => {
+  setBorn(year === null || year === undefined ? null : Number(year));
+  return { born: state.born, year: workingYear(), age: ageFromYear(workingYear()),
+           readout: document.getElementById("tlDate").textContent,
+           span: document.getElementById("pvSpan").textContent,
+           sub: document.getElementById("pvSub").textContent };
+};
+window.__setSmoker = value => {
+  state.smoker = value === null || value === undefined ? null : !!value;
+  buildProfile();
+  return state.smoker;
+};
 window.__openProfile = () => { setProfileView(true); return state.profile; };
 window.__closeProfile = () => { setProfileView(false); return state.profile; };
 window.__ask3d = () => { askLayer3d(true); return { shown: !document.getElementById("layerAsk").hidden,

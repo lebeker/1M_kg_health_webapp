@@ -74,9 +74,14 @@ list, same right panel — only column 2 changes, exactly as in v11, v11b and v1
 row on it changes a record. Widget 13 has no row here — a profile is not a record and links nothing of
 its own; the numbers it names are grounded in the right panel (24).
 
-**Drawn today** (`docs/PROFILE-VIEW.md`): 26, the sex knob of 30, and 31. 27, 28, 29 and 30's other
-knobs need the estimates' own inputs on screen and arrive with the profile-view card; the view draws
-no placeholder for a block it has not got.
+**Drawn today** (`docs/PROFILE-VIEW.md`): 26, 27, 28, 29, 30 (all four knobs) and 31. The numbers on
+27–30 come from the files that produce them — SCORE2's table from `src/score2.ts`, Lee's from
+`src/lee.ts`, the cohort from `docs/LEE.md`, the baseline the sex knob prints from `LE_BY_SEX` in
+`body/index.html` — and `scripts/profile-view.test.ts` holds each table to its source. The
+wireframe's per-knob years deltas have no derivation in this repo, so the view prints none of them:
+the sex knob prints the baseline table, the birth-year knob prints the ages it recomputes, and the
+smoking and step rows say in words what stops them. No placeholder is drawn for a block the view has
+not got; a block that is not there is a card, not a lie.
 
 | # | Widget | What it shows |
 |---|---|---|
@@ -84,7 +89,7 @@ no placeholder for a block it has not got.
 | 27 | Cohort | what the forecast is measured against: SCORE2 (10-year CVD, ages 40–69, no previous CVD) together with the ESC region, which is asked once per person and is not in the document; and Lee's cohort (HRS 1998, US adults over 50, 11,701, validated in 8,009). Both are group numbers — a median and a band — and are labelled as such |
 | 28 | Inputs | every fact each model reads, with its state: `●` scored, `○` supplied and did not score, `—` nobody asked. And the refusal where it belongs: diabetes is not a SCORE2 input and the model is not for people with diabetes, so that row refuses the record instead of printing a number |
 | 29 | What no model reads | family history, sleep, vaccinations, depression, loneliness: named on the page, kept in the record as facts, never folded into the number and never smoothed away |
-| 30 | Knobs | the four facts the reader may change — sex, birth year, smoker, steps a day — each with what moving it does to the forecast, in years. A knob recomputes the same two scales with one fact moved and writes nothing; a record changes when a document says so. The step row carries the one number in the forecast with no PMID behind it, and it says so |
+| 30 | Knobs | the four facts the reader may change — sex, birth year, smoker, steps a day. A knob recomputes the page's reading with one fact moved and writes nothing; a record changes when a document says so. The page prints no per-knob years delta: no file here derives one. Sex prints the document's own baseline table, birth year prints the ages it recomputes (and where a model refuses the new age), smoking prints Lee's 2 points and says no years are printed, and the step row is a refusal — no model in the repo reads a step count |
 | 31 | Who may see it | one file on one device: whoever holds the file sees everything in it. No accounts, no share link, no per-panel permission — the service is not built |
 
 ---

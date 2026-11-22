@@ -123,10 +123,10 @@ describe('every relative URL the published page carries resolves from the reposi
     expect(existsSync(join(ROOT, ASSET_ROOT))).toBe(true)
   })
 
-  test('the twelve scripts and the model path all exist where the site serves them', () => {
+  test('the thirteen scripts and the model path all exist where the site serves them', () => {
     for (const html of both) {
       const relative = references(html)
-      expect(relative.length).toBe(12)
+      expect(relative.length).toBe(13)
       for (const url of relative) expect(existsSync(join(ROOT, ASSET_ROOT, url))).toBe(true)
       // the models are loaded by the page's own loader from a path it builds, not from an
       // attribute: `models/${file}.glb`, which the <base> resolves exactly like the script tags
