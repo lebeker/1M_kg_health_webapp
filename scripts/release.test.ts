@@ -105,7 +105,7 @@ const VENDORED = [
 ]
 
 /** The pure modules authored here; everything else in `body/lib/` came from somewhere else. */
-const OUR_MODULES = new Set(['main-view.js', 'state-list.js', 'timeline-step.js'])
+const OUR_MODULES = new Set(['main-view.js', 'state-list.js', 'timeline-step.js', 'right-panel.js'])
 
 describe('rename: one identity, and it is the health map', () => {
   test('the package is the app, not the science viewer it was copied from', () => {

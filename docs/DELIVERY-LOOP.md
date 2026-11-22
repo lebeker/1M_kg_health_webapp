@@ -42,6 +42,11 @@ Rules that make it a loop and not a queue with extra steps:
    approved it (ring: `mex → lia → right → mex`).
 5. **`done` is a platform fact, not a claim.** Card goes `done` only after the merge commit is on
    `main` and the sync has moved the Jira issue to Done.
+6. **A UI card is written against a wireframe, not against a plan.** The card names the exact
+   wireframe file(s) it implements, by path; its PR attaches a screenshot of the built page beside
+   that wireframe (G4 reads both); and anything the wireframe does not settle is a comment on the
+   card, not a layout the worker invents. A card that cites only `PLAN-health` for its layout does
+   not pass G0. See rule 7 in `docs/WIDGETS.md`.
 
 ## 2. Gates
 
