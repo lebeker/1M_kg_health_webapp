@@ -313,8 +313,16 @@ async function main() {
   const page = await loadPage();
   const sandbox = bootApp(page);
   /* T27: the 3D viewer is behind the "open graph" button, so the regression opens the graph view
-     first and then waits for the models — the same path a reader takes. */
+     first and then waits for the models — the same path a reader takes.
+     T28: opening the view no longer downloads anything; the 3D layer is its own toggle, and a
+     reader who wants the body answers its question. This test answers it, the way the yes button
+     does, and then waits for the models exactly as before. */
   evaluate(sandbox, "__openGraph()");
+  const beforeLoad = evaluate(sandbox, "__graph()");
+  if (beforeLoad.models !== 0 || beforeLoad.anatomy) {
+    throw new Error(`opening the graph asked for models: ${JSON.stringify(beforeLoad)}`);
+  }
+  evaluate(sandbox, "__load3d()");
   await until(sandbox, "__ready()", loadTimeout, "the page to finish loading its models");
   const loadErrors = evaluate(sandbox, "__loadErrors()");
   if (loadErrors.length) throw new Error(`page could not load: ${loadErrors.join(", ")}`);
