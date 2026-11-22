@@ -14,6 +14,11 @@
  *
  * The diff decides, not a card's prose: `appSurface()` is the same list the card template and the
  * gate use, so a docs or tooling branch is exempt without anybody remembering to exempt it.
+ *
+ * Both ends of that diff are required. A pull request that names no head or no base is a usage
+ * error, not an empty diff: `appSurface([])` is empty, so a missing diff used to read as
+ * "nothing moved the product" and passed the gate it was supposed to be. The non-pull-request
+ * return stays a pass on purpose — a push on main is not a merge, and `verify.yml` gates the step.
  */
 import { execFileSync } from 'node:child_process'
 import { appendFileSync } from 'node:fs'
@@ -124,12 +129,25 @@ async function main(argv: string[]): Promise<number> {
   }
 
   const event = process.env.GITHUB_EVENT_NAME ?? 'local'
-  const files = base && head ? changedFiles(base, head) : []
+
+  // A pull request is judged by its diff, so both ends of it are required. Handing `[]` to
+  // `decide()` here would read "I have no diff" as "the diff is empty" and exempt the branch.
+  if (event === 'pull_request' && (!head || !base)) {
+    const missing = [head ? '' : '--head (E2E_HEAD_SHA)', base ? '' : '--base (E2E_BASE_SHA)'].filter(Boolean)
+    console.error(
+      `a pull request needs both ends of the diff, and ${missing.join(' and ')} ${missing.length > 1 ? 'were' : 'was'} not given`,
+    )
+    return 1
+  }
+
+  // Not a pull request: a push on main is not a merge and carries no diff to judge. `verify.yml`
+  // gates the step to `pull_request`; this return is what a local invocation sees.
   if (!head || !base) {
-    const decision = decide({ event, files: [], status: null })
-    say(decision.message)
+    say(decide({ event, files: [], status: null }).message)
     return 0
   }
+
+  const files = changedFiles(base, head)
 
   if (event !== 'pull_request') {
     say(decide({ event, files, status: null }).message)
