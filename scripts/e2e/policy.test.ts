@@ -94,6 +94,51 @@ describe('the guard reads a command, not the shape of a string', () => {
     expect(outsideRoomCalls([call('terminal', { command: 'sudo find / -name kg.py' })])).toHaveLength(1)
   })
 
+  test("finds the command behind an assignment, a wrapper and the wrapper's own arguments", () => {
+    // Round 1 on SCRUM-55 measured all of these as missed once the command word had to be found:
+    // the wrapper's own words hid the command the segment actually runs.
+    const commands = [
+      'X=1 find / -name kg.py',
+      'echo `find / -name kg.py`',
+      'xargs -0 grep -r x /',
+      'env FOO=1 grep -r x /',
+      'timeout 5 find / -name x',
+      'sudo -u root find / -name kg.py',
+      'nice -n 5 find / -name kg.py',
+      'sudo env FOO=1 timeout 5 find / -name kg.py',
+    ]
+    for (const command of commands) {
+      expect([command, outsideRoomCalls([call('terminal', { command })]).length]).toEqual([command, 1])
+    }
+  })
+
+  test('keeps passing the in-room grep when a wrapper runs it', () => {
+    const commands = [
+      'env FOO=1 grep -o "2D / 3D" kg/assets/health-viewer.html',
+      'xargs -0 grep -o "2D / 3D" kg/assets/health-viewer.html',
+      'timeout 5 grep -o "2D / 3D" kg/assets/health-viewer.html',
+    ]
+    for (const command of commands) {
+      expect([command, outsideRoomCalls([call('terminal', { command })])]).toEqual([command, []])
+    }
+  })
+
+  test('does not let quoting hide a real place', () => {
+    expect(outsideRoomCalls([call('terminal', { command: 'find "/" -maxdepth 1' })])).toHaveLength(1)
+    expect(outsideRoomCalls([call('terminal', { command: 'ls "$HOME"' })])).toHaveLength(1)
+    expect(outsideRoomCalls([call('terminal', { command: "grep -r 'x' /Volumes" })])).toHaveLength(1)
+  })
+
+  test('reads a written file as data, not as a place the call acts on', () => {
+    // A doc that names a directory is a doc. The call that leaves the room is the one that names
+    // the place, not the one that types it into a file inside the room.
+    expect(outsideRoomCalls([call('write_file', { path: 'NOTES.md', content: 'see /Volumes and /Users/x' })])).toEqual([])
+    expect(outsideRoomCalls([call('patch', { path: 'NOTES.md', old_string: '/System', new_string: 'x' })])).toEqual([])
+    expect(outsideRoomCalls([call('write_file', { path: '/Volumes/disk/kg.json', content: '{}' })])).toHaveLength(1)
+    expect(outsideRoomCalls([call('terminal', { command: 'cp kg.json /Users/denistatarenko/kg.json' })])).toHaveLength(1)
+    expect(outsideRoomCalls([call('browser_navigate', { url: 'file:///Users/denistatarenko/page.html' })])).toHaveLength(1)
+  })
+
   test('reads every line of a script, not just the first', () => {
     expect(outsideRoomCalls([call('terminal', { command: 'cd kg\ngrep -o "2D / 3D" assets/health-viewer.html\nls /' })])).toHaveLength(1)
   })
