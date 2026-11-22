@@ -56,7 +56,7 @@ a comment; three consecutive failures block the card for a human.
 | G3 agentic e2e | does a *user* get the promised outcome? | section 3 |
 | G4 review | did a different identity read it? | PR approval; stale approvals dismissed on new commits |
 | G5 merge | is it on `main`? | auto-merge armed by the author, merged by GitHub when G1–G4 are green |
-| G6 ledger | does Jira say the same thing? | `python3 scripts/jira-sync.py --apply`, which reads every write back |
+| G6 ledger | does Jira say the same thing? | `python3 scripts/jira-sync.py --apply`, which reads every write back, and refuses a Done without merge evidence (§7) |
 
 ### What CI runs, and what it must not
 
@@ -207,7 +207,7 @@ allow two implementations. `mex` takes product cards one at a time.
 | card status, assignee, comments, runs | Kanban board `health` | the worker that owns the card; the lead creates and splits |
 | Jira status | `scripts/jira-sync.py` | derived from card status (§ mapping in the script docstring) |
 | Jira assignee | `scripts/jira-sync.py` | derived from card assignee via `scripts/jira-identities.json` |
-| Jira comments | `scripts/jira-sync.py` | running / review / blocked / changes_requested / done, deduped by marker |
+| Jira comments | `scripts/jira-sync.py` | running / review / blocked / changes_requested / done, plus a `held` comment when a status write is refused, deduped by marker |
 | plan, contract, gates | `docs/PLAN-health-2026-11-12.md`, `docs/DATA-CONTRACT.md`, this file | the owner (lead) |
 
 The card's assignee is the identity that owes the *next action*, and the Jira assignee follows it: while
@@ -217,6 +217,23 @@ reviewer requests changes. That is deliberate — the ledger answers "who is hol
 
 A human never edits a status in Jira by hand: if the two disagree, the card is the truth and the sync
 is re-run.
+
+**Done needs evidence, and no status ever moves backwards.** Two rules the sync enforces that the table
+above cannot express, both learned from live writes on 2026-11-22:
+
+- *Done is a claim about `main`.* A card can be closed with its PR still open (T01, PR #8, zero reviews),
+  and there is no transition back out of Done, so a wrong one cannot be undone. The sync resolves the
+  card's PR — its `tasks.branch_name`, else a PR whose body *opens* with `Task: <card-id>` — and writes
+  Done only when the PR is `MERGED` and its merge commit is an ancestor of `origin/main`. A card that
+  needed no diff declares it on its own line in a card comment: `no-change-needed: <commit>`, with that
+  commit on `origin/main`. Anything else holds the status and comments why, logged as `pending-merge`
+  (PR open or closed-unmerged) or `no-merge-evidence` (nothing to check).
+- *A status never moves backwards.* `running -> review -> running` is the normal rework path; a `ready`
+  card must not drag an *In Progress* issue back to *To Do*, and a `running` card must not drag a *Done*
+  issue back to *In Progress*. The sync holds (`status-not-moved-backwards`) and comments.
+
+Verify the gate against the live board without touching other cards:
+`python3 scripts/jira-sync.py --dry-run --card <card-id>`. The `--card` flag exists for exactly this.
 
 ## 8. Bootstrap record (SCRUM-40, 2026-11-21)
 
