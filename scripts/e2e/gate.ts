@@ -63,8 +63,11 @@ export type E2eRun = {
 export const APP_SURFACE: Array<[RegExp, string]> = [
   [/^body\//, 'the page: header, timeline, columns, centre, right panel, the models it loads and the demo build'],
   [/^src\//, 'the graph view and the node panel'],
-  [/^index\.html$/, "the graph page's entry document, which the viewer mounts into"],
+  [/^graph\.html$/, "the graph page's entry document, which the viewer mounts into"],
+  [/^index\.html$/, 'the published root page: what GitHub Pages answers `/` with'],
+  [/^case\.html$/, 'the published case page, the alias the docs name'],
   [/^scripts\/build-demo\.ts$/, 'the case build: the builder that writes dist/demo.html'],
+  [/^scripts\/build-case\.ts$/, 'the case build: the builder that writes the published root page and its alias'],
   [/^app\.json$/, 'the demo build: the app manifest'],
   [/^(?:package\.json|bun\.lockb?|vite\.config\.[cm]?[jt]s|tsconfig\.json)$/, 'the build itself'],
 ]

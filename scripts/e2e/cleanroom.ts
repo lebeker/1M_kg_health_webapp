@@ -45,7 +45,7 @@ export type CleanRoom = {
 }
 
 export type PrepareOptions = {
-  /** `dist/index.html` of the card's worktree — the artifact under test. */
+  /** `dist/graph.html` of the card's worktree — the artifact under test. */
   buildPath: string
   /** The worktree's `app.json`: what the app says it is. */
   manifestPath: string

@@ -21,7 +21,7 @@ run and takes the branch out of the gate with it.
 
 1. **Reads the card.** Nothing about the prompt is hard-coded: the card carries it (below).
 2. **Builds the card's worktree** (`bun run build`), records `HEAD` and the sha256 of
-   `dist/index.html`. Pages serves `main`; a card's work is on a branch, so the published URL
+   `dist/graph.html`. Pages serves `main`; a card's work is on a branch, so the published URL
    would test the old product.
 3. **Makes a clean room**: a throwaway directory holding the `kg` skill (twice: once as the
    user's `kg/` folder, once as the agent's installed skill) and nothing else. The worktree's
@@ -64,7 +64,7 @@ run and takes the branch out of the gate with it.
    list in the page itself, and takes the screenshot. See **Why a browser session and not a
    driver** below.
 6. **Replays**: the agent's `kg.json` is injected into the branch build
-   (`dist/index.html`, the same `#kg-graph` element the skill's `render` rewrites) and captured
+   (`dist/graph.html`, the same `#kg-graph` element the skill's `render` rewrites) and captured
    again; then `bun run verify` and the kg/1 contract over the agent's document run in the
    worktree. No crash, no regression, same claim visible.
 

@@ -10,8 +10,8 @@ Three things ship from here:
 | what | where | what it is |
 |---|---|---|
 | the main page | `body/index.html` | the template: the health view, the anatomy under it, and the `#kg-graph` slot a document is rendered into |
-| the graph view | `src/` → `dist/index.html` | the same document rendered as a graph, opened behind the "open graph" button, read-only |
-| the case page | `case.html` | the published page: the template with `kg_demo.json` in its slot, which is what the Pages address serves |
+| the graph view | `src/` → `dist/graph.html` | the same document rendered as a graph, opened behind the "open graph" button, read-only; its entry document is `graph.html` |
+| the case page | `index.html` and `case.html` | the published page: the template with `kg_demo.json` in its slot — what the site's bare address and `/case.html` both serve |
 | the skills | `skills/` | what this app hands to the parent `kg` skill: markers → PDF, markers → FHIR, and `add-prediction` |
 
 The app's own identity is `app.json` → `id: health-viewer`, `title: Health map`. A skill routes on
@@ -27,11 +27,11 @@ that file, not on the package name. Everything about publishing, licences and th
 
 ```bash
 bun install                 # or: npm install
-bun run dev                 # the graph view on the dev server
+bun run dev                 # the graph view on the dev server, at /graph.html (`/` is the case page)
 python3 -m http.server 8770 --bind 127.0.0.1    # then http://127.0.0.1:8770/body/
-bun run build               # dist/index.html (the graph page) + dist/demo.html and case.html (the case page)
+bun run build               # dist/graph.html (the graph page) + dist/demo.html, index.html, case.html (the case page)
 bun run build:demo          # dist/demo.html only, from kg_demo.json
-bun run build:case          # case.html — the published page, from the same two inputs
+bun run build:case          # index.html and case.html — the published pages, from the same two inputs
 bun run verify              # lint, types, published page current, case build, unit, contract fixtures, branch rule, split regression
 ```
 
@@ -42,15 +42,23 @@ the `#kg-graph` placeholder and nothing else. Open it over a local server rather
 ## The published page
 
 Pages serves this repository from `main` at its root, and `dist/` is never published. So the page a
-reader opens without cloning anything is `case.html`: the case page, generated from
+reader opens without cloning anything is the root `index.html`: the case page, generated from
 `body/index.html` and `kg_demo.json` and committed, at
-<https://lebeker.github.io/1M_kg_health_webapp/case.html>. It is the artifact with one `<base>`
-naming `body/`, because the page addresses its assets relatively and they live there; opening it
-draws the 47-record case with no interaction and no button, and stores nothing.
+<https://lebeker.github.io/1M_kg_health_webapp/> — the bare address, the one a reader reaches
+without knowing a filename. `case.html` is the same bytes under the name the docs have always used,
+at <https://lebeker.github.io/1M_kg_health_webapp/case.html>, so neither address is the odd one out.
+Both are the artifact with one `<base>` naming `body/`, because the page addresses its assets
+relatively and they live there; opening either draws the 47-record case with no interaction and no
+button, and stores nothing.
 
-`bun run build:case` writes it and `bun run check:case` fails on a stale copy, both wired into
-`bun run verify` and CI. The template stays empty: the case exists as one document (`kg_demo.json`)
-and one generated page, never as code in the template a reader's own document is rendered from.
+The viewer's own entry document cannot live at `index.html` any more — one file cannot be both — so
+it is `graph.html`, and the build emits it as `dist/graph.html`; on the dev server the graph page is
+at `/graph.html`, while `/` is the case.
+
+`bun run build:case` writes both pages and `bun run check:case` fails on a stale copy of either, both
+wired into `bun run verify` and CI. The template stays empty: the case exists as one document
+(`kg_demo.json`) and one generated page, never as code in the template a reader's own document is
+rendered from.
 
 ## The case page is not a user
 
@@ -99,9 +107,9 @@ force layout arranges depth itself.
 
 | command | output | why |
 |---|---|---|
-| `bun run build` | `dist/index.html` — one file, ~2 MB — and `dist/demo.html` + `case.html` | what the skill ships, plus the case page (local and published); both open from their address |
+| `bun run build` | `dist/graph.html` — one file, ~2 MB — and `dist/demo.html` + `index.html` + `case.html` | what the skill ships, plus the case page (local and published); both published names open from their address |
 | `bun run build:demo` | `dist/demo.html` + `dist/lib/` | the case page alone, from `kg_demo.json` |
-| `bun run build:case` | `case.html` at the repository root | the published case page; the same artifact with a `<base>` naming `body/` |
+| `bun run build:case` | `index.html` and `case.html` at the repository root | the published case page at both addresses; the same artifact with a `<base>` naming `body/` |
 | `bun run build:multi` | `dist-multi/` — code-split | what a hosted app serves; 3D is fetched on demand |
 
 `vite-plugin-singlefile` sets `codeSplitting: false` (Rollup's
@@ -187,7 +195,7 @@ bun run build
 node scripts/bundle.mjs /path/to/skill-repo
 ```
 
-Copies `dist/index.html` to `<skill-repo>/assets/viewer.html`, `app.json` to
+Copies `dist/graph.html` to `<skill-repo>/assets/viewer.html`, `app.json` to
 `assets/viewer.app.json`, and writes `assets/viewer.version` (repo, commit, build time, where
 to fetch a newer one). The files are **copied, not symlinked**: a skill repo has to work from
 a clone, on its own, with no build step and no reference back here.

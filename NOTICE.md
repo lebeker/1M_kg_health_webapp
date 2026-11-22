@@ -19,7 +19,7 @@ licence, and where the licence text lives. The full texts sit in `LICENSES/`.
 | `body/lib/d3-octree.min.js` | d3-octree v1.1.0, the layout's spatial index | **MIT**, © 2017 Vasco Asturiano — **not** ISC; the minified file carries a URL and no notice | `LICENSES/MIT-d3-octree.txt` |
 | `node_modules/` (installed, never shipped) | sigma, graphology, 3d-force-graph, React, Vite, Biome, TypeScript | each under the licence declared by its own package (`MIT`, `ISC`, `Apache-2.0`) | that package's `LICENSE` |
 
-The published viewer artefact carries code only — `dist/index.html`, `app.json` and
+The published viewer artefact carries code only — `dist/graph.html`, `app.json` and
 `viewer.version` — so a download of it is MIT. The models never travel in it; they are served
 beside the page from `body/models/`. See `docs/RELEASE.md`.
 

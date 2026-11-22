@@ -166,7 +166,7 @@ function printHelp() {
   --prompt <text>      override the card's prompt (recorded as an override, for debugging)
   --label <text>       prefix for the run directory, e.g. "smoke"
   --timeout <seconds>  how long the fresh agent may take (default: 900)
-  --skip-build         reuse dist/index.html from an earlier build
+  --skip-build         reuse dist/graph.html from an earlier build
   --skip-verify        do not run \`bun run verify\`
   --no-comment         never comment on the card, even on failure
   --no-status          do not post the \`e2e\` commit status CI reads
@@ -429,7 +429,7 @@ async function main() {
       process.exit(1)
     }
   }
-  const buildPath = join(worktree, 'dist', 'index.html')
+  const buildPath = join(worktree, 'dist', 'graph.html')
   if (!existsSync(buildPath)) throw new Error(`${buildPath} is missing — run without --skip-build`)
   const buildBytes = readFileSync(buildPath)
 

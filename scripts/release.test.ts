@@ -124,7 +124,7 @@ describe('rename: one identity, and it is the health map', () => {
   })
 
   test('the built page is titled after the app, not "knowledge graph"', () => {
-    const title = read('index.html').match(/<title>([^<]*)<\/title>/)?.[1] ?? ''
+    const title = read('graph.html').match(/<title>([^<]*)<\/title>/)?.[1] ?? ''
     expect(title).toContain(app.title)
   })
 

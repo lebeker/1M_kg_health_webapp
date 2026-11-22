@@ -125,7 +125,7 @@ a card with no prompt exits 2 and is blocked at G0 instead of being guessed at.
 
 **Load.** **The published Pages build cannot be used for unmerged work.** Pages serves `main`; a
 card's work exists on a branch. So the clean room loads a **build of the card's worktree**
-(`bun run build` → `dist/index.html`) and installs it with the skill's own `fetch-app --url` from a
+(`bun run build` → `dist/graph.html`) and installs it with the skill's own `fetch-app --url` from a
 local mirror of that build. Same artifact that ships, same install path a user takes, just not yet
 public. Anything else tests the old product and proves nothing.
 

@@ -6,7 +6,7 @@ import { ARTIFACT, PLACEHOLDER, ROOT, buildDemo, serialize } from './build-demo'
 /**
  * SCRUM-51 — the template contract, as a check.
  *
- * The owner's acceptance is a `grep`: `grep -ri demo body/ dist/index.html` returns nothing. A
+ * The owner's acceptance is a `grep`: `grep -ri demo body/ dist/graph.html` returns nothing. A
  * promise about strings is worth exactly the check that runs it, so this file is that check plus
  * the two things a `grep` cannot hold:
  *
@@ -66,9 +66,9 @@ describe('the template and its assets are free of one use case', () => {
 })
 
 describe('the built graph page carries no use case either', () => {
-  const built = join(ROOT, 'dist', 'index.html')
+  const built = join(ROOT, 'dist', 'graph.html')
 
-  test('dist/index.html carries no "demo" word, when it has been built', () => {
+  test('dist/graph.html carries no "demo" word, when it has been built', () => {
     // a clean checkout has no dist/; `bun run build` is what makes this meaningful, and the e2e
     // harness builds it before it captures anything.
     //

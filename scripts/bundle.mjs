@@ -19,9 +19,9 @@ if (!target) {
 }
 
 const root = resolve(import.meta.dirname, '..')
-const built = join(root, 'dist', 'index.html')
+const built = join(root, 'dist', 'graph.html')
 if (!existsSync(built)) {
-  console.error('dist/index.html missing — run the build first')
+  console.error('dist/graph.html missing — run the build first')
   process.exit(2)
 }
 
