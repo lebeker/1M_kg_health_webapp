@@ -2485,21 +2485,77 @@ const KGDATA = (() => {
 
    Neither path is user data. Nothing on this page writes to storage, so loading the demo leaves
    an empty record of the reader's own (the seed of T23). */
+
+/* Which nodes get a mark on the ruler and a row in the legend: something with a number and an
+   organ. In the health contract that is an `observation` — one value, or a panel in `values` —
+   and the earlier demo's `analysis` is the same thing under its old name. Everything else is a
+   record for the left list (state-list.js) and the main view (main-view.js), not a sphere. */
+function isMark(node) {
+  return !!node && (node.kind === "observation" || node.kind === "analysis");
+}
+
+/* The contract's date is `when` (a day, or the start of an interval); the old artifact wrote
+   `date`. One reader, so the two cannot disagree about which day a mark stands on. */
+function whenOf(node) {
+  const when = node && node.when !== undefined ? node.when : node && node.date;
+  return when && typeof when === "object" ? (when.from || "") : (when || "");
+}
+
+/* A panel is the node's own `values`; a single test is its `value` and `unit`. The contract types
+   the second, the page's table wants a list of markers either way — so one marker is a list of
+   one. A node with no number is not a mark: nothing to plot, nothing to paint. */
+function markersOf(node) {
+  if (Array.isArray(node.values) && node.values.length) return node.values;
+  if (node.value === undefined || node.value === null || !Number.isFinite(Number(node.value))) return [];
+  const ref = node.ref_low != null || node.ref_high != null ? [node.ref_low, node.ref_high] : null;
+  return [{ name: node.label || node.id, value: Number(node.value), unit: node.unit || "",
+            ref, flag: node.flag || undefined }];
+}
+
+/* The contract's `confidence` is 0..1; the page paints 0..100. Scale it here, once, and fall back
+   to the demo's own `evidence` (the older artifact's word for the same thing) and then to the
+   neutral middle — never to a number that looks like a measurement. A missing key is not a zero:
+   `Number(null)` is 0, which would paint every unmeasured thing as worthless. */
+function finiteOrNaN(value) {
+  return value === undefined || value === null || value === "" ? Number.NaN : Number(value);
+}
+function evidenceOf(node) {
+  const confidence = finiteOrNaN(node && node.confidence);
+  const evidence = finiteOrNaN(node && node.evidence);
+  const score = Number.isFinite(confidence) ? confidence * 100 : evidence;
+  return Math.max(0, Math.min(100, Number.isFinite(score) ? score : 50));
+}
+
 function toAnalyses(nodes) {
-  return (nodes || []).filter(n => n.kind === "analysis").map(n => ({
-    id: n.id, label: n.label || n.id, date: n.date || "", organ: n.organ || "",
-    panel: n.panel || "", values: n.values || [], summary: n.summary || "",
-    affects: n.affects || [], track: n.track || n.id, link: n.link || "",
-    delta: Number.isFinite(Number(n.delta)) ? Number(n.delta) : null,
-    evidence: Math.max(0, Math.min(100, Number(n.evidence ?? 50))),
-    confidence: Math.max(0, Math.min(100, Number(n.confidence ?? 50))),
-    at: n.date ? dayOf(n.date) : null,
-    node: null, line: null
-  })).filter(a => a.at && !isNaN(+a.at));
+  return (nodes || []).filter(isMark).map(n => {
+    const date = whenOf(n);
+    const delta = finiteOrNaN(n.delta);
+    return {
+      id: n.id, label: n.label || n.id, date, organ: n.organ || "",
+      panel: n.panel || "", values: markersOf(n), summary: n.summary || n.meaning || "",
+      affects: Array.isArray(n.affects) ? n.affects : [], track: n.track || n.id, link: n.link || "",
+      delta: Number.isFinite(delta) ? delta : null,
+      evidence: evidenceOf(n),
+      confidence: evidenceOf(n),
+      at: date ? dayOf(date) : null,
+      node: null, line: null
+    };
+  }).filter(a => a.at && !isNaN(+a.at));
+}
+
+/* The ruler needs a day, and the contract gives a birth YEAR: identity is
+   `meta.profile.year_of_birth` (docs/DATA-CONTRACT.md §Envelope), never a second date somewhere
+   else. The first of January is the page's reading of a year it does not have a day for, which is
+   why the readout says an age in whole years and never months. `meta.birth` is still honoured for
+   a document that carries one — an older artifact, not the contract. */
+function birthOf(meta) {
+  if (meta && meta.birth) return meta.birth;
+  const year = Number(meta && meta.profile && meta.profile.year_of_birth);
+  return Number.isInteger(year) ? year + "-01-01" : null;
 }
 
 let TL_META = (KGDATA && KGDATA.meta) || {};
-let BIRTH = TL_META.birth ? dayOf(TL_META.birth) : null;
+let BIRTH = TL_META.birth || TL_META.profile ? dayOf(birthOf(TL_META)) : null;
 if (BIRTH && isNaN(+BIRTH)) BIRTH = null;
 let LE_BY_SEX = TL_META.life_expectancy || { male: 74, female: 80 };
 let ANALYSES = toAnalyses(KGDATA && KGDATA.nodes);
@@ -2514,7 +2570,7 @@ let DOC_EDGES = (KGDATA && KGDATA.edges) || [];
    panel, the ruler and the marks do not care which of the two arrived. */
 function applyDocument(doc) {
   const meta = (doc && doc.meta) || {};
-  const birth = meta.birth ? dayOf(meta.birth) : null;
+  const birth = meta.birth || meta.profile ? dayOf(birthOf(meta)) : null;
   TL_META = meta;
   BIRTH = birth && !isNaN(+birth) ? birth : null;
   LE_BY_SEX = meta.life_expectancy || { male: 74, female: 80 };

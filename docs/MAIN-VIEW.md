@@ -104,11 +104,14 @@ item with neither a record nor a file is shown, not clickable, and says why.
 
 ## Demo
 
-`body/demo/graph.json` carries one record per view so all of it can be seen without a real
-document: a four-row lipid panel with a lab, an address, a scan and two printed flags; a
-cardiologist's note with five assignment groups and all four marks; a generated diagnosis with the
-`not confirmed` badge and no doctor; a stored 2025 summary with its own four lists; and a
-`contradicts` edge that puts the yellow triangle on the 2024 hypertension note.
+`body/demo/graph.json` is the T21 case — a `kg/1-health` document of 62 events over twenty years —
+and it carries the records that make each view visible without a real document: four-marker lipid
+panels with a lab, an address, a scan and printed flags; a cardiologist's note that put a
+condition on the record and a drug under `treated_by`; a note that stopped a drug for its cough; a
+colonoscopy with its polyp; and single tests (troponin, HbA1c, eGFR) whose one-row analysis view is
+read from the observation itself. The diet, activity and restriction lines are in the notes' text:
+the contract has no decision kind to hang them on. There is no stored summary and no prediction in
+the file — the page generates its annual markers (T10) and forecasts have their own fixtures.
 
 ## Export — how a marker leaves, and how it does not
 

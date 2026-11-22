@@ -288,7 +288,7 @@ describe('markers-to-fhir: the mapping proves itself', () => {
   const bundlePath = join(CACHE, 'bundle.json')
   let before: string
   let roundtrip: {
-    markers: number; observations: number; diagnostic_reports: number
+    markers: number; panels: number; observations: number; diagnostic_reports: number
     roundtrip: { compared: number; mismatches: unknown[]; structural_issues: unknown[]; passed: boolean }
     not_carried: { unmapped_units: string[]; no_loinc_code: unknown[] }
   }
@@ -314,10 +314,11 @@ describe('markers-to-fhir: the mapping proves itself', () => {
     // One Observation per marker, one report per panel, and no report without a result.
     const observations = resources.filter((resource) => resource.resourceType === 'Observation')
     expect(observations.length).toBe(roundtrip.markers)
-    const reports = resources.filter((resource) =>
+    const reporters = resources.filter((resource) =>
       resource.resourceType === 'DiagnosticReport') as Array<{ result: Array<{ reference: string }> }>
-    expect(reports.length).toBe(6)
-    for (const report of reports) expect(report.result.length).toBeGreaterThan(0)
+    // One report per panel: the count is the document's, not a number this test remembers.
+    expect(reporters.length).toBe(roundtrip.panels)
+    for (const report of reporters) expect(report.result.length).toBeGreaterThan(0)
     // …and it refuses to write over the graph even when asked.
     const refusal = run('markers-to-fhir', 'scripts/markers_to_fhir.py', ['--graph', DEMO, '--out', DEMO])
     expect(refusal.code).toBe(2)
@@ -329,7 +330,11 @@ describe('markers-to-fhir: the mapping proves itself', () => {
     expect(roundtrip.roundtrip.mismatches).toEqual([])
     expect(roundtrip.roundtrip.structural_issues).toEqual([])
     expect(roundtrip.roundtrip.passed).toBe(true)
-    expect(roundtrip.markers).toBe(13)
+    // "every marker of the main view": the app's own expansion over the demo is the count, so
+    // replacing the demo case cannot leave this test remembering an older document's number.
+    const appMarkers = graph.nodes.reduce((count, node) => count + MainView.markers(node).length, 0)
+    expect(appMarkers).toBeGreaterThan(0)
+    expect(roundtrip.markers).toBe(appMarkers)
   })
 
   test('the comparison can fail: a tampered value is a mismatch', () => {
@@ -370,8 +375,9 @@ describe('markers-to-fhir: the mapping proves itself', () => {
       // The kg id travels, so the marker can be found again.
       expect((observation.identifier as Array<{ system: string }>)[0].system).toBe('urn:kg:node')
     }
-    // The demo's lipid panel is the one with printed flags and LOINC codes.
-    const lipid = resources.find((resource) => resource.id === 'lab-lipid-2026-11-1') as {
+    // A marker from a panel in the demo that printed its own flag and a LOINC code: the first row
+    // of the 2026 lipid panel (total cholesterol, H, mmol/L).
+    const lipid = resources.find((resource) => resource.id === 'obs-lipids-2026-0') as {
       interpretation: Array<{ coding: Array<{ code: string }> }>
       valueQuantity: { system: string; code: string }
     }
