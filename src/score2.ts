@@ -90,11 +90,9 @@ type Model = { baselineSurvival: number; coefficients: readonly Coefficient[] }
  * input is multiplied by zero in `transformed()`, never dropped from the table.
  */
 export const SCORE2: {
-  readonly version: string
   readonly models: Readonly<Record<Sex, Model>>
   readonly calibration: Readonly<Record<Sex, Readonly<Record<Region, readonly [number, number]>>>>
 } = {
-  version: VERSION,
   models: {
     male: {
       baselineSurvival: 0.9605,
