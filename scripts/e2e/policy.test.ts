@@ -197,6 +197,81 @@ describe('the guard reads a command, not the shape of a string', () => {
     }
   })
 
+  test('reads the command a redirection is attached to', () => {
+    // Round 3's review: a shell-syntax prefix before the command hid it. Ending the segment at
+    // `<`/`>` made `/dev/null` the word the segment ran, so the `find /` behind a `2>/dev/null`
+    // — the way a shell command is usually written — was never judged.
+    const commands = [
+      '2>/dev/null find / -name kg.py',
+      '2>&1 find / -name kg.py',
+      '>/dev/null 2>&1 find / -name kg.py',
+      '1>/dev/null find / -name kg.py',
+      '</dev/null ls /',
+      '2>/dev/null grep -r x /',
+      '2>/dev/null xargs -0 grep -r x /',
+      '2>/dev/null env FOO=1 find / -name x',
+    ]
+    for (const command of commands) {
+      expect([command, outsideRoomCalls([call('terminal', { command })]).length]).toEqual([command, 1])
+    }
+    const allowed = [
+      'grep -o "2D / 3D" kg/assets/health-viewer.html 2>/dev/null',
+      'find . -name "*.json" 2>/dev/null',
+      'ls kg 2>/dev/null',
+      'find / -name "validate.ts" 2>/dev/null | head',
+    ]
+    for (const command of allowed.slice(0, 3)) {
+      expect([command, outsideRoomCalls([call('terminal', { command })])]).toEqual([command, []])
+    }
+    // The redirect does not hide a walk that is really there.
+    expect(outsideRoomCalls([call('terminal', { command: allowed[3] })])).toHaveLength(1)
+  })
+
+  test('reads the command behind a shell grammar word', () => {
+    // `!`, `if`, `while`, `until` and `{` are grammar, not commands — a segment that starts with
+    // one of them runs the command after it, the way `then`/`do`/`else` already did.
+    const commands = [
+      '! find / -name kg.py',
+      '! ls /',
+      'if find / -name x; then echo yes; fi',
+      'if ls /; then echo y; fi',
+      'while find / -name x; do break; done',
+      'until find / -name x; do break; done',
+      '{ find / -name x; }',
+    ]
+    for (const command of commands) {
+      expect([command, outsideRoomCalls([call('terminal', { command })]).length]).toEqual([command, 1])
+    }
+    const allowed = ['{ ls kg; }', 'if [ -f kg.json ]; then ls kg; fi', '! ls kg']
+    for (const command of allowed) {
+      expect([command, outsideRoomCalls([call('terminal', { command })])]).toEqual([command, []])
+    }
+  })
+
+  test("reads the command a find -exec runs, and not the arguments it hands it", () => {
+    // The `-exec` tail is a command of its own, run with argv preserved, up to the `;`/`+` that
+    // ends it. Its words are that command's arguments, not `find`'s operands — which is both why
+    // `-exec sh -c 'ls /'` is a walk and why `-exec echo 2D / 3D {}` is not.
+    const commands = [
+      "find . -name x -exec sh -c 'ls /' \\;",
+      "find . -exec bash -c 'find / -name x' \\;",
+      'find . -name "*.py" -exec grep -l x / {} \\;',
+      'find . -exec ls / \\;',
+      'find . -execdir ls / +',
+    ]
+    for (const command of commands) {
+      expect([command, outsideRoomCalls([call('terminal', { command })]).length]).toEqual([command, 1])
+    }
+    const allowed = [
+      'find . -name "*.json" -exec grep -o "2D / 3D" {} \\;',
+      'find . -name "*.py" -exec echo 2D / 3D {} \\;',
+      'find . -name "*.json" -exec ls {} \\;',
+    ]
+    for (const command of allowed) {
+      expect([command, outsideRoomCalls([call('terminal', { command })])]).toEqual([command, []])
+    }
+  })
+
   test('does not let quoting hide a real place', () => {
     expect(outsideRoomCalls([call('terminal', { command: 'find "/" -maxdepth 1' })])).toHaveLength(1)
     expect(outsideRoomCalls([call('terminal', { command: 'ls "$HOME"' })])).toHaveLength(1)

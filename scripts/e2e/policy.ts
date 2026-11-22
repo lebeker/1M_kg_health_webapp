@@ -73,11 +73,17 @@ export const OUTSIDE_ROOM_PATHS: Array<[RegExp, string]> = [
  * So the input is read the way a shell reads it. The command string is split into segments
  * (`|`, `&&`, `;`, a newline, a `$(…)` or a backtick) and each segment into words, honouring
  * single and double quotes and backslash escapes. The word a segment runs is not always its first
- * one — `X=1 find /`, `sudo -u root find /` and `env FOO=1 timeout 5 find /` all run `find` — so
- * leading assignments and a wrapper's own options, option values and positional arguments are
- * skipped before the command word is read. That word says which of its words are paths; those
- * words are then judged whole — `/` is a word, never a character inside one — so a quoted page
- * label, a regex alternation or a sentence is not read as a place to search.
+ * one — `X=1 find /`, `! find /`, `if find /; then …`, `sudo -u root find /` and
+ * `env FOO=1 timeout 5 find /` all run `find` — so leading assignments, shell grammar words and a
+ * wrapper's own options, option values and positional arguments are skipped before the command
+ * word is read. That word says which of its words are paths; those words are then judged whole —
+ * `/` is a word, never a character inside one — so a quoted page label, a regex alternation or a
+ * sentence is not read as a place to search.
+ *
+ * A redirection is not a boundary. `2>/dev/null find /` runs one command with a redirect in front
+ * of it, so the operator, the file descriptor attached to it and the name it redirects to are
+ * skipped *within* the segment. Splitting there read the command as `/dev/null`, which is how an
+ * idiomatic `2>/dev/null find / -name x` went unjudged through three revisions of this check.
  *
  * A command is often a command *inside* another word, so the check follows it there too:
  *
@@ -91,6 +97,10 @@ export const OUTSIDE_ROOM_PATHS: Array<[RegExp, string]> = [
  *    read as words and a quoted `"2D / 3D"` stays one argument. A bind mount is the place a
  *    container is actually handed the host — `docker run -v /:/host …` mounts the whole machine —
  *    so a mount's source is judged as a path of its own;
+ *  - `find … -exec CMD {} \;` is the same shape inside a path command: the tail up to `;` or `+`
+ *    is a command line of its own, run with argv preserved, so it is read as words and its
+ *    arguments are *not* then judged as `find`'s own operands — `-exec echo 2D / 3D {}` hands
+ *    `2D`, `/` and `3D` to `echo`, and `-exec sh -c 'ls /'` hands `ls /` to a shell;
  *  - an interpreter's `-e`/`-c`/`-r` argument is a *program*, not a command line, and is not
  *    parsed as one: `os.listdir('/')` is not an `ls`, and reading every string in a program as a
  *    command would be this check's original mistake in the other direction. What is read is where
@@ -146,6 +156,23 @@ const WRAPPERS = new Map<string, { valueOptions: string[]; positionals: number }
   ['do', { valueOptions: [], positionals: 0 }],
   ['then', { valueOptions: [], positionals: 0 }],
   ['else', { valueOptions: [], positionals: 0 }],
+  // Shell grammar words, which are not commands either: `! find /`, `if find /; then …`,
+  // `while find /; do …`, `{ find /; }`. A segment often *starts* with one of these, so treating
+  // it as the command word made the walk behind it invisible.
+  ['!', { valueOptions: [], positionals: 0 }],
+  ['{', { valueOptions: [], positionals: 0 }],
+  ['}', { valueOptions: [], positionals: 0 }],
+  ['if', { valueOptions: [], positionals: 0 }],
+  ['elif', { valueOptions: [], positionals: 0 }],
+  ['while', { valueOptions: [], positionals: 0 }],
+  ['until', { valueOptions: [], positionals: 0 }],
+  ['for', { valueOptions: [], positionals: 0 }],
+  ['select', { valueOptions: [], positionals: 0 }],
+  ['case', { valueOptions: [], positionals: 0 }],
+  ['function', { valueOptions: [], positionals: 0 }],
+  ['done', { valueOptions: [], positionals: 0 }],
+  ['fi', { valueOptions: [], positionals: 0 }],
+  ['esac', { valueOptions: [], positionals: 0 }],
 ])
 
 /** `FOO=1 cmd` — a shell assignment, which is not the command. */
@@ -156,6 +183,9 @@ const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh'])
 
 /** `find` predicates whose value is a pattern, not a path. */
 const FIND_PATTERNS = new Set(['-name', '-iname', '-path', '-ipath', '-regex', '-iregex', '-lname', '-ilname'])
+
+/** `find` predicates that run the words after them as a command, up to `;` or `+`. */
+const FIND_EXEC = new Set(['-exec', '-execdir', '-ok', '-okdir'])
 
 /** How deep a command line is followed inside another one before the check gives up. */
 const MAX_DEPTH = 3
@@ -251,6 +281,12 @@ const ABOVE = /^\.\.(?:\/|$)/
  * `|` inside quotes is text, not a pipe. A newline ends a segment, so the second line of a script
  * is read as a command of its own; `$(…)` and a backtick do too, because a substitution is a
  * command that runs inside the line.
+ *
+ * A redirection does not end a segment. `2>/dev/null find / -name x` is one command with a
+ * redirect in front of it, so the operator, the descriptor attached to it (`2>`) and the name it
+ * redirects to (`/dev/null`) are skipped inside the segment. Ending the segment at `<`/`>` made
+ * `/dev/null` the word the segment "ran", so the `find /` behind it was never judged — and
+ * `2>/dev/null` is how shell commands are usually written.
  */
 export function shellSegments(command: string): ShellWord[][] {
   const segments: ShellWord[][] = []
@@ -258,15 +294,21 @@ export function shellSegments(command: string): ShellWord[][] {
   let word = ''
   let started = false
   let quote: '"' | "'" | null = null
+  /** The next word is a redirection's target: a file name, not an argument. */
+  let target = false
 
   const endWord = () => {
     if (!started) return
-    segment.push(word)
+    if (!target) segment.push(word)
+    target = false
     word = ''
     started = false
   }
   const endSegment = () => {
     endWord()
+    target = false
+    word = ''
+    started = false
     if (segment.length > 0) segments.push(segment)
     segment = []
   }
@@ -299,6 +341,32 @@ export function shellSegments(command: string): ShellWord[][] {
       i += 1
       continue
     }
+    if (char === '<' || char === '>' || (char === '&' && command[i + 1] === '>')) {
+      // `2>` and `&>`: the word so far is a descriptor, not an argument of the command.
+      if (started && /^\d+$/.test(word)) {
+        word = ''
+        started = false
+      } else {
+        endWord()
+      }
+      let after = char === '&' ? i + 1 : i
+      after += 1
+      const next = command[after]
+      if (next === char || next === '|') {
+        after += 1
+      } else if (next === '&') {
+        // `>&2`, `<&1`: the descriptor is the target, so the operator is the whole token.
+        after += 1
+        while (after < command.length && /[\d-]/.test(command[after])) after += 1
+        i = after - 1
+        continue
+      }
+      target = true
+      word = ''
+      started = false
+      i = after - 1
+      continue
+    }
     if (char === '\n' || char === '\r') {
       endSegment()
       continue
@@ -307,7 +375,7 @@ export function shellSegments(command: string): ShellWord[][] {
       endWord()
       continue
     }
-    if ('|;&()<>`'.includes(char)) {
+    if ('|;&()`'.includes(char)) {
       endSegment()
       continue
     }
@@ -333,10 +401,11 @@ function commandName(word: string): string {
 }
 
 /** The arguments a path command will act on, with its pattern operands left out. */
-function operandsEscape(name: string, spec: PathCommand, operands: ShellWord[]): string | null {
+function operandsEscape(name: string, spec: PathCommand, operands: ShellWord[], depth: number): string | null {
   let patternSeen = false
   let skipValue = false
-  for (const word of operands) {
+  for (let i = 0; i < operands.length; i += 1) {
+    const word = operands[i]
     if (skipValue) {
       skipValue = false
       continue
@@ -349,6 +418,21 @@ function operandsEscape(name: string, spec: PathCommand, operands: ShellWord[]):
       }
       if (FIND_PATTERNS.has(word)) {
         skipValue = true
+        continue
+      }
+      if (name === 'find' && FIND_EXEC.has(word)) {
+        // The tail is a command of its own, run with argv preserved, up to the `;`/`+` that ends
+        // it. Its words are read as that command's arguments and not as `find`'s own, so
+        // `-exec echo 2D / 3D {}` stays a pass while `-exec sh -c 'ls /'` is a walk.
+        const tail: ShellWord[] = []
+        let end = i + 1
+        for (; end < operands.length; end += 1) {
+          if (operands[end] === ';' || operands[end] === '+') break
+          tail.push(operands[end])
+        }
+        i = end
+        const inner = tail.length > 0 ? segmentEscape(tail, depth + 1) : null
+        if (inner) return inner
         continue
       }
       continue
@@ -515,7 +599,7 @@ function segmentEscape(words: ShellWord[], depth: number): string | null {
   }
   const spec = PATH_COMMANDS.get(name)
   if (!spec) return null
-  return operandsEscape(name, spec, rest)
+  return operandsEscape(name, spec, rest, depth)
 }
 
 /**
