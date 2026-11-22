@@ -66,6 +66,12 @@ jobs:
         run: bun run lint
       - name: typecheck
         run: bun run typecheck
+      # the case page is build output: dist/demo.html is made from kg_demo.json, and the two tests
+      # that hold it (scripts/case-artifact.test.ts, scripts/page-storage.test.ts) compare against
+      # the file, not against a function's idea of it. `bun run verify` builds it; this job calls
+      # `bun run test` directly, so it builds it here.
+      - name: case build
+        run: bun run build:demo
       - name: unit
         run: bun run test
       - name: contract fixtures
