@@ -314,8 +314,17 @@ def resolve_key(detail: dict) -> KeyResolution:
 # A card names its branch in its body (`Required branch: fix/SCRUM-43_sync-merged-gate`) and the board
 # records it in `tasks.branch_name`. Either is enough to ask GitHub about that branch — but a branch
 # that was renamed before its first push (every `wt/` name is) does not exist on GitHub, which is why
-# the PR-body fallback exists and why a missing branch is not an error.
+# the card body and the PR-body fallbacks exist and why a missing branch is not an error.
 BRANCH_RE = re.compile(r"\b((?:fix|feat|chore)/[A-Z][A-Z0-9]+-\d+_[A-Za-z0-9._-]+)")
+
+# `Required branch: <name>` is the card's own declaration of the branch it was worked on. It is read
+# ahead of any other branch this body happens to mention, so prose about a sibling card's branch can
+# never become this card's evidence.
+REQUIRED_BRANCH_RE = re.compile(r"(?im)^[ \t]*required branch[ \t]*:[ \t]*`?([^`\s]+)`?[ \t]*$")
+
+# The seed every worktree branch starts as. The branch-name check rejects the prefix and every worker
+# renames before its first push, so a `wt/` name can never exist on GitHub: nothing there can match it.
+WT_SEED_RE = re.compile(r"^wt/")
 
 # The one way a card says "no diff was needed": a line of its own naming the commit that already
 # satisfies the acceptance. A commit hash mentioned in prose is *not* a declaration — the whole point
@@ -355,32 +364,64 @@ class MergeEvidence:
         return bool(self.kind)
 
     def log_line(self) -> str:
-        return f"{self.token or 'no-merge-evidence'}: {self.reason}"
+        # `token` is set on a refusal and `kind` on a success; the fallback is for a caller that builds
+        # neither. A successful verdict must not read as a refusal in the run log.
+        return f"{self.token or self.kind or 'no-merge-evidence'}: {self.reason}"
 
 
-def branch_of(detail: dict, card: dict | None = None) -> str:
-    """The branch this card was worked on, or '' — the board's record first, then the card body."""
-    recorded = str((detail.get("task") or {}).get("branch_name") or (card or {}).get("branch_name") or "").strip()
-    if recorded:
-        return recorded
-    match = BRANCH_RE.search(str((detail.get("task") or {}).get("body") or ""))
-    return match.group(1) if match else ""
+def branches_of(detail: dict, card: dict | None = None) -> list[str]:
+    """The branches this card could have been pushed as, in order — `[]` when there is nothing to ask.
+
+    The board's `branch_name` wins when it is a real branch. When it is a `wt/` seed it is *skipped*,
+    not returned: a `wt/` name is rejected by the branch-name check and is renamed before the first
+    push, and the board is never told. 15 of 18 live cards still carry the seed, so treating it as
+    authoritative is how a card whose PR is merged reads as having no PR at all — the wedge.
+
+    Falling through gives the card body's own `Required branch:` declaration, then any branch the body
+    names, then `resolve_pull_requests`' PR-body fallback.
+    """
+    task = detail.get("task") or {}
+    card = card or {}
+    recorded = str(task.get("branch_name") or card.get("branch_name") or "").strip()
+    if recorded and not WT_SEED_RE.match(recorded):
+        return [recorded]
+    body = str(task.get("body") or card.get("body") or "")
+    declared = [match.group(1) for match in REQUIRED_BRANCH_RE.finditer(body)]
+    named = [match.group(1) for match in BRANCH_RE.finditer(body)]
+    found: list[str] = []
+    for branch in (declared or named):
+        if branch not in found:
+            found.append(branch)
+    return found
 
 
-def declares_card(pr: PullRequest, card_id: str) -> bool:
-    """A PR claims a card by *opening* with `Task: <card-id>`; a mention further down does not count."""
+def declares_card(pr: PullRequest, card_id: str, key: str = "") -> bool:
+    """A PR claims a card by *opening* with `Task: <card-id>` or `Task: <jira-key>`.
+
+    Both forms are live: the two PRs that predate the convention open with the card id
+    (`Task: t_29c8c8f2`) and every PR since opens with the key (`Task: SCRUM-27`), because the delivery
+    rules say to. Matching only the card id made this fallback dead for all 16 real PRs. A mention
+    further down does not count — the opener is the declaration.
+    """
     lines = (pr.body or "").strip().splitlines()
-    return bool(lines) and lines[0].strip() == f"Task: {card_id}"
+    if not lines:
+        return False
+    opener = lines[0].strip()
+    return opener == f"Task: {card_id}" or (bool(key) and opener == f"Task: {key}")
 
 
-def resolve_pull_requests(card_id: str, branch: str, prs: Iterable[PullRequest]) -> list[PullRequest]:
+def resolve_pull_requests(card_id: str, branches: Iterable[str], prs: Iterable[PullRequest],
+                          key: str = "") -> list[PullRequest]:
     """Every PR that could be this card's, newest first: branch matches ahead of body matches.
 
     More than one is normal — a card whose first PR was closed and re-opened has several — so the gate
     reads them all and prefers merged evidence instead of picking one and hoping.
     """
-    by_branch = sorted((pr for pr in prs if branch and pr.branch == branch), key=lambda p: p.number, reverse=True)
-    by_body = sorted((pr for pr in prs if declares_card(pr, card_id)), key=lambda p: p.number, reverse=True)
+    wanted = {branch for branch in branches if branch}
+    pool = list(prs)
+    by_branch = sorted((pr for pr in pool if pr.branch and pr.branch in wanted),
+                       key=lambda p: p.number, reverse=True)
+    by_body = sorted((pr for pr in pool if declares_card(pr, card_id, key)), key=lambda p: p.number, reverse=True)
     ordered: list[PullRequest] = []
     for pr in by_branch + by_body:
         if all(seen.number != pr.number for seen in ordered):
@@ -411,9 +452,16 @@ def declared_no_change(detail: dict) -> tuple[str, str]:
 
 
 def evaluate_merge_gate(card_id: str, detail: dict, prs: Iterable[PullRequest],
-                        on_main: Callable[[str], bool], branch: str = "") -> MergeEvidence:
-    """May this done card be written as Done? Pure — `on_main` is injected, so the test is offline."""
-    candidates = resolve_pull_requests(card_id, branch, prs)
+                        on_main: Callable[[str], bool], branch: str | Iterable[str] = "",
+                        key: str = "") -> MergeEvidence:
+    """May this done card be written as Done? Pure — `on_main` is injected, so the test is offline.
+
+    `branch` takes the branches this card may have been pushed as (`branches_of`); a single string is
+    accepted for callers that already know the one branch. `key` is the card's Jira key, the identifier
+    a PR actually opens with today.
+    """
+    branches = [branch] if isinstance(branch, str) else list(branch)
+    candidates = resolve_pull_requests(card_id, branches, prs, key=key)
 
     merged = [pr for pr in candidates if pr.state == "MERGED" and pr.merge_commit]
     for pr in merged:
@@ -465,10 +513,12 @@ def evaluate_merge_gate(card_id: str, detail: dict, prs: Iterable[PullRequest],
                     "from origin/main"),
         )
 
-    where = f"branch {branch!r}" if branch else "no branch recorded"
+    named = [f"'{branch}'" for branch in branches if branch]
+    where = f"branch {', '.join(named)}" if named else "no branch recorded"
+    openers = [f"'Task: {card_id}'"] + ([f"'Task: {key}'"] if key else [])
     return MergeEvidence(
         token="no-merge-evidence",
-        reason=(f"no pull request resolves to this card ({where}, or a body opening 'Task: {card_id}') and "
+        reason=(f"no pull request resolves to this card ({where}, or a body opening {', '.join(openers)}) and "
                 "no 'no-change-needed: <commit>' line in its comments"),
     )
 
@@ -707,11 +757,13 @@ class MergeResolver:
     """
 
     def __init__(self, repo: str = REPO_ROOT, log: Callable[[str], None] = print,
-                 prs: list[PullRequest] | None = None, on_main: Callable[[str], bool] | None = None):
+                 prs: list[PullRequest] | None = None, on_main: Callable[[str], bool] | None = None,
+                 key_of: Callable[[dict], str] | None = None):
         self.repo = repo
         self.log = log
         self._prs = prs
         self._on_main = on_main or (lambda sha: on_origin_main(sha, repo))
+        self._key_of = key_of or (lambda detail: resolve_key(detail).key or "")
         self._fetched = False
 
     def pull_requests(self) -> list[PullRequest]:
@@ -725,14 +777,15 @@ class MergeResolver:
         self._fetched = True
         try:
             fetch_origin_main(self.repo)
-        except StepFailed as exc:
+        except (StepFailed, subprocess.TimeoutExpired) as exc:
             self.log(f"  WARNING {exc} — merges may read as unreachable, and a Done write will be refused")
 
     def __call__(self, card: dict, detail: dict) -> MergeEvidence:
         self._refresh()
         card_id = str(card.get("id"))
         return evaluate_merge_gate(
-            card_id, detail, self.pull_requests(), self._on_main, branch=branch_of(detail, card),
+            card_id, detail, self.pull_requests(), self._on_main,
+            branch=branches_of(detail, card), key=self._key_of(detail),
         )
 
 
@@ -871,7 +924,9 @@ def evidence_for(card_id: str, card_state: str, card: dict, detail: dict,
         )
     try:
         return evidence_of(card, detail)
-    except StepFailed as exc:
+    except (StepFailed, subprocess.TimeoutExpired) as exc:
+        # A slow `gh` or `git fetch` must hold this one card, not kill the run: the whole board would
+        # otherwise stop syncing because one issue's evidence timed out. Holds are the safe direction.
         return MergeEvidence(token="no-merge-evidence", reason=f"cannot resolve merge evidence: {exc}")
 
 

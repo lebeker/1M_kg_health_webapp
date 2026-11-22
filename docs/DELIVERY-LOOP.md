@@ -223,11 +223,16 @@ above cannot express, both learned from live writes on 2026-11-22:
 
 - *Done is a claim about `main`.* A card can be closed with its PR still open (T01, PR #8, zero reviews),
   and there is no transition back out of Done, so a wrong one cannot be undone. The sync resolves the
-  card's PR — its `tasks.branch_name`, else a PR whose body *opens* with `Task: <card-id>` — and writes
-  Done only when the PR is `MERGED` and its merge commit is an ancestor of `origin/main`. A card that
-  needed no diff declares it on its own line in a card comment: `no-change-needed: <commit>`, with that
-  commit on `origin/main`. Anything else holds the status and comments why, logged as `pending-merge`
-  (PR open or closed-unmerged) or `no-merge-evidence` (nothing to check).
+  card's PR in this order — `tasks.branch_name` when it is a real branch (a `wt/` seed is skipped: the
+  branch-name check rejects the prefix and workers rename before the first push, so nothing on GitHub
+  can ever match it), then the card body's `Required branch:` line, then a PR whose body *opens* with
+  `Task: <card-id>` or `Task: <jira-key>` (both forms are live; the key is the current convention) —
+  and writes Done only when that PR is `MERGED` and its merge commit is an ancestor of `origin/main`.
+  A card that needed no diff declares it on its own line in a card comment: `no-change-needed:
+  <commit>`, with that commit on `origin/main`. Anything else holds the status and comments why,
+  logged as `pending-merge` (PR open or closed-unmerged), `no-merge-evidence` (nothing to check) or
+  `unverifiable` (the evidence exists but cannot be checked against `origin/main`: a merged commit
+  that is not reachable from it, or a declared commit that is not on it).
 - *A status never moves backwards.* `running -> review -> running` is the normal rework path; a `ready`
   card must not drag an *In Progress* issue back to *To Do*, and a `running` card must not drag a *Done*
   issue back to *In Progress*. The sync holds (`status-not-moved-backwards`) and comments.

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import subprocess
 import sys
 import unittest
 
@@ -33,9 +34,11 @@ def card(state: str, assignee: str = "lia", card_id: str = "t_1") -> dict:
 
 
 def detail(state: str = "running", assignee: str = "lia", summary: str = "", body: str = "Task: SCRUM-15",
-           run_status: str = "running", block_reason: str = "", comments: list[str] | None = None) -> dict:
+           run_status: str = "running", block_reason: str = "", comments: list[str] | None = None,
+           branch_name: str = "") -> dict:
     return {
-        "task": {"id": "t_1", "assignee": assignee, "body": body, "block_reason": block_reason},
+        "task": {"id": "t_1", "assignee": assignee, "body": body, "block_reason": block_reason,
+                 "branch_name": branch_name},
         "run": {"status": run_status, "outcome": None, "summary": summary},
         "comments": [{"author": "someone", "body": text} for text in (comments or [])],
     }
@@ -55,11 +58,16 @@ def pull_request(number: int, state: str, merge_commit: str = "", branch: str = 
                                 branch=branch, body=body)
 
 
-def gate(prs, detail_row=None, on_main=(MERGED_SHA,), branch: str = ""):
-    """`evaluate_merge_gate` with the ancestry check replaced by membership in `on_main`."""
+def gate(prs, detail_row=None, on_main=(MERGED_SHA,), branch=None, key: str = ""):
+    """`evaluate_merge_gate` with the ancestry check replaced by membership in `on_main`.
+
+    `branch=None` means "use whatever the card itself says it was worked on", the way `MergeResolver`
+    does it; pass a string to pin one branch explicitly.
+    """
+    row = detail_row if detail_row is not None else detail("done")
     return jira_sync.evaluate_merge_gate(
-        "t_1", detail_row if detail_row is not None else detail("done"),
-        prs, lambda sha: sha in on_main, branch=branch,
+        "t_1", row, prs, lambda sha: sha in on_main,
+        branch=jira_sync.branches_of(row) if branch is None else branch, key=key,
     )
 
 
@@ -492,6 +500,99 @@ class TestDoneGate(unittest.TestCase):
         plan = self.done_plan(None)
         self.assertEqual([step.kind for step in plan.steps], ["comment"])
         self.assertTrue(plan.holds[0].startswith("no-merge-evidence"))
+
+
+class TestFindingThePrOfARealCard(unittest.TestCase):
+    """A live card's link to its PR is either a real branch name or the PR's own first line.
+
+    The defect this class pins: the PR-body fallback matched `Task: <card-id>` only, while every PR
+    that follows the delivery rules opens with `Task: <jira-key>` (16 of 18 in the repo). On top of
+    that, `tasks.branch_name` still holds the unpushable `wt/` seed on 15 of 18 cards, because nothing
+    tells the board when a worker renames its branch before the first push. The fallback therefore
+    matched nothing for the cards it existed for, and the gate read a merged card as having no PR —
+    which refuses a Done that all the evidence supports, and there is no way back out of Done.
+    """
+
+    def test_a_wt_seed_is_never_the_branch_to_ask_github_about(self):
+        row = detail("done", "mex", branch_name="wt/t16-lee-index-frailty",
+                     body="Task: SCRUM-27\nRequired branch: feat/SCRUM-27_lee-index")
+        self.assertEqual(jira_sync.branches_of(row), ["feat/SCRUM-27_lee-index"])
+
+    def test_a_recorded_branch_is_used_as_it_stands(self):
+        row = detail("done", "mex", branch_name="feat/SCRUM-27_lee-index",
+                     body="Task: SCRUM-27\nRequired branch: fix/SCRUM-27_other")
+        self.assertEqual(jira_sync.branches_of(row), ["feat/SCRUM-27_lee-index"])
+
+    def test_a_pr_that_opens_with_the_jira_key_is_this_card(self):
+        self.assertTrue(jira_sync.declares_card(pull_request(18, "OPEN", body="Task: SCRUM-27\n\nWhat"), "t_53b40a9a", "SCRUM-27"))
+
+    def test_a_pr_that_opens_with_the_card_id_is_still_this_card(self):
+        # PR #1 and #2 predate the convention; dropping this form would lose them.
+        self.assertTrue(jira_sync.declares_card(pull_request(1, "OPEN", body="Task: t_1\n"), "t_1", "SCRUM-27"))
+
+    def test_a_pr_that_opens_with_another_card_is_not_this_card(self):
+        self.assertFalse(jira_sync.declares_card(pull_request(18, "OPEN", body="Task: SCRUM-99"), "t_1", "SCRUM-27"))
+        self.assertFalse(jira_sync.declares_card(pull_request(18, "OPEN", body="Task: t_9"), "t_1", "SCRUM-27"))
+
+    def test_a_stale_wt_branch_and_a_key_opener_resolve_a_merged_pr(self):
+        row = detail("done", "mex", branch_name="wt/t16-lee-index-frailty", body="Task: SCRUM-27")
+        evidence = gate(
+            [pull_request(18, "MERGED", MERGED_SHA, branch="feat/SCRUM-27_lee-index", body="Task: SCRUM-27\n\nBody")],
+            row, key="SCRUM-27",
+        )
+        self.assertEqual(evidence.kind, "merged-pr")
+        self.assertEqual(evidence.pr_number, 18)
+
+    def test_a_stale_wt_branch_and_a_key_opener_hold_an_open_pr(self):
+        row = detail("done", "mex", branch_name="wt/t16-lee-index-frailty", body="Task: SCRUM-27")
+        evidence = gate(
+            [pull_request(18, "OPEN", branch="feat/SCRUM-27_lee-index", body="Task: SCRUM-27\n\nBody")],
+            row, key="SCRUM-27",
+        )
+        self.assertEqual(evidence.token, "pending-merge")
+        self.assertEqual(evidence.pr_number, 18)
+        plan = jira_sync.build_plan(
+            card("done", "mex"), row, jira_state("In Progress", MEX), IDENTITIES, "SCRUM-27", evidence=evidence,
+        )
+        self.assertEqual([step.kind for step in plan.steps], ["comment"])
+        self.assertTrue(plan.holds[0].startswith("pending-merge"))
+
+    def test_a_wt_branch_still_resolves_through_the_card_body_when_the_pr_body_is_uninformative(self):
+        # The card declares its own branch, which is the strongest link it can give when neither the
+        # board's record nor the PR's first line says anything usable.
+        row = detail("done", "mex", branch_name="wt/t01-demo", body="Task: SCRUM-1\nRequired branch: fix/SCRUM-1_gate")
+        evidence = gate([pull_request(9, "MERGED", MERGED_SHA, branch="fix/SCRUM-1_gate", body="no trailer here")], row)
+        self.assertEqual(evidence.kind, "merged-pr")
+        self.assertEqual(evidence.pr_number, 9)
+
+    def test_nothing_matching_at_all_still_names_both_openers(self):
+        evidence = gate([], detail("done", "mex", branch_name="wt/t01-demo", body="Task: SCRUM-1"), key="SCRUM-1")
+        self.assertEqual(evidence.token, "no-merge-evidence")
+        self.assertIn("Task: t_1", evidence.reason)
+        self.assertIn("Task: SCRUM-1", evidence.reason)
+        self.assertIn("no branch recorded", evidence.reason)
+
+    def test_a_successful_verdict_does_not_log_itself_as_a_refusal(self):
+        # `token` is empty on success, and the run log used to fall back to `no-merge-evidence`.
+        line = gate([pull_request(8, "MERGED", MERGED_SHA)]).log_line()
+        self.assertTrue(line.startswith("merged-pr: "), line)
+
+    def test_a_resolver_that_times_out_holds_the_card_instead_of_killing_the_run(self):
+        # A slow `gh` must cost one card's evidence, not the whole board's sync.
+        def boom(_card, _detail):
+            raise subprocess.TimeoutExpired("gh pr list", 180)
+
+        client = FakeClient(status="In Progress", assignee_id=MEX)
+        log = []
+        code = jira_sync.run(
+            apply=True, strict=False, cards=[card("done", "mex")],
+            detail_of=lambda _: detail("done", "mex", "closed out"),
+            client=client, identities=IDENTITIES, log=log.append, evidence_of=boom,
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(client.status, "In Progress")
+        self.assertEqual([call for call in client.calls if call[0] == "transition"], [])
+        self.assertTrue(any("timed out" in line for line in log), log)
 
 
 class TestStatusNeverMovesBackwards(unittest.TestCase):
