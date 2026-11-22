@@ -23,7 +23,7 @@ type Edge = Record<string, unknown>
 type Context = { nodes?: Node[]; edges?: Edge[]; byId?: (id: unknown) => Node | null; today?: string }
 
 type Marker = { name: string; value: number; unit: string; ref: [number | null, number | null] | null; reference: string; flag: string; from: string; out: boolean }
-type Assignment = { id: string; text: string; date: string; tone: string; why: string; confirmed: boolean }
+type Assignment = { id: string; label: string; detail: string; date: string; tone: string; why: string; confirmed: boolean }
 type Summary = { generated: boolean; period: string; planned: string[]; done: string[]; held: string[]; dropped: string[]; note: string }
 type MainView = {
   viewOf: (row: Row | null, node: Node | null) => string
@@ -233,18 +233,32 @@ describe('diagnosis: two kinds that never mix', () => {
     expect(v.badge).toBe('')
   })
 
-  test('a generated note carries the badge and no doctor link', () => {
+  test('a generated note carries the badge, no doctor link, and the yellow triangle', () => {
     const v = MV.verdict(byId('dx-generated'), ctx())
     expect(v.generated).toBe(true)
     expect(v.badge).toBe('not confirmed')
     expect(v.doctor).toBe('')
     expect(v.clinic).toBe('')
+    expect(v.warning).toBe('check')
+    expect(v.why.join(' ')).toContain('generated note')
+  })
+
+  test('an official note with nothing wrong carries no triangle at all', () => {
+    expect(MV.verdict(byId('dx-doctor'), ctx()).warning).toBe('')
+    expect(MV.verdict(byId('dx-doctor'), ctx()).why).toEqual([])
   })
 
   test('an unconfirmed note is never official just because it names a doctor', () => {
     expect(MV.isOfficial({ kind: 'condition', confirmed: false, origin: 'doctor', doctor: 'Dr X' })).toBe(false)
     expect(MV.isOfficial({ kind: 'condition', confirmed: true, origin: 'generated', doctor: 'Dr X' })).toBe(false)
     expect(MV.isOfficial({ kind: 'condition', confirmed: true, origin: 'doctor' })).toBe(true)
+  })
+
+  test('a note whose only link is its own scan still carries it, and never twice', () => {
+    const note = { id: 'n', kind: 'condition', confirmed: true, origin: 'doctor', doctor: 'Dr X', scan: 'sources/scan.pdf' }
+    expect(MV.verdict(note, ctx()).links.map((l) => l.href)).toEqual(['sources/scan.pdf'])
+    expect(MV.verdict(note, ctx()).links[0].title).toBe('the original scan')
+    expect(MV.verdict({ ...note, link: 'sources/scan.pdf' }, ctx()).links.length).toBe(1)
   })
 
   test("a doctor's note a later test contradicts gets the yellow triangle", () => {
@@ -276,6 +290,18 @@ describe('diagnosis: what was decided, in five groups', () => {
     expect(a.diet.map((i) => i.id)).toEqual(['dec-diet'])
     expect(a.restrictions.map((i) => i.id)).toEqual(['dec-alcohol'])
     expect(a.tests.map((i) => i.id)).toEqual(['dec-test'])
+  })
+
+  test('the decision\'s own name is the line, its prose only a second line', () => {
+    const nodes = NODES.map((n) =>
+      n.id === 'dec-stat'
+        ? { ...n, label: 'atorvastatin 20 mg in the evening', text: 'Start it after the evening meal.' }
+        : n)
+    const a = MV.assignments(byId('dx-doctor'), ctx({ nodes }))
+    const stat = a.drugs.find((i) => i.id === 'dec-stat')
+    expect(stat?.label).toBe('atorvastatin 20 mg in the evening')
+    expect(stat?.detail).toBe('Start it after the evening meal.')
+    expect(MV.assignments(byId('dx-doctor'), ctx()).drugs.find((i) => i.id === 'dec-stat')?.detail).toBe('')
   })
 
   test('an assignment with no group is not guessed into one', () => {

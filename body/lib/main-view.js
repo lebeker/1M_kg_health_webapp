@@ -174,13 +174,19 @@
     if (typeof value === "string") return text(value);
     return text(value.name) + (value.address ? " · " + text(value.address) : "");
   }
+  /* Every link a note carries, one per href. A note's own `scan` is one of them — an official note
+     with no `link` still has the scanned page behind it, and dropping it would show no links at
+     all for the one document the reader can actually open. */
   function linkList(node) {
     var out = [];
+    var seen = {};
     var push = function (item, title) {
       if (!item) return;
-      if (typeof item === "string") { if (item) out.push({ href: item, title: title || item }); return; }
-      var href = text(item.href || item.url || item.link);
-      if (href) out.push({ href: href, title: text(item.title) || title || href });
+      var href = typeof item === "string" ? text(item) : text(item.href || item.url || item.link);
+      if (!href || seen[href]) return;
+      seen[href] = true;
+      if (typeof item === "string") { out.push({ href: href, title: title || href }); return; }
+      out.push({ href: href, title: text(item.title) || title || href });
     };
     if (Array.isArray(node && node.links)) node.links.forEach(function (l) { push(l); });
     push(node && node.link, text(node && node.link_title) || "the document");
@@ -222,10 +228,18 @@
     var warning = "";
     var why = [];
     if (node && node.warning === "danger") { warning = "danger"; why.push("dangerous: do not act on this"); }
-    else if ((node && node.warning === "check") || later.length) {
+    else if (later.length) {
       warning = "check";
-      if (later.length) why.push("a later test contradicts this note");
-      if (node && node.warning === "check" && !later.length) why.push("looks off: check before acting");
+      why.push("a later test contradicts this note");
+    }
+    else if (node && node.warning === "check") {
+      warning = "check";
+      why.push("looks off: check before acting");
+    }
+    // a generated note is nobody's diagnosis yet: it gets the triangle on its own face
+    else if (node && !official) {
+      warning = "check";
+      why.push("a generated note: check before acting");
     }
     return {
       official: official,
@@ -295,9 +309,13 @@
       var group = groupOf(other);
       if (!group) return;                     // no group, no line: never guess what it was
       var tone = toneOf(other, real);
+      var label = labelOf(other);
+      var detail = text(other.text);
       out[group].push({
         id: idOf(other),
-        text: text(other.text) || text(other.label) || idOf(other),
+        label: label,
+        // the decision's own name is the line; anything else it carries is a second line
+        detail: detail && detail !== label ? detail : "",
         date: dateOf(other),
         status: text(other.status),
         tone: tone.icon,

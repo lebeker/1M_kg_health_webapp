@@ -191,6 +191,7 @@
   #main .mrow:last-child { border-bottom:0; }
   #main .mrow .mrl { color:#93a4b5; font-size:11px; min-width:74px; }
   #main .mrow .mrv { color:#dbe6f1; font-size:12.5px; }
+  #main .mrow .mrv .mdetail { display:block; color:#93a4b5; font-size:11.5px; margin-top:1px; }
   #main .mgroup { font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:#a9b6c3;
     margin:10px 0 2px; }
   /* widget 10: the whole panel as a table — a lipid panel is four rows, a single test is one */
@@ -3012,7 +3013,7 @@ function renderDiagnosis(body, node, row, context) {
     if (verdict.doctor) head.appendChild(sourceLine("doctor", verdict.doctor));
     if (verdict.clinic) head.appendChild(sourceLine("clinic", verdict.clinic));
   }
-  const officialLinks = verdict.links.filter(l => l.href !== (node && node.scan));
+  const officialLinks = verdict.links;
   officialLinks.forEach(l => head.appendChild(linkEl(l.title, l.href)));
   if (verdict.why.length) head.appendChild(mk("div", "mwhy", verdict.why.join(" · ")));
   body.appendChild(head);
@@ -3033,7 +3034,9 @@ function renderDiagnosis(body, node, row, context) {
       line.dataset.assignment = item.id;
       const g = mk("span", "mrl", item.date);
       line.appendChild(g);
-      const v = mk("span", "mrv", item.text);
+      const v = mk("span", "mrv");
+      v.appendChild(mk("span", "mlabel", item.label));
+      if (item.detail) v.appendChild(mk("span", "mdetail", item.detail));
       if (!item.confirmed) v.appendChild(mk("span", "mbadge", "not confirmed"));
       line.appendChild(v);
       const icon = markIcon(item.tone);
@@ -3403,7 +3406,7 @@ window.__mainView = () => {
       [...tr.children].map(td => td.textContent)),
     marks: [...body.querySelectorAll(".mk")].map(m => m.dataset.mark + " · " + m.title),
     badges: [...body.querySelectorAll(".mbadge")].map(b => b.textContent),
-    links: [...body.querySelectorAll(".mlink-list button")].map(b => b.dataset.link),
+    links: [...body.querySelectorAll(".mlink-list [data-link]")].map(b => b.dataset.link),
     assignments: [...body.querySelectorAll(".mrow.assignment")].map(a => ({
       id: a.dataset.assignment,
       mark: a.querySelector(".mk") ? a.querySelector(".mk").dataset.mark : "",

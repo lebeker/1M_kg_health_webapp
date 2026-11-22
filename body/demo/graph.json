@@ -194,7 +194,7 @@
       "trust": "low",
       "no_alternative": true,
       "confirmed": true,
-      "text": "The note names the alternative — diet and exercise first — and rules it out at this LDL. The reader has no other drug option at this risk."
+      "text": "Start it after the evening meal. The note also asks for the home blood-pressure diary at the next visit."
     },
     {
       "id": "dec-2026-repeat-lipid",
@@ -215,7 +215,7 @@
       "decided_in": "dx-2026-hyperlipidaemia",
       "assignment": "diet",
       "confirmed": true,
-      "text": "The non-drug half of the plan, written in the note."
+      "text": "Saturated fat down. The note sets alcohol at two units a week."
     },
     {
       "id": "dec-2026-walk",
@@ -226,7 +226,7 @@
       "assignment": "activity",
       "trust": "low",
       "confirmed": false,
-      "text": "A model-written line — but there is a real diagnosis behind it, which is what moves it from red to yellow."
+      "text": "Thirty minutes, five days a week. The note does not name a pace or a heart-rate target."
     },
     {
       "id": "dec-2026-alcohol",
@@ -237,7 +237,7 @@
       "assignment": "restriction",
       "trust": "unverified",
       "confirmed": false,
-      "text": "Written down, not yet checked against what the clinic told the reader face to face."
+      "text": "The note sets the weekly limit but does not say what counts as a unit."
     },
     {
       "id": "dec-2026-supplement",
@@ -249,7 +249,7 @@
       "trust": "low",
       "side_effect": true,
       "confirmed": false,
-      "text": "A supplement the generator suggested. It carries the same active compound as a statin without the dose control — a known side-effect risk, and nothing in the note asks for it."
+      "text": "Red yeast rice carries the same active compound as a statin, without the dose control of a prescribed one."
     },
     {
       "id": "dx-2024-hypertension",

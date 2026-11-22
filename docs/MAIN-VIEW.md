@@ -63,7 +63,7 @@ to open.* An empty block would be a lie about a gap.
 | `origin` | condition | `doctor` or `generated`. With no `origin`, a note is official only if it is `confirmed` **and** names a doctor or a clinic |
 | `text` (or `summary`) | condition | the note in full. The verdict shows `text` first |
 | `doctor`, `clinic` | condition | `{name, specialty}`, `{name, address}`, or a plain string. Never rendered on a generated note |
-| `link`, `links[]`, `scan` | condition | the note itself and anything it points at |
+| `link`, `links[]`, `scan` | condition | the note itself and anything it points at. One line per href: a note whose only link is its own `scan` still shows it, as *the original scan* |
 | `warning` | condition | `check` or `danger`, when something the data cannot show makes the note doubtful |
 | `decided_in` | an assignment | the id of the note that decided it |
 | `assignment` | an assignment | `test`, `drug`, `diet`, `activity` or `restriction` — the five groups. Without it, `medication` falls into drugs, `procedure` and `prediction` into tests, and anything else is **not** an assignment (it is never guessed into a group) |
@@ -72,7 +72,9 @@ to open.* An empty block would be a lie about a gap.
 | `status` | condition | `active`, `resolved`, `suspected`, `stopped`; only `active` and `resolved` count as a real diagnosis |
 
 An assignment is a node that names the note in `decided_in`, or that an edge the contract already
-has joins to it (`treated_by` from the condition, `advised` out of it).
+has joins to it (`treated_by` from the condition, `advised` out of it). Under *what was decided* the
+line is the decision's own name — `label` — not its prose; its `text` follows as a second line when
+it says something the name does not. A generator's commentary is never the decision.
 
 ### Summary
 
