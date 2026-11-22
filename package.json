@@ -25,6 +25,7 @@
     "score2": "bun scripts/score2.ts",
     "lee": "bun scripts/lee.ts",
     "explain": "bun scripts/explain.ts",
+    "strategies": "bun scripts/strategies.ts",
     "test:split": "node body/tools/split-regression.mjs"
   },
   "dependencies": {

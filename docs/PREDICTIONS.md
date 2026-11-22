@@ -150,12 +150,13 @@ call.
 
 ## What comes next
 
-- **T19, five built-in strategies** (SCRUM-30): statin/LDL, smoking, colonoscopy, HbA1c, blood
-  pressure — each with a PMID and an interval. The PMID and the interval do not go in the
-  prediction: `source` is the id of a `document` node, so a strategy writes (or reuses) the `document`
-  node that carries the citation and its date, and points `source` at it; `delta_median` carries only
-  the median change, because the published interval belongs to the document the strategy cites, not
-  to this field.
+- **T19, five built-in strategies** (SCRUM-30): **shipped** — `src/strategies.ts`, `docs/STRATEGIES.md`.
+  Statin/LDL, smoking, colonoscopy, HbA1c, blood pressure, each with a PMID and the paper's interval.
+  The PMID and the interval do not go in the prediction: `source` is the id of a `document` node, so
+  a strategy writes the `document` node that carries the citation and its date, and points `source`
+  at it; `delta_median` carries only the median change, because the published interval belongs to
+  the document the strategy cites, not to this field. The delta is the log of the published ratio, so
+  two strategies on one outcome add the way their ratios multiply.
 - **T22, the `add-prediction` skill** (SCRUM-33): PubMed → HR + CI → cohort check → node, refusing
   without a PMID — recorded on the `document` node it writes next to the prediction, which is the
   only place in this contract a PMID can live — and the forecast stays `not confirmed` until a human

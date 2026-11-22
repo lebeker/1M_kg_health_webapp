@@ -1,0 +1,9 @@
+{
+  "note": "all five strategies are under way: a statin, quitting, a screening colonoscopy, an intensive glycaemic target, and an antihypertensive.",
+  "on_statin": true,
+  "current_smoker": false,
+  "ever_smoked": true,
+  "screening_colonoscopy": true,
+  "intensive_glycaemic_control": true,
+  "on_antihypertensive": true
+}

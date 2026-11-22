@@ -1,0 +1,249 @@
+{
+  "meta": {
+    "title": "Five strategies on one record (invented)",
+    "schema": "kg/1",
+    "app": "health-viewer",
+    "requires": { "skills": ["kg"], "plugins": [], "tools": [] },
+    "colors": {
+      "condition": "#c0504d",
+      "observation": "#4f81bd",
+      "document": "#8c8c8c",
+      "prediction": "#e6b422"
+    },
+    "profile": { "sex": "male", "year_of_birth": 1961, "name": null },
+    "timezone": "Europe/Berlin"
+  },
+  "nodes": [
+    {
+      "id": "src-lab-2026-11",
+      "label": "Lab report, 2026-11-12",
+      "kind": "document",
+      "when": "2026-11-12",
+      "confirmed": true,
+      "link": "sources/lab-2026-11-12.pdf"
+    },
+    {
+      "id": "src-visit-2026-11",
+      "label": "Visit note, 2026-11-12",
+      "kind": "document",
+      "when": "2026-11-12",
+      "confirmed": true,
+      "link": "sources/visit-2026-11-12.pdf"
+    },
+    {
+      "id": "obs-ldl-2026-11",
+      "label": "LDL cholesterol, 2026-11-12",
+      "kind": "observation",
+      "when": "2026-11-12",
+      "value": 4.9,
+      "unit": "mmol/L",
+      "ref_high": 3.0,
+      "flag": "high",
+      "confirmed": true,
+      "source": "src-lab-2026-11"
+    },
+    {
+      "id": "obs-hba1c-2026-11",
+      "label": "HbA1c, 2026-11-12",
+      "kind": "observation",
+      "when": "2026-11-12",
+      "value": 7.4,
+      "unit": "%",
+      "ref_high": 5.7,
+      "flag": "high",
+      "confirmed": true,
+      "source": "src-lab-2026-11"
+    },
+    {
+      "id": "obs-sbp-2026-11",
+      "label": "Systolic blood pressure, 2026-11-12",
+      "kind": "observation",
+      "when": "2026-11-12",
+      "value": 152,
+      "unit": "mm[Hg]",
+      "ref_high": 140,
+      "flag": "high",
+      "confirmed": true,
+      "source": "src-visit-2026-11"
+    },
+    {
+      "id": "cond-tobacco-use",
+      "label": "Tobacco use disorder",
+      "kind": "condition",
+      "status": "active",
+      "origin": "doctor",
+      "when": { "from": "2004-03-01", "to": null },
+      "code": "F17.2",
+      "confirmed": true,
+      "source": "src-visit-2026-11"
+    },
+    {
+      "id": "cond-adenoma",
+      "label": "Tubular adenoma, sigmoid colon, removed",
+      "kind": "condition",
+      "status": "resolved",
+      "origin": "doctor",
+      "when": { "from": "2024-11-12", "to": "2026-11-12" },
+      "code": "D12.6",
+      "confirmed": true,
+      "source": "src-lab-2026-11"
+    },
+    {
+      "id": "src-ctt-2010",
+      "kind": "document",
+      "label": "Cholesterol Treatment Trialists’ (CTT) Collaboration — major vascular events",
+      "when": "2010-11-13",
+      "confirmed": true,
+      "link": "https://pubmed.ncbi.nlm.nih.gov/21067804/",
+      "pmid": "21067804",
+      "citation": "Cholesterol Treatment Trialists’ (CTT) Collaboration. Efficacy and safety of more intensive lowering of LDL cholesterol: a meta-analysis of data from 170,000 participants in 26 randomised trials. Lancet 2010;376(9753):1670–81.",
+      "effect": {
+        "outcome": "major vascular events",
+        "measure": "rate ratio",
+        "ratio": 0.78,
+        "interval": { "level": 0.95, "low": 0.76, "high": 0.8 },
+        "per": "1.0 mmol/L lower LDL cholesterol"
+      }
+    },
+    {
+      "id": "src-duncan-2019",
+      "kind": "document",
+      "label": "Duncan MS, Freiberg MS, Greevy RA Jr, Kundu S, Vasan RS, Tindle HA — incident cardiovascular disease",
+      "when": "2019-08-20",
+      "confirmed": true,
+      "link": "https://pubmed.ncbi.nlm.nih.gov/31429895/",
+      "pmid": "31429895",
+      "citation": "Duncan MS, Freiberg MS, Greevy RA Jr, Kundu S, Vasan RS, Tindle HA. Association of smoking cessation with subsequent risk of cardiovascular disease. JAMA 2019;322(7):642–50.",
+      "effect": {
+        "outcome": "incident cardiovascular disease",
+        "measure": "hazard ratio",
+        "ratio": 0.61,
+        "interval": { "level": 0.95, "low": 0.49, "high": 0.76 },
+        "per": "quitting within 5 years, compared with continuing to smoke"
+      }
+    },
+    {
+      "id": "src-nordicc-2022",
+      "kind": "document",
+      "label": "Bretthauer M, Løberg M, Wieszczy P, et al — colorectal cancer incidence",
+      "when": "2022-10-27",
+      "confirmed": true,
+      "link": "https://pubmed.ncbi.nlm.nih.gov/36214590/",
+      "pmid": "36214590",
+      "citation": "Bretthauer M, Løberg M, Wieszczy P, et al.; NordICC Study Group. Effect of colonoscopy screening on risks of colorectal cancer and related death. N Engl J Med 2022;387(17):1547–56.",
+      "effect": {
+        "outcome": "colorectal cancer incidence",
+        "measure": "risk ratio",
+        "ratio": 0.82,
+        "interval": { "level": 0.95, "low": 0.7, "high": 0.93 },
+        "per": "invitation to one screening colonoscopy, at 10 years"
+      }
+    },
+    {
+      "id": "src-hemmingsen-2011",
+      "kind": "document",
+      "label": "Hemmingsen B, Lund SS, Gluud C, Vaag A, Almdal T, Hemmingsen C, Wetterslev J — composite microvascular complications",
+      "when": "2011-11-24",
+      "confirmed": true,
+      "link": "https://pubmed.ncbi.nlm.nih.gov/22115901/",
+      "pmid": "22115901",
+      "citation": "Hemmingsen B, Lund SS, Gluud C, Vaag A, Almdal T, Hemmingsen C, Wetterslev J. Intensive glycaemic control for patients with type 2 diabetes: systematic review with meta-analysis and trial sequential analysis of randomised clinical trials. BMJ 2011;343:d6898.",
+      "effect": {
+        "outcome": "composite microvascular complications",
+        "measure": "risk ratio",
+        "ratio": 0.88,
+        "interval": { "level": 0.95, "low": 0.79, "high": 0.97 },
+        "per": "an intensive glycaemic target, as the trials defined it"
+      }
+    },
+    {
+      "id": "src-ettehad-2016",
+      "kind": "document",
+      "label": "Ettehad D, Emdin CA, Kiran A, Anderson SG, Callender T, Emberson J, Chalmers J, Rodgers A, Rahimi K — major cardiovascular disease events",
+      "when": "2016-03-05",
+      "confirmed": true,
+      "link": "https://pubmed.ncbi.nlm.nih.gov/26724178/",
+      "pmid": "26724178",
+      "citation": "Ettehad D, Emdin CA, Kiran A, Anderson SG, Callender T, Emberson J, Chalmers J, Rodgers A, Rahimi K. Blood pressure lowering for prevention of cardiovascular disease and death: a systematic review and meta-analysis. Lancet 2016;387(10022):957–67.",
+      "effect": {
+        "outcome": "major cardiovascular disease events",
+        "measure": "relative risk",
+        "ratio": 0.8,
+        "interval": { "level": 0.95, "low": 0.77, "high": 0.83 },
+        "per": "10 mmHg lower systolic blood pressure"
+      }
+    },
+    {
+      "id": "pred-statin-ldl",
+      "kind": "prediction",
+      "label": "Start a statin, and cut LDL cholesterol by 1.0 mmol/L",
+      "target": "obs-ldl-2026-11",
+      "horizon": "2031-11-12",
+      "condition": { "fact": "on_statin", "op": "eq", "value": true },
+      "delta_median": -0.2484613592984996,
+      "confidence": 0.9,
+      "confirmed": false,
+      "source": "src-ctt-2010"
+    },
+    {
+      "id": "pred-quit-smoking",
+      "kind": "prediction",
+      "label": "Stop smoking, and the risk of a first cardiovascular event falls towards that of a non-smoker",
+      "target": "cond-tobacco-use",
+      "horizon": "2031-11-12",
+      "condition": {
+        "all": [
+          { "fact": "current_smoker", "op": "eq", "value": false },
+          { "fact": "ever_smoked", "op": "eq", "value": true }
+        ]
+      },
+      "delta_median": -0.4942963218147801,
+      "confidence": 0.7,
+      "confirmed": false,
+      "source": "src-duncan-2019"
+    },
+    {
+      "id": "pred-colonoscopy-screening",
+      "kind": "prediction",
+      "label": "Have a screening colonoscopy: colorectal cancer is less likely within 10 years",
+      "target": "cond-adenoma",
+      "horizon": "2036-11-12",
+      "condition": { "fact": "screening_colonoscopy", "op": "eq", "value": true },
+      "delta_median": -0.19845093872383832,
+      "confidence": 0.8,
+      "confirmed": false,
+      "source": "src-nordicc-2022"
+    },
+    {
+      "id": "pred-intensive-hba1c",
+      "kind": "prediction",
+      "label": "Push HbA1c down hard: microvascular complications are less likely, and severe hypoglycaemia is more likely",
+      "target": "obs-hba1c-2026-11",
+      "horizon": "2031-11-12",
+      "condition": { "fact": "intensive_glycaemic_control", "op": "eq", "value": true },
+      "delta_median": -0.12783337150988489,
+      "confidence": 0.6,
+      "confirmed": false,
+      "source": "src-hemmingsen-2011"
+    },
+    {
+      "id": "pred-bp-lowering",
+      "kind": "prediction",
+      "label": "Lower systolic blood pressure by 10 mmHg with treatment",
+      "target": "obs-sbp-2026-11",
+      "horizon": "2031-11-12",
+      "condition": { "fact": "on_antihypertensive", "op": "eq", "value": true },
+      "delta_median": -0.2231435513142097,
+      "confidence": 0.85,
+      "confirmed": false,
+      "source": "src-ettehad-2016"
+    }
+  ],
+  "edges": [
+    { "from": "pred-statin-ldl", "to": "obs-ldl-2026-11", "label": "projected", "confidence": 0.9 },
+    { "from": "pred-quit-smoking", "to": "cond-tobacco-use", "label": "projected", "confidence": 0.7 },
+    { "from": "pred-colonoscopy-screening", "to": "cond-adenoma", "label": "projected", "confidence": 0.8 },
+    { "from": "pred-intensive-hba1c", "to": "obs-hba1c-2026-11", "label": "projected", "confidence": 0.6 },
+    { "from": "pred-bp-lowering", "to": "obs-sbp-2026-11", "label": "projected", "confidence": 0.85 }
+  ]
+}

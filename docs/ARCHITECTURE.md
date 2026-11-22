@@ -150,6 +150,26 @@ The gate needs the scale to name, and the document does not carry it: `delta_med
 the unit of whichever scale it adjusts, so `applyPredictions` takes the `version` from the caller,
 exactly as `applyRules` takes the set. One call, one scale.
 
+### The five built-in strategies
+
+The first users of that gate are the five strategies (T19, `src/strategies.ts`, `docs/STRATEGIES.md`):
+statin/LDL, smoking cessation, screening colonoscopy, intensive glycaemic control and blood-pressure
+lowering, each with a PMID, the paper's published ratio and its 95% interval, and a condition over the
+facts. A strategy is a template, not a node: `materialise()` places each one on a node of a document
+(`target`) and a date (`horizon`) and writes two nodes — the `document` that carries the PMID and the
+interval, and the `prediction` — plus the `projected` edge between them.
+
+Two decisions are arithmetic, not taste. The delta is the **log** of the published ratio, because the
+gate sums and only logs add the way ratios multiply. And the scale is the **outcome**
+(`mve-log-rr/1`, `cvd-log-rr/1`, `crc-log-rr/1`, `microvascular-log-rr/1`), so statin and blood pressure
+— both about major vascular events — may be added, and a colonoscopy's effect on colorectal cancer can
+never be summed into a statin's effect on heart attacks. `gateStrategies` makes one call per scale.
+
+The demo document (`tests/fixtures/kg/valid/health-strategies.json`) is all five placed on one invented
+record, and it is a valid contract fixture: the strategies cannot write a document the contract would
+refuse without `bun run test:contract` going red. Nothing draws a prediction yet — the panel and the
+drift view are parked (`docs/WIDGETS.md`) — so the command is the surface this card ships.
+
 **Today this file is a byte-for-byte copy of the science app** (`id: "viewer"`, `title: "Research
 field map"`). Fixing it is task T02 in the plan, and until it is fixed every agent that reads this
 repo will build a research map.

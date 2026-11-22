@@ -1,0 +1,8 @@
+{
+  "note": "the statin forecast is put in 2009, a year before the paper was printed. A forecast that looks back is a record in a forecast's clothes.",
+  "statin-ldl": { "target": "obs-ldl-2026-11", "horizon": "2009-11-12" },
+  "quit-smoking": { "target": "cond-tobacco-use", "horizon": "2031-11-12" },
+  "colonoscopy-screening": { "target": "cond-adenoma", "horizon": "2036-11-12" },
+  "intensive-hba1c": { "target": "obs-hba1c-2026-11", "horizon": "2031-11-12" },
+  "bp-lowering": { "target": "obs-sbp-2026-11", "horizon": "2031-11-12" }
+}
