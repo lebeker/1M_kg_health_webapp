@@ -14,7 +14,8 @@ import { fileURLToPath } from 'node:url'
  *      connect or delete a node;
  *   3. the main flow never requires it — the ruler, the records list and the centre view are built
  *      at launch, and since T28 no model loads when the view opens: the 3D layer is its own toggle,
- *      off by default, and the only thing that ever fetches a model is its yes button.
+ *      off by default, and a model is fetched only for a body that is on screen — after the yes,
+ *      or when a body switch deferred while the layer was hidden is caught up with the layer on.
  *
  * The fourth half — back returns to the selected date — is behaviour on the page, not text, and is
  * proved in the card's browser run (`__graph()`, `__selectRecord`, `__closeGraph`). What is pinned
@@ -202,5 +203,40 @@ describe('T28: the 3D layer is a layer, off by default, and the only download', 
     const doc = read('docs/GRAPH-VIEW.md')
     expect(doc).toMatch(/The `kg` skill asks too/)
     expect(doc).toMatch(/ask\s+before downloading/i)
+  })
+
+  test('a body switch while the question is open restates the number it will fetch', () => {
+    // applySex() refreshes the open question before it decides anything else, and refreshAsk()
+    // re-renders from state.sex: the number cannot stay on the body the reader left
+    const sex = page.slice(page.indexOf('function applySex()'), page.indexOf('function fitDistance('))
+    expect(sex.indexOf('refreshAsk();')).toBeGreaterThan(-1)
+    expect(sex.indexOf('refreshAsk();')).toBeLessThan(sex.indexOf('anatomyLoadedSex !== state.sex'))
+    expect(page).toMatch(
+      /function refreshAsk\(\) \{\s*const panel = document\.getElementById\("layerAsk"\);\s*if \(panel && !panel\.hidden\) askLayer3d\(true\);\s*\}/
+    )
+    // the question recomputes the size; it never hard-codes one body's number
+    const ask = page.slice(page.indexOf('function askLayer3d(show)'), page.indexOf('function refreshAsk()'))
+    expect(ask).not.toMatch(/\d+(\.\d+)? MB/)
+    expect(ask).toMatch(/megabytes\(anatomyBytes\(state\.sex\)\)|const bytes = anatomyBytes\(state\.sex\)/)
+    // and the two bodies really do cost different amounts, so the switch is observable
+    const table = new Map([...page.matchAll(/"([a-z0-9-]+\.glb)": (\d+)/g)].map((m) => [m[1], Number(m[2])]))
+    const bytes = (s: 'male' | 'female') =>
+      anatomyRows(s).reduce((n, f) => n + (table.get(f.file) ?? 0), 0)
+    expect(bytes('female')).toBeGreaterThan(bytes('male'))
+  })
+
+  test('with the layer off or the graph closed a body switch downloads nothing', () => {
+    // the other body's files are fetched only while that body would be on screen
+    const sex = page.slice(page.indexOf('function applySex()'), page.indexOf('function fitDistance('))
+    expect(sex).toContain('if (state.anatomy3d && state.graph) { boot(); return; }')
+    // and the deferred body is caught up where the reader can see it, not in the background
+    expect(page).toMatch(/function anatomyStale\(\) \{ return viewerStarted && !!anatomyLoadedSex && anatomyLoadedSex !== state\.sex; \}/)
+    const set3d = page.slice(page.indexOf('function setAnatomy3d('), page.indexOf('/* what the map draws'))
+    expect(set3d).toContain('if (anatomyStale()) { boot(); return; }')
+    const view = page.slice(page.indexOf('function setGraphView(open)'), page.indexOf('document.getElementById("openGraph").onclick'))
+    expect(view).toContain('if (state.anatomy3d && anatomyStale()) boot();')
+    // opening the view still fetches nothing: boot() is not reachable from openGraphView itself
+    const open = page.slice(page.indexOf('function openGraphView()'), page.indexOf('function setGraphView('))
+    expect(open).not.toContain('boot(')
   })
 })
