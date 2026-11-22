@@ -1,17 +1,34 @@
 #!/usr/bin/env python3
 """Probe the health app in headless Chrome.
 
-usage: verify.py [--shot out.png] [--js "expression"] [--steps steps.py] [--w 1440] [--h 1000]
+OWNER-ONLY manual tool: it starts the local Chrome app over CDP. An agent never runs it — agent
+verification is Hermes `browser_*` against a served build — and it refuses to start a host browser
+under an agent harness unless --force-host-browser is passed. See host_browser_guard.py.
+
+usage: probe.py [--shot out.png] [--js "expression"] [--steps steps.py] [--w 1440] [--h 1000]
 The default steps take the organs layer out, then split it into systems, then screenshot.
 """
 import base64, json, subprocess, sys, time, urllib.request, os
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Before anything that could start a browser, and before the third-party import, so an agent
+# harness gets the refusal rather than a traceback.
+from host_browser_guard import begin
+
+USAGE = (
+    'usage: probe.py [--shot out.png] [--js "expression"] [--steps steps.py] [--w 1440] [--h 1000]\n'
+    "       [--mode split|merged|plain] [--scale 2] [--port 10801]"
+)
+ARGS = begin("probe.py", sys.argv[1:], USAGE)
+
 import websocket
 
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 PORT = int(os.environ.get("CDP_PORT", "10801"))
 URL = os.environ.get("APP_URL", "http://127.0.0.1:8770/body/index.html")
 
-args = sys.argv[1:]
+args = ARGS
 def arg(name, default=None):
     return args[args.index(name) + 1] if name in args else default
 
