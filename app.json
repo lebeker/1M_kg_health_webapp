@@ -55,7 +55,8 @@
     "skills": [
       "kg",
       "markers-to-pdf",
-      "markers-to-fhir"
+      "markers-to-fhir",
+      "add-prediction"
     ],
     "plugins": [],
     "tools": []
@@ -233,7 +234,8 @@
     "what they are": "the long form of a node's description, one markdown file per node in a `docs/` folder beside the graph document: what a test measures, what a diagnosis means in plain words, where the claim comes from.",
     "why they are required": "a condition or an observation node carries a plain-language sentence from the moment it is created — a number without a meaning is exactly the thing this app exists to fix.",
     "how they are read": "they are inlined into the rendered page (a page opened from `file://` cannot fetch its neighbours) and opened from a node's 'read the note' button.",
-    "the two export skills": "`markers-to-pdf` and `markers-to-fhir` walk the markers of the main view out of a kg.json — one paginated PDF for a reader, one HL7 FHIR R4 bundle for another system — and write nothing back. They live at `skills/` in this repo, are fetched by `kg check --install` from `skills_url`, and are never a screen: a template app has no write path, and an export is what it has instead."
+    "the two export skills": "`markers-to-pdf` and `markers-to-fhir` walk the markers of the main view out of a kg.json — one paginated PDF for a reader, one HL7 FHIR R4 bundle for another system — and write nothing back. They live at `skills/` in this repo, are fetched by `kg check --install` from `skills_url`, and are never a screen: a template app has no write path, and an export is what it has instead.",
+    "the skill that writes": "`add-prediction` is the one skill here that writes to the document: one PubMed paper, its published ratio and interval, a check that the person belongs to the population that was studied, and then the paper's `document` node, the `prediction` and the `projected` edge. It refuses without a PMID and it leaves both nodes `confirmed: false` — a human reading the paper is what turns a forecast into a confirmed one, and a skill cannot pretend to be that human. `docs/ADD-PREDICTION.md` is the long form."
   },
   "scale": {
     "the budget": "a person's history is hundreds of events, not thousands of papers: 200–2000 nodes is the expected range, and a graph of that size draws without collapsing on a laptop.",

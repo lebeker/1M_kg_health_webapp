@@ -1,0 +1,4 @@
+{
+  "note": "The caller's facts, not the paper's. `note` is fixture prose and never reaches a condition, as in tests/fixtures/strategies/.",
+  "screening_colonoscopy": false
+}

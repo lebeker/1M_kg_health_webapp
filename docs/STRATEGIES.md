@@ -174,9 +174,10 @@ nothing fires on a guess, and every row says why. A fact of the wrong type (`on_
 - **The facts are still the caller's.** Mapping a prescription to `on_statin` or a note to
   `current_smoker` is recorded work with its own error rate — the same gap `docs/LEE.md` names for
   the ICD-10 history.
-- **T22** (`add-prediction`) is the write path for a strategy a user adds: PubMed → HR + CI → cohort
-  check → node, refusing without a PMID. The five here are the built-in half of that story; the
-  skill is not this card.
+- **T22** (`add-prediction`) is **shipped** — `skills/add-prediction/SKILL.md`,
+  `docs/ADD-PREDICTION.md`: the write path for a strategy a user adds (PubMed → HR + CI → cohort check
+  → node, refusing without a PMID, both nodes left `not confirmed`). The five here are the built-in
+  half of that story; the skill writes its own document and prediction through the same six fields.
 
 ## How it is checked
 

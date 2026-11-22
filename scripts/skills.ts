@@ -23,6 +23,7 @@ export type SkillScript = { skill: string; script: string }
 export const SKILL_SCRIPTS: SkillScript[] = [
   { skill: 'markers-to-pdf', script: 'scripts/markers_to_pdf.py' },
   { skill: 'markers-to-fhir', script: 'scripts/markers_to_fhir.py' },
+  { skill: 'add-prediction', script: 'scripts/add_prediction.py' },
 ]
 
 const ROOT = join(import.meta.dirname, '..')
