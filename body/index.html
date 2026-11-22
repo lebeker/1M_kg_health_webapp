@@ -320,15 +320,29 @@
     #tl { right:14px; }
   }
 
-  /* widget 1, T27: the graph is a view of its own, behind one button. Open: the body, its nodes and
-     their panel; closed: the product's columns. The main flow never shows the scene, and the scene
-     is never the only way to reach a record.
-     SCRUM-49: the button is one control in the header's right-hand cluster, glued to the left of the
-     profile control. Same box as the player and the seg (28px, 1px var(--line), radius 7), same
-     muted ink, so it reads as a neighbour and not as a badge of its own. */
-  #openGraph { height:28px; padding:0 9px; border-radius:7px; color:#9fb3c6; }
-  #openGraph:hover { background:#1b2532; color:#fff; }
+  /* widgets 1 and 2, T27 + SCRUM-49: the graph is the app's data drawn as a view, and its button is
+     the left half of the header's one right-hand group. v11 draws the pair at the right end of the
+     bar (docs/wireframe-health-v11-analysis.svg): a filled 30px square holding the hexagon, then
+     the profile box, six pixels apart and both 30px tall, so they read as one group and not as two
+     badges. The square carries the same muted ink as the player and the seg around it.
+     SCRUM-49 reopen: the profile is a button, not a sex toggle — it reads who the record is about
+     straight out of `meta.profile` and opens the profile view (widget 2, v11d). */
+  .hgroup { display:inline-flex; align-items:stretch; gap:6px; }
+  #openGraph { width:30px; height:30px; padding:0; justify-content:center; border-radius:6px;
+    background:#0f1620; color:#cfe0f0; }
+  #openGraph:hover { background:#1b2532; border-color:#3a4c60; color:#fff; }
   #openGraph svg { display:block; }
+  #profileBtn { height:30px; padding:0 11px 0 5px; gap:8px; border-radius:6px; color:#9fb3c6; }
+  /* `button` is display:inline-flex in this sheet, which beats the UA rule for [hidden] */
+  #profileBack[hidden] { display:none; }
+  #profileBack { white-space:nowrap; }
+  #profileBtn .av { width:18px; height:18px; border-radius:50%; background:#1b2430;
+    border:1px solid #3a4c60; flex:none; }
+  #profileBtn[data-sex="female"] .av { border-color:#f2a0bf; }
+  #profileBtn[data-sex="male"] .av { border-color:#7fb4f2; }
+  #profileBtn .ptxt { font-size:11.5px; letter-spacing:.02em; font-variant-numeric:tabular-nums;
+    white-space:nowrap; }
+  body.profile-open #profileBtn { background:#2a3a4c; color:#fff; border-color:#4a6480; }
   .only-graph { display:none; }
   body.graph-open .only-main { display:none !important; }
   body.graph-open .only-graph { display:inline-flex; align-items:center; gap:8px; }
@@ -407,21 +421,24 @@
   <!-- widget 6 is not here: the player belongs to the main view's own header (see #main below), as
        v11 draws it — four buttons in the centre column's top-right corner, beside the record's
        subject line, not among the page's chrome. -->
-  <!-- widget 1: one button, the graph in a view of its own. It is never part of the main flow, and
-       it sits where the graph belongs in the header: in the right-hand cluster, glued to the left of
-       the profile control, one control among its neighbours. -->
-  <button id="openGraph" class="only-main" title="open graph — the body and its nodes, read-only"
-          aria-label="open graph" aria-pressed="false"><svg viewBox="0 0 16 16" width="15" height="15"
-          fill="none" stroke="currentColor" stroke-width="1.1" aria-hidden="true">
-      <path d="M8 1.7 13.4 4.85v6.3L8 14.3 2.6 11.15v-6.3Z"/>
-      <circle cx="8" cy="8" r="1.35" fill="currentColor" stroke="none"/>
-      <circle cx="8" cy="3.2" r=".95" fill="currentColor" stroke="none"/>
-      <circle cx="12.1" cy="10.5" r=".95" fill="currentColor" stroke="none"/>
-      <circle cx="3.9" cy="10.5" r=".95" fill="currentColor" stroke="none"/>
-    </svg></button>
-  <div class="seg" id="sex">
-    <button data-sex="female" title="female" aria-label="female">&#9792;</button>
-    <button data-sex="male" class="on" title="male" aria-label="male">&#9794;</button>
+  <!-- widgets 1 and 2, one group at the right end of the bar. The left of the bar keeps the title
+       alone. The graph is never part of the main flow: it is a button that opens the page's own
+       view of the document it already holds. The profile is the record's own identity, read from
+       `meta.profile` — sex, the year it was born, and the age that year makes it — and it opens the
+       profile view (docs/wireframe-health-v11d-profile.svg) in the same shell. -->
+  <div class="hgroup only-main" id="hgroup" role="group" aria-label="graph and profile">
+    <button id="openGraph" title="open graph — the body and its nodes, read-only"
+            aria-label="open graph" aria-pressed="false"><svg viewBox="0 0 16 16" width="15" height="15"
+            fill="none" stroke="currentColor" stroke-width="1.1" aria-hidden="true">
+        <path d="M8 1.7 13.4 4.85v6.3L8 14.3 2.6 11.15v-6.3Z"/>
+        <circle cx="8" cy="8" r="1.35" fill="currentColor" stroke="none"/>
+        <circle cx="8" cy="3.2" r=".95" fill="currentColor" stroke="none"/>
+        <circle cx="12.1" cy="10.5" r=".95" fill="currentColor" stroke="none"/>
+        <circle cx="3.9" cy="10.5" r=".95" fill="currentColor" stroke="none"/>
+      </svg></button>
+    <button id="profileBtn" title="profile — who this record is about" aria-pressed="false"
+            aria-label="profile"><span class="av" aria-hidden="true"></span><span class="ptxt"
+            id="profileWho">no profile</span></button>
   </div>
 </div>
 
@@ -448,6 +465,9 @@
   <header>
     <span id="mainKicker">record</span>
     <div class="mheadright">
+      <!-- widget 2's view lives in this shell, so it gets the same back control the graph has:
+           closing it rebuilds the record from state.date, which the profile never writes -->
+      <button class="btn" id="profileBack" title="back — returns to the selected date" hidden>← back</button>
       <span class="tl-date" id="tlDate" title="the date the timeline points at"></span>
       <div class="player" id="tlPlayer" role="group" aria-label="timeline player">
         <button data-step="start" title="start — first event" aria-label="start"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><rect x="1" y="2" width="1.7" height="8" fill="currentColor"/><path d="M10.5 2.4 L4.2 6 L10.5 9.6 Z" fill="currentColor"/></svg></button>
@@ -459,6 +479,29 @@
     </div>
   </header>
   <div class="mbody" id="mainBody"></div>
+
+  <!-- widget 2, the profile view (SCRUM-52's wireframe: docs/wireframe-health-v11d-profile.svg). It
+       is the same shell as the record — same header, same ruler, same left list, same right panel —
+       and only the centre column changes. The identity on it comes out of `meta.profile`; nothing
+       on it is written back, so the one knob it carries moves the forecast, never the document. -->
+  <div class="mbody" id="profileBody" hidden>
+    <h2 class="mtitle" id="pvWho">unnamed profile</h2>
+    <div class="msub" id="pvSub">no profile in this document</div>
+    <div class="msec">what you may change</div>
+    <div class="mrow">
+      <span class="mrl">sex</span>
+      <span class="mrv">
+        <span class="seg" id="sex">
+          <button data-sex="female" title="female" aria-label="female">&#9792;</button>
+          <button data-sex="male" class="on" title="male" aria-label="male">&#9794;</button>
+        </span>
+        <span class="mdetail" id="sexNote">the forecast's baseline follows it; the document is not written</span>
+      </span>
+    </div>
+    <div class="msec">who may see this record</div>
+    <p class="mtext">one file on one device — whoever holds the file sees all of it. no accounts, no share
+      link, no per-panel permission: there is no service behind this page to hold one.</p>
+  </div>
 </section>
 
 <!-- widgets 19–25: forecast and recommendations on the selected date. A past record shows the two
@@ -549,6 +592,7 @@ const state = {
   event:null,               // the record the reader picked in the left list, if any
   mainHidden:false,         // ✕ on the main view: closing it is not a deselection
   graph:false,              // the graph view (widget 1): a view of its own, never the main flow
+  profile:false,            // the profile view (widget 2), in the centre column of the same shell
   anatomy3d:false           // the 3D layer inside that view (T28): off until the reader asks for it
 };
 const EYE_OUT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
@@ -1156,7 +1200,12 @@ function closePanel() {
 document.getElementById("nodeClose").onclick = closePanel;
 /* the main view's ✕ hides the view and nothing else: the record stays selected and its row stays
    marked, because closing a view is not a deselection. */
-document.getElementById("mainClose").onclick = () => { state.mainHidden = true; renderMain(); };
+document.getElementById("mainClose").onclick = () => {
+  // ✕ closes the centre, and the profile view is the centre while it is open
+  if (state.profile) setProfileView(false);
+  state.mainHidden = true;
+  renderMain();
+};
 
 /* double-click any node to fly to it: the same framing a selection gets, no second camera path */
 renderer.domElement.addEventListener("dblclick", e => {
@@ -2690,6 +2739,7 @@ document.querySelectorAll("#sex button").forEach(b => b.onclick = () => {
   layout();
   buildLegend();
   renderRightPanel();   // the baseline is the profile's sex: the forecast follows the switch
+  buildProfile();       // and the profile view's knob row says which reading is on screen
 });
 document.getElementById("collapse").onclick = e => {
   state.collapsed = !state.collapsed;
@@ -2837,6 +2887,14 @@ function applyDocument(doc) {
 
 applyDocument(KGDATA);
 
+/* T05 + SCRUM-49: the controls read the profile. The one switch the page carries starts on the sex
+   the document states — a female file does not open on a male body and a male forecast — and the
+   header's profile button is the document's identity, not a constant written into the page. Both
+   read `meta.profile` after the document is in hand, and write nothing back. */
+const PROFILE_SEX = TL_META.profile && TL_META.profile.sex;
+if (PROFILE_SEX === "male" || PROFILE_SEX === "female") state.sex = PROFILE_SEX;
+paintProfileButton();
+
 /* ---- the projection: a baseline life expectancy, moved by what the documents say */
 function deltaOf(a) {
   return a.delta !== null ? a.delta : Math.max(-2, Math.min(2, (a.evidence - 50) / 25));
@@ -2911,6 +2969,10 @@ function selectDate(d, id) {
   state.date = iso(d);
   state.event = id || null;     // a date picked on the ruler marks no single record, only its day
   state.mainHidden = false;     // navigating to a day asks for its column back: ✕ must not be a dead end
+  state.profile = false;        // and so does the profile view: the reader asked for that day's record
+  document.body.classList.remove("profile-open");
+  const profileBack = document.getElementById("profileBack");
+  if (profileBack) profileBack.hidden = true;
   paintFade();
   buildTimeline();          // ends in refreshPick: the marker and the readout follow the date
 }
@@ -3404,17 +3466,98 @@ function renderRecord(body, node, row, context) {
   }
 }
 
+/* widget 2 — who the record is about, read out of the document and nowhere else. The contract keeps
+   identity in `meta.profile` (docs/DATA-CONTRACT.md §Envelope); a document without one has no
+   profile, and the page says that instead of making one up. */
+function profileOf() {
+  const p = (TL_META && TL_META.profile) || {};
+  const year = Number(p.year_of_birth);
+  const sex = p.sex === "female" || p.sex === "male" ? p.sex : null;
+  return { name: typeof p.name === "string" && p.name.trim() ? p.name.trim() : null, sex,
+           year: Number.isInteger(year) && year > 1800 ? year : null };
+}
+/* The document carries a year and not a birthday, so this is the year's age: the page never
+   pretends to know the day, and never prints a negative one. */
+function ageFromYear(year) {
+  if (!year) return null;
+  const age = new Date().getFullYear() - year;
+  return age >= 0 ? age : null;
+}
+/* the identity line the profile button and the profile view both read: `sex · year (age)` */
+function identityOf(p) {
+  const age = ageFromYear(p.year);
+  return [p.sex, p.year ? p.year + (age !== null ? " (" + age + ")" : "") : null]
+    .filter(Boolean).join(" · ");
+}
+/* the header's profile button is the record's own identity: the page writes its text from
+   `meta.profile` and from nothing else, so a file that lands late repaints it. */
+function paintProfileButton() {
+  const btn = document.getElementById("profileBtn");
+  const out = document.getElementById("profileWho");
+  if (!btn || !out) return;
+  const p = profileOf();
+  const who = identityOf(p);
+  out.textContent = who || "no profile";
+  if (p.sex) btn.dataset.sex = p.sex; else delete btn.dataset.sex;
+  btn.title = p.name ? "profile — " + p.name : "profile — who this record is about";
+}
+/* The profile view: the same shell as the record — the ruler, the left list and the right panel
+   stay put, only the centre column changes — opened by widget 2 and closed by its back control.
+   It writes nothing: the identity is the document's, and the knob it carries moves the forecast's
+   baseline, never the file. */
+function buildProfile() {
+  const p = profileOf();
+  const age = ageFromYear(p.year);
+  const who = document.getElementById("pvWho");
+  const sub = document.getElementById("pvSub");
+  if (who) who.textContent = p.name || "unnamed profile";
+  if (sub) sub.textContent = [
+    p.sex || "sex not in the document",
+    p.year ? "born " + p.year : "no birth year in the document",
+    age !== null ? age + " today" : "no age to read"
+  ].join(" · ");
+  /* the subject speaks for the file, the knob for the reader. When the two differ the view says so
+     in the row the knob lives in, instead of letting two readings sit there unexplained. */
+  const note = document.getElementById("sexNote");
+  if (note) note.textContent = p.sex && p.sex !== state.sex
+    ? "the document says " + p.sex + " · reading as " + state.sex + "; the file is not written"
+    : "the forecast's baseline follows it; the document is not written";
+  document.querySelectorAll("#sex button").forEach(b => b.classList.toggle("on", b.dataset.sex === state.sex));
+}
+
 function renderMain() {
   const box = document.getElementById("main");
   const body = document.getElementById("mainBody");
   if (!box || !body) return;
-  const row = state.event ? STATE_ROWS.find(r => r.id === state.event) : null;
+  const pbody = document.getElementById("profileBody");
   /* the page is three columns side by side; closing the centre must not leave the right panel
      floating to the right of an empty one, so the class that tells the CSS the centre is gone is
-     set here, where the centre's visibility is decided. */
+     set here, where the centre's visibility is decided. An open profile view is an open centre. */
   document.body.classList.toggle("centre-closed", !!state.mainHidden);
-  if (state.mainHidden) { box.hidden = true; box.classList.remove("bare"); return; }
+  /* ✕ means the centre is closed, whoever is drawing in it: the closed centre wins over the
+     profile view, and selecting a date brings the record back (selectDate clears both flags). */
+  if (state.mainHidden) {
+    box.hidden = true;
+    box.classList.remove("bare");
+    body.hidden = false;
+    if (pbody) pbody.hidden = true;
+    return;
+  }
+  if (state.profile) {
+    box.hidden = false;
+    box.classList.remove("bare");
+    box.dataset.view = "profile";
+    delete box.dataset.record;
+    body.hidden = true;
+    if (pbody) pbody.hidden = false;
+    const kicker = document.getElementById("mainKicker");
+    if (kicker) kicker.textContent = "profile";
+    return;
+  }
+  if (pbody) pbody.hidden = true;
+  body.hidden = false;
   box.hidden = false;
+  const row = state.event ? STATE_ROWS.find(r => r.id === state.event) : null;
   if (!row) {
     // the date carries no record — an empty stretch between two events. The centre column keeps its
     // header, so widget 6 stays under the reader's hand (v11 puts the player there and nothing else);
@@ -3967,6 +4110,7 @@ function openGraphView() {
 }
 
 function setGraphView(open) {
+  if (open && state.profile) setProfileView(false);   // one view at a time: the graph takes the shell
   state.graph = !!open;
   document.body.classList.toggle("graph-open", state.graph);
   const btn = document.getElementById("openGraph");
@@ -3986,6 +4130,22 @@ function setGraphView(open) {
 
 document.getElementById("openGraph").onclick = () => setGraphView(true);
 document.getElementById("graphBack").onclick = () => setGraphView(false);
+
+/* widget 2: the profile button opens the profile view, and its back control closes it. Both keep
+   `state.date` and `state.event` exactly as they were, which is why back lands on the same record
+   the reader opened the profile from — the same promise the graph view makes. */
+function setProfileView(open) {
+  state.profile = !!open;
+  document.body.classList.toggle("profile-open", state.profile);
+  const btn = document.getElementById("profileBtn");
+  if (btn) btn.setAttribute("aria-pressed", state.profile ? "true" : "false");
+  const back = document.getElementById("profileBack");
+  if (back) back.hidden = !state.profile;
+  if (state.profile) { state.mainHidden = false; buildProfile(); }
+  renderMain();
+}
+document.getElementById("profileBtn").onclick = () => setProfileView(!state.profile);
+document.getElementById("profileBack").onclick = () => setProfileView(false);
 document.getElementById("layer3d").onclick = () => {
   // on: ask, unless this page has already paid for the models; off: hide them, keep them
   if (state.anatomy3d) { setAnatomy3d(false); return; }
@@ -4031,6 +4191,14 @@ window.__graph = () => ({ open: state.graph, started: viewerStarted, anatomy: st
                           sel: state.sel, models: loadTotal });
 window.__openGraph = () => { setGraphView(true); return state.graph; };
 window.__closeGraph = () => { setGraphView(false); return state.graph; };
+/* widget 2 as data, for the acceptance run: opening the profile view must not move the date or the
+   record, and the identity it shows is the document's, not a constant in the page. */
+window.__profile = () => ({ open: state.profile, who: document.getElementById("profileWho").textContent,
+                            name: document.getElementById("pvWho").textContent,
+                            sub: document.getElementById("pvSub").textContent,
+                            sex: state.sex, date: state.date, event: state.event });
+window.__openProfile = () => { setProfileView(true); return state.profile; };
+window.__closeProfile = () => { setProfileView(false); return state.profile; };
 window.__ask3d = () => { askLayer3d(true); return { shown: !document.getElementById("layerAsk").hidden,
                                                    text: document.getElementById("layerAsk").innerText }; };
 window.__load3d = () => { document.getElementById("layerYes").click(); return viewerStarted; };

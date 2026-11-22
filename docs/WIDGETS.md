@@ -22,8 +22,8 @@ All four views share the same header, timeline, left column and right panel. Onl
 
 | # | Widget | Zone | Present in | Behaviour |
 |---|---|---|---|---|
-| 1 | Graph button | header, glued to the left of the profile | v11, v11b, v11c, v11d | square icon, hexagon with nodes; opens the graph in a separate view. Never part of the main flow. See `docs/GRAPH-VIEW.md` |
-| 2 | Profile | header, far right | v11, v11b, v11c, v11d | sex, birth year, age; data comes from `kg.json`, not from JS. Opens the profile view (`docs/wireframe-health-v11d-profile.svg`) in the same shell — a view of the record, not a settings page |
+| 1 | Graph button | header, in the right-hand group, glued to the left of the profile | v11, v11b, v11c, v11d | a filled 30px square, hexagon with nodes; opens the graph in a separate view. Never part of the main flow. See `docs/GRAPH-VIEW.md` |
+| 2 | Profile | header, far right — the second button of that group | v11, v11b, v11c, v11d | a box reading `sex · year (age)` (`male · 1961 (65)`), from `meta.profile` in `kg.json`, never from JS. It is a button: it opens the profile view in the same shell — a view of the record, not a settings page. See `docs/PROFILE-VIEW.md` |
 | 3 | Timeline | top strip, full width | v11, v11b, v11c, v11d | one row from birth to +40 years; year ticks; labels every 10; navigator, not decoration |
 | 4 | Event marks | on the timeline | v11, v11b, v11c, v11d | one tick and one dot per event; click selects the event; click on empty space between two marks opens the period summary |
 | 5 | Zoom window ±2 years | on the timeline, around today | v11, v11b, v11c, v11d | inside the window the scale is per month; outside it is per year. Otherwise a month is half a pixel |
@@ -73,6 +73,10 @@ list, same right panel — only column 2 changes, exactly as in v11, v11b and v1
 `docs/wireframe-health-v11d-profile.svg`. It is not a settings page: nothing on it is saved, and no
 row on it changes a record. Widget 13 has no row here — a profile is not a record and links nothing of
 its own; the numbers it names are grounded in the right panel (24).
+
+**Drawn today** (`docs/PROFILE-VIEW.md`): 26, the sex knob of 30, and 31. 27, 28, 29 and 30's other
+knobs need the estimates' own inputs on screen and arrive with the profile-view card; the view draws
+no placeholder for a block it has not got.
 
 | # | Widget | What it shows |
 |---|---|---|

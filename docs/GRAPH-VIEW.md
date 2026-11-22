@@ -5,6 +5,12 @@ right-hand cluster, glued to the left of the profile control (widget 1, `docs/WI
 this app's own viewer in `body/index.html`: the body, its layers, the organ nodes and the documents
 as marks on the map.
 
+The two controls are one group at the right end of the bar (SCRUM-49): a filled 30px square holding
+the hexagon, six pixels from the profile box that reads the record's identity, both 30px tall. The
+left of the bar keeps the title alone. The profile control is a button of its own — it opens the
+profile view (`docs/PROFILE-VIEW.md`), and the sex switch lives in that view as widget 30's knob, not
+in the header.
+
 The card answered "same viewer or a reduced read-only one?" with **the same viewer, read-only**: a
 template app has no write path, so there is nothing to reduce.
 
