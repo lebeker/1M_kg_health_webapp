@@ -126,7 +126,12 @@ function printScore2Driver(driver: Score2Driver): void {
 }
 
 function printScore2(explanation: Score2Explanation): void {
-  const percent = (value: number): string => `${value.toFixed(2)}%`
+  // One precision for the whole page, and it is the model's own: `risk` is 3dp (8.809), every row
+  // is 3dp and so is the change. Printing the two estimates at 2dp while the change and the rows
+  // printed at 3dp made the first check a reader runs — subtract the two numbers above the rows —
+  // disagree with the change by 0.002pp. The rounded triple must add up on the page, not only in
+  // the invariant, because the page is the only surface this card ships.
+  const percent = (value: number): string => `${value.toFixed(3)}%`
   console.log(`estimate change — ${explanation.scale}, in ${explanation.unit}`)
   console.log(`  region       ${explanation.region}`)
   console.log(

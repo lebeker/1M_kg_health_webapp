@@ -101,9 +101,16 @@ bun run explain rules <set.json> <before.json> <after.json> --unit=points
 
 The two lee fixtures are one man at 68 and at 70: a new age band, a cancer recorded, smoking
 stopped, difficulty bathing appeared. The index moves 8 → 11 and the band 6–9 → 10–13, in five rows
-(−2 +3 +2 −2 +2). The score2 fixtures are the supplement's worked example ten years on: 8.81% →
-7.09% in the high-risk region, −1.718 percentage points over nine terms, +8.146 of it age and −6.912
+(−2 +3 +2 −2 +2). The score2 fixtures are the supplement's worked example ten years on: 8.809% →
+7.091% in the high-risk region, −1.718 percentage points over nine terms, +8.146 of it age and −6.912
 smoking.
+
+The whole page is printed at one precision, and it is the model's own: `risk` is 3dp, so the two
+estimates, the change and every row are 3dp. That is not cosmetic. The first check a reader runs is
+to subtract the two estimates above the rows, and a page that prints them at 2dp while the change is
+3dp answers 1.72 where the page says 1.718 — a 0.002pp disagreement on the one surface whose whole
+purpose is to be checkable. `scripts/explain.test.ts` parses the three numbers off the page and
+subtracts them, so the display cannot drift back.
 
 ## What this does not do
 
@@ -130,5 +137,6 @@ smoking.
 | `src/explain.ts` | the two explanation shapes, `sourceLink`, the refusals |
 | `src/explain.test.ts` | 31 tests: links, row-by-row Lee drift, both sums for SCORE2, the refusals |
 | `scripts/explain.ts` | the command above |
+| `scripts/explain.test.ts` | the command's page: rows printed, printed triple reconciles, refusals at the boundary, byte-identical second run |
 | `tests/fixtures/explain/` | the two dates for each scale |
 | `src/score2.ts` | `calibrate()` and `inputFromFacts()` — shared so a number and its explanation cannot diverge |
