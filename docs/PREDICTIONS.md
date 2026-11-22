@@ -157,10 +157,10 @@ call.
   at it; `delta_median` carries only the median change, because the published interval belongs to
   the document the strategy cites, not to this field. The delta is the log of the published ratio, so
   two strategies on one outcome add the way their ratios multiply.
-- **T22, the `add-prediction` skill** (SCRUM-33): PubMed → HR + CI → cohort check → node, refusing
-  without a PMID — recorded on the `document` node it writes next to the prediction, which is the
-  only place in this contract a PMID can live — and the forecast stays `not confirmed` until a human
-  reads it.
+- **T22, the `add-prediction` skill** (SCRUM-33): **shipped** — `skills/add-prediction/SKILL.md`,
+  `docs/ADD-PREDICTION.md`. PubMed → HR + CI → cohort check → node, refusing without a PMID — recorded
+  on the `document` node it writes next to the prediction, which is the only place in this contract a
+  PMID can live — and the forecast stays `not confirmed` until a human reads it.
 - **The history.** When a condition is met, the estimate moves and the history has to say which
   prediction moved it (the plan's P1 snapshot work, T08/T13, still parked). The gate already returns
   the `applied` rows that make that sentence writable.

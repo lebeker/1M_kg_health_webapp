@@ -128,3 +128,6 @@ re-reading of the document:
 `docs/EXPORT.md` holds the survey of established health-record formats, the mapping and its
 losses. `scripts/skills.test.ts` runs both skills on this demo and compares their rows with
 `markers()` and `sourceOf()` here, so the export cannot quietly become a second opinion.
+
+A third skill, `add-prediction`, goes the other way: it writes a forecast into the document from a
+paper the user brings. It is not an export and it is not a screen either — `docs/ADD-PREDICTION.md`.

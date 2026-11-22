@@ -11,7 +11,8 @@ hands to the `kg` skill**, never screens.
 | `skills/markers-to-pdf/SKILL.md` | one paginated PDF: a card per panel, every marker with value, reference, flag, date and source | a person, and the person they hand it to |
 | `skills/markers-to-fhir/SKILL.md` | one HL7 FHIR R4 `Bundle`: `Observation` per marker, `DiagnosticReport` per panel, `DocumentReference` per source | another system |
 
-`app.json` names both under `requires.skills`, and `scripts/bundle.mjs` writes
+`app.json` names both — and, since T22, the third skill `add-prediction`, which writes rather than
+exports — under `requires.skills`, and `scripts/bundle.mjs` writes
 `skills_url = <repo>/main/skills` into the `kg` catalogue — so `kg check` reports them and
 `kg check --install` fetches them. That is the whole delivery mechanism: `{skills_url}/{name}/SKILL.md`.
 Nothing else travels, which is why each skill carries its script inside its own `SKILL.md` and
