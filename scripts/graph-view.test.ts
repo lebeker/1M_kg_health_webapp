@@ -71,42 +71,86 @@ describe('widget 1: one button, a view of its own', () => {
 
 /**
  * SCRUM-49 — the graph is the app's data, drawn as a view, and its button belongs beside the profile
- * control: one view of the document the page already holds, never a second page or a file of its own.
+ * control: one right-hand group of two buttons, with the title alone on the left.
  *
- * The placement is text in the header, so it is pinned here: the left keeps the mark and the title,
- * and the button sits in the right-hand cluster, glued to the left of the profile control, in the
- * same box and the same ink as the player and the seg around it.
+ * Reopened after the owner's wireframe audit. Round 1 put the graph button next to the sex toggle and
+ * called that the profile control; v11's header is widget 1 — a filled 30px square holding the
+ * hexagon — immediately left of widget 2, the profile box that reads `male · 1961 (65)`. Nothing else
+ * stands on that side, and the sex switch is widget 30's knob inside the profile view, not chrome.
+ *
+ * What a browser has to show (the group's geometry, the identity text, the open/back round trip) is
+ * proved in the card's acceptance run; what the page is made of is pinned here.
  */
-describe('the graph button beside the profile control (SCRUM-49)', () => {
+describe('the header: one right-hand group, graph and profile (SCRUM-49)', () => {
   const bar = page.slice(page.indexOf('<div class="bar">'), page.indexOf('<div id="leftCol">'))
   const at = (needle: string) => bar.indexOf(needle)
+  const group = bar.slice(at('<div class="hgroup'), bar.indexOf('</div>', at('<div class="hgroup')))
 
-  test('the left of the header keeps the mark and the title, and nothing else', () => {
-    // the bar opens on the wordmark; the graph button is not before it any more
-    expect(bar.slice(0, at('class="only-main">Body'))).not.toContain('id="openGraph"')
-    expect(at('id="openGraph"')).toBeGreaterThan(at('class="only-main">Body'))
+  test('the left of the header is the title alone', () => {
+    // the bar opens on the wordmark and nothing before it; round 1 already took the button off the
+    // left, and the reopen keeps it that way
+    const title = at('<b class="only-main">Body')
+    expect(title).toBeGreaterThan(-1)
+    // between the bar's own tag and the title there is whitespace and a comment, never a control
+    expect(bar.slice(bar.indexOf('>') + 1, title)).not.toContain('<button')
   })
 
-  test('it sits in the right-hand cluster, glued to the left of the profile control', () => {
-    const btn = at('id="openGraph"')
-    const seg = at('<div class="seg" id="sex">')
-    expect(btn).toBeGreaterThan(at('class="spacer"'))       // right of the spacer: the cluster's side
-    expect(btn).toBeLessThan(seg)
-    // the timeline player is widget 6 and no longer lives in this bar: it sits in the main view's
-    // header (scripts/timeline-player.test.ts pins that), so nothing of it stands between the graph
-    // button and the profile control
-    expect(bar).not.toContain('id="tlPlayer"')
-    expect(bar).not.toContain('id="tlDate"')
-    // nothing but the button's own markup between it and the profile control
-    expect(bar.slice(btn, seg)).toMatch(/^id="openGraph"[\s\S]*<\/svg><\/button>\s*$/)
+  test('one group at the right end, two buttons, graph first', () => {
+    expect(at('id="hgroup"')).toBeGreaterThan(at('class="spacer"'))
+    expect(group).toContain('role="group"')
+    expect(group.match(/<button/g)?.length).toBe(2)
+    expect(group.indexOf('id="openGraph"')).toBeGreaterThan(-1)
+    expect(group.indexOf('id="profileBtn"')).toBeGreaterThan(group.indexOf('id="openGraph"'))
+    // nothing between them but the group's own markup
+    expect(group).toMatch(/id="openGraph"[\s\S]*<\/svg><\/button>\s*<button id="profileBtn"/)
   })
 
-  test('same box, same weight as its neighbours', () => {
-    // the seg's own box is 19px glyphs on 3px+4px padding + the 1px group border = 28px; the button
-    // takes that height, that border, that radius and the player's muted ink
-    expect(page).toMatch(/#openGraph \{ height:28px; padding:0 9px; border-radius:7px; color:#9fb3c6; \}/)
-    expect(page).toMatch(/\.seg button \{[^}]*font-size:19px; line-height:1;/)
-    expect(page).toMatch(/\.player button \{[^}]*padding:5px 8px; color:#9fb3c6;/)
+  test('both are the same 30px box, six pixels apart, and the square is filled', () => {
+    expect(page).toMatch(/\.hgroup \{ display:inline-flex; align-items:stretch; gap:6px; \}/)
+    expect(page).toMatch(/#openGraph \{ width:30px; height:30px; padding:0;/)
+    expect(page).toMatch(/#openGraph \{[^}]*background:#0f1620;/)
+    expect(page).toMatch(/#profileBtn \{ height:30px;/)
+    expect(page).toMatch(/#profileBtn .ptxt \{[^}]*font-size:11\.5px;/)
+  })
+
+  test('the profile button is the record, not a constant in the page', () => {
+    // the markup carries a placeholder; the identity is written from `meta.profile` at launch and
+    // repainted whenever a document lands, so a female file is not shown as a male one
+    expect(group).toContain('id="profileWho"')
+    expect(group).not.toMatch(/19\d\d|male ·|female ·/)
+    expect(page).toMatch(/function paintProfileButton\(\) \{/)
+    expect(page).toMatch(/const p = profileOf\(\);/)
+    expect(page).toMatch(/out\.textContent = who \|\| "no profile";/)
+    expect(page).toMatch(/const p = \(TL_META && TL_META\.profile\) \|\| \{\};/)
+    expect(page).toMatch(/paintProfileButton\(\);/)
+    // T05: the one switch starts on the sex the document states, read after the document is in hand
+    expect(page).toMatch(/const PROFILE_SEX = TL_META\.profile && TL_META\.profile\.sex;\s*if \(PROFILE_SEX === "male" \|\| PROFILE_SEX === "female"\) state\.sex = PROFILE_SEX;/)
+  })
+
+  test('the profile button opens the profile view in the same shell', () => {
+    expect(page).toContain('document.getElementById("profileBtn").onclick = () => setProfileView(!state.profile);')
+    expect(page).toContain('document.getElementById("profileBack").onclick = () => setProfileView(false);')
+    expect(page).toMatch(/function setProfileView\(open\) \{\s*state\.profile = !!open;\s*document\.body\.classList\.toggle\("profile-open", state\.profile\);/)
+    expect(page).toMatch(/if \(state\.profile\) \{\s*state\.mainHidden = false;\s*buildProfile\(\); \}/)
+    // the view is the centre column of this page: no second page, no navigation
+    expect(page).not.toMatch(/window\.location\s*=|location\.href\s*=/)
+  })
+
+  test('back returns to the same selected date, because no view writes it', () => {
+    const view = page.slice(page.indexOf('function setProfileView(open)'), page.indexOf('document.getElementById("profileBtn").onclick'))
+    expect(view).not.toContain('state.date')
+    // and a date picked anywhere (ruler, player, a row, a linked item) leaves the profile view
+    const selectDate = page.slice(page.indexOf('function selectDate(d, id)'), page.indexOf('function tlStep('))
+    expect(selectDate).toContain('state.profile = false;')
+  })
+
+  test('the sex switch is widget 30 inside that view, not header chrome', () => {
+    expect(bar).not.toContain('id="sex"')
+    const profileBody = page.slice(page.indexOf('id="profileBody"'), page.indexOf('<aside id="rightCol"'))
+    expect(profileBody).toContain('id="sex"')
+    expect(profileBody).toContain('the document is not written')
+    // the view says which reading is on screen when the knob and the file disagree
+    expect(page).toMatch(/the document says " \+ p\.sex \+ " · reading as " \+ state\.sex/)
   })
 
   test('still one button on one page: it opens the view and writes no file', () => {
