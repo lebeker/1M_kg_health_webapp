@@ -113,9 +113,12 @@ python3 markers_to_fhir.py --graph kg.json --bundle bundle.json --roundtrip
 
 The second command reads the file that was just written, rebuilds every marker from the FHIR
 resources and compares name, value, unit, printed flag, reference range, LOINC code, date and
-source document. It also checks the rules FHIR itself states: unique ids, `status` / `code` /
-`effectiveDateTime` on every `Observation`, every `result` reference resolving inside the bundle,
-`DocumentReference` with `status` and `content`. On the demo:
+source document. Rows are matched on their own `Observation.id`, never by position, so a bundle
+whose entries are in any order still compares the right marker with the right marker. It also
+checks the rules FHIR itself states: unique ids, `status` / `code` / `effectiveDateTime` on every
+`Observation`, every `result` **and** every `derivedFrom` reference resolving inside the bundle
+(and carrying the kg id it resolves to), `DocumentReference` with `status` and `content`. On the
+demo:
 
 ```
 13 markers -> 13 Observations, 6 DiagnosticReports, 1 DocumentReference

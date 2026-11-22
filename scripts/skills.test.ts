@@ -379,6 +379,146 @@ describe('markers-to-fhir: the mapping proves itself', () => {
     expect(lipid.valueQuantity.code).toBe('mmol/L')
   })
 
+  test('the FHIR port reads the same markers as the app: every field, row by row', () => {
+    // The doc and this script's header both say the port is pinned against `MainView`. This is
+    // that pin: the module the SKILL.md block ships is imported and its own `cards_of` is run on
+    // the demo, then compared with the app's `markers`/`sourceOf` — not with a third copy.
+    const probe = [
+      'import importlib.util, json, sys',
+      "spec = importlib.util.spec_from_file_location('markers_to_fhir', sys.argv[1])",
+      'module = importlib.util.module_from_spec(spec)',
+      'spec.loader.exec_module(module)',
+      "graph = json.load(open(sys.argv[2], encoding='utf-8'))",
+      "print(json.dumps(module.cards_of(graph), ensure_ascii=False))",
+    ].join('\n')
+    const done = Bun.spawnSync(
+      ['python3', '-c', probe, scriptFile('markers-to-fhir', 'scripts/markers_to_fhir.py'), DEMO],
+      { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' })
+    expect(done.stderr.toString()).toBe('')
+    expect(done.exitCode).toBe(0)
+    const cards = JSON.parse(done.stdout.toString()) as Array<{
+      node: string; date: string; lab: string; address: string; link: string
+      source: string | null; source_label: string | null; markers: MainViewMarker[]
+    }>
+    const exported = cards.flatMap((card) => card.markers.map((marker) => ({ ...marker, node: card.node })))
+    const fromApp = graph.nodes
+      .filter((node) => node.kind === 'analysis' || node.kind === 'observation')
+      .flatMap((node) => MainView.markers(node).map((marker) => ({ ...marker, node: node.id })))
+    expect(exported.length).toBe(fromApp.length)
+    expect(exported.length).toBeGreaterThan(0)
+    for (const want of fromApp) {
+      const got = exported.find((row) => row.node === want.node && row.name === want.name)
+      expect(got).toBeDefined()
+      for (const field of ['value', 'unit', 'reference', 'flag', 'from', 'out', 'code'] as const) {
+        expect({ field, got: got?.[field] }).toEqual({ field, got: want[field] })
+      }
+      expect(got?.ref).toEqual(want.ref)
+    }
+    for (const card of cards) {
+      const app = MainView.sourceOf(byId(card.node), byId)
+      expect({ node: card.node, lab: card.lab }).toEqual({ node: card.node, lab: app.lab })
+      expect({ node: card.node, link: card.link }).toEqual({ node: card.node, link: app.link })
+      expect(card.source).toBe(app.document?.id ?? null)
+      expect(card.source_label).toBe(app.document?.label ?? null)
+      // The date the card prints: `when`, else the demo-era `date`, cut to its day.
+      const when = byId(card.node)?.when ?? byId(card.node)?.date
+      if (typeof when === 'string') expect(card.date).toBe(/^\d{4}-\d{2}-\d{2}/.exec(when)?.[0] ?? '')
+    }
+  })
+
+  test('a panel of ten or more rows round-trips clean — the rows are matched, not zipped', () => {
+    // `…-10` sorts before `…-2`: a comparison that walks two lists in different orders reports
+    // a correct bundle as broken from the tenth row on. Twelve rows is an ordinary CMP.
+    const values = Array.from({ length: 12 }, (_, index) => ({
+      name: `M${String(index).padStart(2, '0')}`, value: 10 + index, unit: 'mmol/l',
+      ref: [5, 20], flag: index % 2 === 0 ? 'high' : '', code: `1234-${index}`,
+    }))
+    const panel = join(CACHE, 'twelve.json')
+    writeFileSync(panel, JSON.stringify({
+      schema: 'kg/1', meta: { title: 'a twelve row panel' },
+      nodes: [{ id: 'obs-twelve', kind: 'analysis', label: 'CMP', when: '2026-04-04',
+        panel: 'comprehensive', values }],
+      edges: [],
+    }))
+    const out = join(CACHE, 'twelve-bundle.json')
+    expect(run('markers-to-fhir', 'scripts/markers_to_fhir.py', ['--graph', panel, '--out', out]).code).toBe(0)
+    const checked = run('markers-to-fhir', 'scripts/markers_to_fhir.py',
+      ['--graph', panel, '--bundle', out, '--roundtrip', '--json'])
+    expect(checked.code).toBe(0)
+    const result = JSON.parse(checked.stdout)
+    expect(result.roundtrip.compared).toBe(12)
+    expect(result.roundtrip.mismatches).toEqual([])
+    expect(result.roundtrip.structural_issues).toEqual([])
+  })
+
+  test('a kg id that is not a legal FHIR id still resolves: derivedFrom is the fullUrl', () => {
+    // `doc_lipid_2026` is a legal kg id, so it must travel as `doc-lipid-2026` everywhere — and
+    // the raw id must come back out of the DocumentReference's identifier.
+    const graphPath = join(CACHE, 'underscore.json')
+    writeFileSync(graphPath, JSON.stringify({
+      schema: 'kg/1', meta: { title: 'underscore ids' },
+      nodes: [
+        { id: 'doc_lipid_2026', kind: 'document', label: 'Lipid printout', when: '2026-05-05',
+          lab: 'Lab A', link: 'sources/lipid.pdf' },
+        { id: 'obs_lipid_2026', kind: 'analysis', label: 'Lipids', when: '2026-05-05',
+          source: 'doc_lipid_2026', panel: 'lipids', confirmed: true,
+          values: [{ name: 'LDL', value: 3.9, unit: 'mmol/l', ref: [0, 3], flag: 'high',
+            code: '13457-7' }] },
+      ],
+      edges: [],
+    }))
+    const out = join(CACHE, 'underscore-bundle.json')
+    expect(run('markers-to-fhir', 'scripts/markers_to_fhir.py', ['--graph', graphPath, '--out', out]).code).toBe(0)
+    const bundle = JSON.parse(readFileSync(out, 'utf8'))
+    const urls: string[] = bundle.entry.map((entry: { fullUrl: string }) => entry.fullUrl)
+    expect(urls).toContain('urn:kg:node:doc-lipid-2026')
+    const observation = bundle.entry
+      .map((entry: { resource: Record<string, unknown> }) => entry.resource)
+      .find((resource: Record<string, unknown>) => resource.resourceType === 'Observation') as {
+        derivedFrom: Array<{ reference: string }>
+      }
+    expect(observation.derivedFrom[0].reference).toBe('urn:kg:node:doc-lipid-2026')
+    expect(urls).toContain(observation.derivedFrom[0].reference)
+    const checked = run('markers-to-fhir', 'scripts/markers_to_fhir.py',
+      ['--graph', graphPath, '--bundle', out, '--roundtrip', '--json'])
+    expect(checked.code).toBe(0)
+    const result = JSON.parse(checked.stdout)
+    expect(result.roundtrip.mismatches).toEqual([])
+    expect(result.roundtrip.structural_issues).toEqual([])
+
+    // …and the new structural rule can fail: the raw id back in derivedFrom is a dangling reference.
+    observation.derivedFrom[0].reference = 'urn:kg:node:doc_lipid_2026'
+    const doctored = join(CACHE, 'underscore-doctored.json')
+    writeFileSync(doctored, JSON.stringify(bundle))
+    const control = run('markers-to-fhir', 'scripts/markers_to_fhir.py',
+      ['--graph', graphPath, '--bundle', doctored, '--roundtrip', '--json'])
+    expect(control.code).toBe(1)
+    const controlResult = JSON.parse(control.stdout)
+    expect(controlResult.roundtrip.structural_issues.length).toBeGreaterThan(0)
+    expect(String(controlResult.roundtrip.structural_issues.join('\n'))).toContain('derives from')
+  })
+
+  test('an interval date exports its `from` day, which is what the mapping says', () => {
+    // The mapping table claims this; the app's own `MainView` prints the start of the interval.
+    const graphPath = join(CACHE, 'interval.json')
+    writeFileSync(graphPath, JSON.stringify({
+      schema: 'kg/1', meta: { title: 'an interval' },
+      nodes: [{ id: 'obs-interval', kind: 'observation', label: 'HbA1c',
+        when: { from: '2026-01-01', to: '2026-02-01' },
+        value: 6.1, unit: '%', ref_low: 4, ref_high: 5.6 }],
+      edges: [],
+    }))
+    const out = join(CACHE, 'interval-bundle.json')
+    expect(run('markers-to-fhir', 'scripts/markers_to_fhir.py', ['--graph', graphPath, '--out', out]).code).toBe(0)
+    const observation = JSON.parse(readFileSync(out, 'utf8')).entry
+      .map((entry: { resource: Record<string, unknown> }) => entry.resource)
+      .find((resource: Record<string, unknown>) => resource.resourceType === 'Observation')
+    expect(observation.effectiveDateTime).toBe('2026-01-01')
+    expect(observation.period).toBeUndefined()
+    expect(run('markers-to-fhir', 'scripts/markers_to_fhir.py',
+      ['--graph', graphPath, '--bundle', out, '--roundtrip']).code).toBe(0)
+  })
+
   test('a single-test record is an Observation with no report, and an unknown unit is reported', () => {
     const single = join(CACHE, 'single.json')
     writeFileSync(single, JSON.stringify({

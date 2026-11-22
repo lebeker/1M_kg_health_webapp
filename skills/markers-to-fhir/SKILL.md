@@ -42,7 +42,7 @@ losses listed below written down rather than papered over.
 | `values[].ref` | `Observation.referenceRange[0].low/.high` | one end may be missing; both missing means no `referenceRange` at all |
 | `values[].flag` **printed** | `Observation.interpretation` — `low→L`, `normal→N`, `high→H`, `critical→AA` | `critical` is directionless in kg, so `AA` (critical abnormal), never `HH`/`LL` |
 | a flag the export derived from the range | **not** `interpretation` — `Observation.note` text | a reader's comparison must never look like the laboratory's flag |
-| `when` (or the demo-era `date`) | `effectiveDateTime` | `YYYY-MM-DD`; an interval date is refused rather than truncated |
+| `when` (or the demo-era `date`) | `effectiveDateTime` | `YYYY-MM-DD`. An interval — `{from, to}` — exports its `from` day and drops the `to`, because `effectiveDateTime` holds one point and the main view prints the start of the interval; the interval is not turned into a `Period`, which would claim the record covers the span |
 | the `document` node named by `source` | `Observation.derivedFrom` → `DocumentReference` in the bundle | the document's own label, lab and path travel with it |
 | record `confirmed` | `Observation.status` / `DiagnosticReport.status`: `final` when true, `preliminary` when not | `status` is the workflow state, not the truth of the number; `preliminary` is the honest word for "nobody has checked this" |
 | the plain-language `meaning` of a panel | `DiagnosticReport.conclusion` | FHIR's own slot for the reading of a result |
@@ -81,9 +81,11 @@ losses listed below written down rather than papered over.
    ```
 
    The second command reads the file just written, reconstructs every marker and compares name,
-   value, unit, printed flag, reference range, LOINC code, date and source document. It also
-   checks what FHIR itself requires: unique ids, `status`/`code`/`effectiveDateTime` on every
-   Observation, every `result` reference resolving inside the bundle. It exits non-zero on any
+   value, unit, printed flag, reference range, LOINC code, date and source document — matching
+   each row on its own Observation id, so the order a bundle happens to be in cannot disguise a
+   mismatch. It also checks what FHIR itself requires: unique ids, `status`/`code`/
+   `effectiveDateTime` on every Observation, every `result` **and** every `derivedFrom` reference
+   resolving inside the bundle. It exits non-zero on any
    mismatch — a failed round trip is a failed export, and the answer is to fix the mapping, not
    to widen the comparison until it passes.
 4. **Report the shape and the losses.** "13 markers, 13 Observations, 6 DiagnosticReports, 1
@@ -394,11 +396,28 @@ def safe_id(value):
     return cleaned[:64] or "resource"
 
 
+def document_url(source_id):
+    """The one place a kg document id becomes a FHIR reference.
+
+    A kg id is unique but not restricted to the FHIR `id` charset (`docs/DATA-CONTRACT.md`), so
+    `doc_lipid_2026` has to travel as `doc-lipid-2026`. Both the DocumentReference fullUrl and
+    every `derivedFrom` that points at it come from here, or the bundle carries a dangling
+    reference. The raw id survives in `identifier.value`, which is what reads back.
+    """
+    return "urn:kg:node:" + safe_id(source_id)
+
+
+def observation_id(node, index):
+    """A marker's Observation id — and therefore the key the round trip matches rows on."""
+    return safe_id(f"{node}-{index}")
+
+
 def document_reference(card, document=None):
     content = {"attachment": {"contentType": "application/pdf",
                               "title": card["link"] or card["source_label"] or ""}}
     resource = {
         "resourceType": "DocumentReference",
+        # the id half of document_url(source): fullUrl and every derivedFrom meet here
         "id": safe_id(card["source"]),
         "identifier": [{"system": KG_SYSTEM, "value": card["source"]}],
         "status": "current",
@@ -416,7 +435,7 @@ def document_reference(card, document=None):
 def observation(card, row, index):
     resource = {
         "resourceType": "Observation",
-        "id": safe_id(f"{card['node']}-{index}"),
+        "id": observation_id(card["node"], index),
         "identifier": [{"system": KG_SYSTEM, "value": card["node"]}],
         # `status` is the workflow state, not the truth of the number: an unconfirmed record is
         # `preliminary`, which is what "nobody has checked this" means in FHIR. It is never
@@ -431,7 +450,8 @@ def observation(card, row, index):
     if row["code"]:
         resource["code"]["coding"] = [{"system": LOINC, "code": row["code"]}]
     if card["source"]:
-        resource["derivedFrom"] = [{"reference": f"urn:kg:node:{card['source']}",
+        # The same sanitised id the DocumentReference's fullUrl carries, or the reference dangles.
+        resource["derivedFrom"] = [{"reference": document_url(card["source"]),
                                     "display": card["source_label"] or card["source"]}]
     if card["lab"]:
         resource["performer"] = [{"display": card["lab"]}]
@@ -536,9 +556,18 @@ def document_of(graph, document_id):
 
 def read_back(bundle):
     """Every Observation in the bundle, back as the marker row the main view would draw."""
-    resources = [entry.get("resource") or {} for entry in bundle.get("entry") or []]
-    by_full_url = {entry.get("fullUrl"): entry.get("resource") or {}
-                   for entry in bundle.get("entry") or []}
+    entries = bundle.get("entry") or []
+    resources = [entry.get("resource") or {} for entry in entries]
+    by_full_url = {entry.get("fullUrl"): entry.get("resource") or {} for entry in entries}
+    # A `derivedFrom` names a sanitised URL; the kg id it stands for is the identifier the
+    # DocumentReference carries. This is the only way back from `doc-lipid-2026` to
+    # `doc_lipid_2026`, and it is why the round trip compares source ids that kg actually uses.
+    kg_by_url = {}
+    for entry in entries:
+        resource = entry.get("resource") or {}
+        for identifier in resource.get("identifier") or []:
+            if identifier.get("system") == KG_SYSTEM:
+                kg_by_url[entry.get("fullUrl")] = identifier.get("value")
     reports = {}
     for resource in resources:
         if resource.get("resourceType") == "DiagnosticReport":
@@ -577,32 +606,50 @@ def read_back(bundle):
             "code": coding[0].get("code", "") if coding and coding[0].get("system") == LOINC
             else "",
             "date": resource.get("effectiveDateTime", ""),
-            "source": derived.replace("urn:kg:node:", "") if derived.startswith("urn:kg:node:")
-            else "",
+            "source": kg_by_url.get(derived, ""),
             "status": resource.get("status", ""),
             "id": resource.get("id", ""),
             "_resolved": by_full_url.get(resource_ref(resource)) is not None,
+            "_source_resolved": not derived or derived in kg_by_url,
         })
     rows.sort(key=lambda row: (row["node"], row["id"]))
     return rows, reports
 
 
 def compare(cards, rows):
-    """The acceptance: every field the card names, from the document and from the bundle."""
+    """The acceptance: every field the card names, from the document and from the bundle.
+
+    Rows are matched on the Observation id — `observation_id(node, index)`, the same string the
+    bundle's resource carries — and never by position. Two `zip`s of lists that are sorted
+    differently (`…-10` sorts before `…-2`) compare different markers from the tenth row on and
+    report a correct bundle as broken; a panel of a dozen rows is ordinary.
+    """
     expected = []
     for card in cards:
-        for row in card["markers"]:
+        for index, row in enumerate(card["markers"]):
             expected.append({
+                "id": observation_id(card["node"], index),
                 "node": card["node"], "name": row["name"], "value": row["value"],
                 "unit": row["unit"], "ref": row["ref"], "flag": row["flag"],
                 "code": row["code"], "date": card["date"], "source": card["source"] or "",
                 "panel": card["node"] if card["is_panel"] else None,
             })
-    expected.sort(key=lambda row: row["node"])
+    expected.sort(key=lambda row: row["id"])
+    got_by_id = {}
+    for row in rows:
+        got_by_id.setdefault(row["id"], row)
     mismatches = []
     if len(expected) != len(rows):
         mismatches.append({"field": "count", "expected": len(expected), "read_back": len(rows)})
-    for want, got in zip(expected, rows):
+    # A row that only one side has is a mismatch in its own right; `zip` would have hidden it.
+    for missing in sorted({row["id"] for row in expected} - set(got_by_id)):
+        mismatches.append({"field": "id", "expected": missing, "read_back": None})
+    for extra in sorted(set(got_by_id) - {row["id"] for row in expected}):
+        mismatches.append({"field": "id", "expected": None, "read_back": extra})
+    for want in expected:
+        got = got_by_id.get(want["id"])
+        if got is None:
+            continue
         for field in ("node", "name", "unit", "flag", "code", "date", "source"):
             if want[field] != got.get(field):
                 mismatches.append({"marker": want.get("name"), "node": want["node"], "field": field,
@@ -627,6 +674,10 @@ def structural_issues(bundle, rows):
     entries = bundle.get("entry") or []
     resources = [entry.get("resource") or {} for entry in entries]
     urls = {entry.get("fullUrl") for entry in entries}
+    # The fullUrls whose resource carries a kg id, so a `derivedFrom` can be read back to a record.
+    kg_ids_by_url = {entry.get("fullUrl") for entry in entries
+                     for identifier in (entry.get("resource") or {}).get("identifier") or []
+                     if identifier.get("system") == KG_SYSTEM}
     ids = [(resource.get("resourceType"), resource.get("id")) for resource in resources]
     if bundle.get("resourceType") != "Bundle":
         issues.append("not a Bundle")
@@ -657,9 +708,27 @@ def structural_issues(bundle, rows):
             for field in ("status", "content"):
                 if not resource.get(field):
                     issues.append(f"DocumentReference {resource.get('id')} has no {field}")
+        for reference in resource.get("derivedFrom") or []:
+            url = reference.get("reference")
+            if url not in urls:
+                issues.append(f"{kind} {resource.get('id')} derives from a resource that is not "
+                              f"in the bundle: {url}")
+            elif url not in kg_ids_by_url:
+                issues.append(f"{kind} {resource.get('id')} derives from {url}, which carries no "
+                              f"urn:kg:node identifier to read the record back through")
+    # Every entry's fullUrl must be the one its own resource id produces, or nothing that points
+    # at a resource can be resolved by a reader that computes URLs the same way this bundle does.
+    for entry in entries:
+        resource = entry.get("resource") or {}
+        if entry.get("fullUrl") != resource_ref(resource):
+            issues.append(f"{resource.get('resourceType')} {resource.get('id')} is published as "
+                          f"{entry.get('fullUrl')} but referenced as {resource_ref(resource)}")
     for row in rows:
         if not row["_resolved"]:
             issues.append(f"Observation {row['id']} is not addressable by its own fullUrl")
+        if not row["_source_resolved"]:
+            issues.append(f"Observation {row['id']} derives from a document the bundle does not "
+                          f"carry")
     return issues
 
 
