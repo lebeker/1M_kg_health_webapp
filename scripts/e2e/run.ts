@@ -587,7 +587,7 @@ async function main() {
       if (!found.pagePath) writeFileSync(cleanroomPage, inject(buildBytes.toString('utf8'), document))
       const replayPage = join(evidence, 'replay.html')
 
-      const pages: Array<{ label: string; url: string; expect: string[]; kind: PageKind }> = []
+      const pages: Array<{ label: string; url: string; expect: string[]; kind: PageKind; view?: 'record' | 'profile' }> = []
       if (card.pages.includes('graph')) {
         if (card.mode === 'full') writeFileSync(replayPage, inject(buildBytes.toString('utf8'), document))
         pages.push({ label: 'cleanroom', url: `file://${cleanroomPage}`, expect: card.expect, kind: 'graph' })
@@ -606,7 +606,7 @@ async function main() {
           if (!existsSync(from)) throw new Error(`${from} is missing — the columns page loads ${asset}/ and the build did not install it`)
           if (!existsSync(to)) symlinkSync(from, to, 'dir')
         }
-        pages.push({ label: 'case', url: `file://${casePath}`, expect: card.expect, kind: 'case' })
+        pages.push({ label: 'case', url: `file://${casePath}`, expect: card.expect, kind: 'case', view: card.view })
       }
 
       const capture = await capturePages({ pages, outDir: evidence })
@@ -665,7 +665,7 @@ async function main() {
     }
   })
   const report = {
-    card: { id: card.id, title: card.title, mode: card.mode, page: card.pages, prompt: card.prompt, expect: card.expect },
+    card: { id: card.id, title: card.title, mode: card.mode, page: card.pages, view: card.view, prompt: card.prompt, expect: card.expect },
     branch,
     commit,
     dirty,

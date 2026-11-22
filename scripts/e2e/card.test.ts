@@ -53,4 +53,19 @@ describe('the e2e block on a card', () => {
   test('pages are listed in a stable order, so a report reads the same twice', () => {
     expect(parseE2e(['## e2e', 'prompt: p', 'page: graph+case', 'expect: x'].join('\n')).pages).toEqual(['case', 'graph'])
   })
+
+  test('view: says which view of the columns page the claim is drawn in', () => {
+    const profileCard = parseCard(
+      ['## e2e', 'prompt: open the profile and read the cohort', 'page: case', 'view: profile', 'expect: family history'].join('\n'),
+      'T — profile view',
+    )
+    expect(profileCard.view).toBe('profile')
+    // a card written before the field keeps meaning the column the page boots into
+    expect(parseCard(['## e2e', 'prompt: p', 'page: case', 'expect: x'].join('\n'), 'T1').view).toBe('record')
+    expect(parseCard(['## e2e', 'prompt: p', 'view: record', 'expect: x'].join('\n'), 'T1').view).toBe('record')
+  })
+
+  test('a view nobody has is refused, not quietly read as the record column', () => {
+    expect(() => parseE2e(['## e2e', 'prompt: p', 'view: profle', 'expect: x'].join('\n'))).toThrow(/not a view/)
+  })
 })

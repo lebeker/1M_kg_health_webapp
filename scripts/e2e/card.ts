@@ -53,8 +53,18 @@ export type Card = {
   expect: string[]
   /** Which built pages the claim lives on. Absent `page:` means `['graph']`. */
   pages: PageKind[]
+  /**
+   * Which view of the columns page the claim lives in. `record` (the default) is the centre
+   * column the page boots into; `profile` is widget 2's view, which is behind a button and
+   * therefore not in the page's text until something opens it. A card that claims something the
+   * reader only sees after clicking says `view: profile`, and the capture opens it through the
+   * page's own hook and records that it did.
+   */
+  view: ViewKind
   source: 'kanban' | 'file'
 }
+
+export type ViewKind = 'record' | 'profile'
 
 const TASK_ID = /^t_[0-9a-f]{4,}$/i
 const JIRA_KEY = /^SCRUM-\d+$/i
@@ -114,8 +124,8 @@ function readFileCard(path: string): Card {
  * ignored: a typo in the one line that says which page the claim lives on would otherwise fall
  * back to the graph page — the exact mismatch this field exists to make impossible.
  */
-export function parseE2e(body: string): { mode?: CardMode; prompt?: string; expect: string[]; pages?: PageKind[] } {
-  const result: { mode?: CardMode; prompt?: string; expect: string[]; pages?: PageKind[] } = { expect: [] }
+export function parseE2e(body: string): { mode?: CardMode; prompt?: string; expect: string[]; pages?: PageKind[]; view?: ViewKind } {
+  const result: { mode?: CardMode; prompt?: string; expect: string[]; pages?: PageKind[]; view?: ViewKind } = { expect: [] }
 
   const lightMarker = body.match(/^\s*e2e:\s*light\b/im)
   if (lightMarker) result.mode = 'light'
@@ -136,6 +146,7 @@ export function parseE2e(body: string): { mode?: CardMode; prompt?: string; expe
       if (key === 'prompt' && value) result.prompt = value
       if (key === 'mode' && /^(full|light)$/i.test(value)) result.mode = value.toLowerCase() as CardMode
       if (key === 'page' && value) result.pages = parsePages(value)
+      if (key === 'view' && value) result.view = parseView(value)
       if (key === 'expect' && value) {
         result.expect.push(...value.split(',').map((s) => s.trim()).filter(Boolean))
       }
@@ -171,10 +182,17 @@ export function parsePages(value: string): PageKind[] {
   return PAGE_KINDS.filter((kind) => wanted.has(kind))
 }
 
+/** `record` or `profile`; anything else is refused rather than quietly read as the record column. */
+export function parseView(value: string): ViewKind {
+  const wanted = value.trim().toLowerCase()
+  if (wanted === 'record' || wanted === 'profile') return wanted
+  throw new Error(`the card's ## e2e block says \`view: ${value}\`, and "${wanted}" is not a view — use record or profile`)
+}
+
 export function parseCard(
   body: string,
   title: string,
-): { title: string; body: string; mode: CardMode; prompt: string; expect: string[]; pages: PageKind[] } {
+): { title: string; body: string; mode: CardMode; prompt: string; expect: string[]; pages: PageKind[]; view: ViewKind } {
   const e2e = parseE2e(body)
   return {
     title,
@@ -185,6 +203,9 @@ export function parseCard(
     // The page the harness has always captured, so a card that predates the field keeps the run
     // it was written for. A claim on the columns page has to say `page: case`.
     pages: e2e.pages ?? ['graph'],
+    // And within that page, the view the claim is drawn in. Absent means the centre column the
+    // page boots into, which is what every card before this field was written about.
+    view: e2e.view ?? 'record',
   }
 }
 

@@ -21,7 +21,7 @@ import { join } from 'node:path'
 import type { PageKind } from './card'
 import { browserEnv, endpointConfig, packagedAgentBrowser, runChat, writeHermesHome, type ToolCall } from './hermes'
 
-export type Page = { label: string; url: string; expect: string[]; kind: PageKind }
+export type Page = { label: string; url: string; expect: string[]; kind: PageKind; view?: 'record' | 'profile' }
 
 export type PageCapture = {
   label: string
@@ -67,7 +67,7 @@ export type CaptureRun = {
  * a truncated result cannot be parsed. The whole DOM is represented by its sha256 and length;
  * `domHead` is there so a reviewer sees the document is real without a 2 MB file.
  */
-export function probeExpression(expect: string[], kind: PageKind = 'graph'): string {
+export function probeExpression(expect: string[], kind: PageKind = 'graph', view: 'record' | 'profile' = 'record'): string {
   const needles = JSON.stringify(expect)
   if (kind === 'case') {
     return `(async () => {
@@ -81,6 +81,16 @@ export function probeExpression(expect: string[], kind: PageKind = 'graph'): str
     await new Promise((resolve) => setTimeout(resolve, 200))
   }
   const columns = cols() || {}
+  // A view behind a button is not in the page's text until it is opened. A card whose claim lives
+  // in the profile view (widget 2) says so with view: profile, and only then does the probe open
+  // it — through the page's own hook, and it records that it did, because a claim read from the
+  // record column is not a claim read from the profile view.
+  const wanted = ${JSON.stringify(view)}
+  let profileOpen = false
+  if (wanted === 'profile' && typeof window.__openProfile === 'function') {
+    try { profileOpen = window.__openProfile() === true } catch (error) { profileOpen = false }
+    if (profileOpen) await new Promise((resolve) => setTimeout(resolve, 300))
+  }
   let records = { total: 0, stored: 0, sample: [] }
   try {
     if (typeof window.__records === 'function') {
@@ -109,6 +119,7 @@ export function probeExpression(expect: string[], kind: PageKind = 'graph'): str
       states: columns.states || 0,
     },
     records,
+    profileOpen: profileOpen,
     text: body.slice(0, 700),
     claim: ${needles}.map((needle) => ({ needle, found: lower.includes(needle.toLowerCase()) })),
     empty: state() === 'absent' ? 'document' : null,
@@ -165,7 +176,7 @@ export function capturePrompt(pages: Page[]): string {
           : 'the page under test — does it show a rendered graph and which header text is visible?'
       return (
         `PAGE ${index + 1} — ${page.label} (${page.kind} page)\n  a. browser_navigate with url: ${page.url}\n` +
-        `  b. browser_console with this exact expression (it waits for the first render itself):\n${probeExpression(page.expect, page.kind)}\n` +
+        `  b. browser_console with this exact expression (it waits for the first render itself):\n${probeExpression(page.expect, page.kind, page.view ?? 'record')}\n` +
         `  c. browser_vision with question: "${question}"`
       )
     })
@@ -370,7 +381,11 @@ export function describeValues(values: Record<string, unknown>, kind: PageKind =
   if (kind === 'case') {
     const records = (values.records ?? {}) as { stored?: number }
     const columns = (values.columns ?? {}) as { left?: number; centre?: number; panel?: number }
-    return `${url || 'no url'} ("${title}", ${Number(records.stored ?? 0)} record(s), columns ${Number(columns.left ?? 0)}/${Number(columns.centre ?? 0)}/${Number(columns.panel ?? 0)} px)`
+    // which view answered is part of the figure: a claim read from the record column and one read
+    // from the profile view are not the same evidence, and a receipt that hides the difference is
+    // the loophole this line is supposed to close
+    const view = values.profileOpen === true ? ', profile view' : ''
+    return `${url || 'no url'} ("${title}", ${Number(records.stored ?? 0)} record(s), columns ${Number(columns.left ?? 0)}/${Number(columns.centre ?? 0)}/${Number(columns.panel ?? 0)} px${view})`
   }
   const mounted = Number(values.mounted ?? 0)
   return `${url || 'no url'} ("${title}", ${mounted} elements)`
