@@ -10,8 +10,18 @@ are **nodes of a graph**, not decoration. The body is the map, the graph is the 
 - Live: https://lebeker.github.io/1M_kg_health_webapp/body/
 - Stack: one file, `body/index.html` — three.js r146, `d3-force-3d`, no build step
 - Models: `body/models/*.glb` (atlas organs, skin, layers) + `skin-texture.png`
-- Tests: `body/tools/probe.py` (CDP driver), `acceptance.py`, `acceptance_mouse.py`,
-  `acceptance_organs.py`, `stability.py`, `stress.py`
+- Verification: an **agent** verifies the body page through Hermes `browser_*` against a served
+  build — `python3 -m http.server 8770` at the repo root, then `browser_navigate` /
+  `browser_console` / `browser_vision` on `http://127.0.0.1:8770/body/index.html`. A bot, child
+  agent, reviewer or harness never launches, attaches to or controls a browser of its own (owner
+  policy, 2026-11-22).
+- Manual QA tools, **owner only**: `body/tools/probe.py` (the CDP driver), `stress.py` and
+  `browser_qa.py` start the local Chrome app, and nothing else in this repo does. Each refuses to
+  run under an agent harness (`HERMES_PROFILE` / `HERMES_SESSION_ID` / `HERMES_HOME`) unless the
+  owner passes `--force-host-browser`; their headers and `--help` say so, and
+  `scripts/host-browser-guard.test.ts` holds them to it. `acceptance.py`, `acceptance_mouse.py`,
+  `acceptance_organs.py` and `stability.py` are step files — they run inside `probe.py`'s session
+  through `--steps`, never on their own.
 - Tags (reset points): `health-20261030q-pre-refactor` (`7a15d39`),
   `health-20261031d` (`05e448d`, user-approved UI: hexagon, organs in front, body root row)
 
