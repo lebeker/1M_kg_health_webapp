@@ -104,6 +104,23 @@ Base fields are `kg/1` (`id`, `label`, `kind`, `level`, `size`, `style`, `desc`,
 `value` is a number and `unit` is separate on purpose: a string `"4.9 mmol/L"` cannot be plotted,
 sorted or compared, and every downstream bug starts there.
 
+**A string that has to name something may not be blank.** The gate and the app's readers trim before
+they answer (`isNonEmptyString` in `scripts/lib/kg-contract.ts`, `conditionProblems` in
+`src/rules.ts`, `loadPredictions` in `src/prediction.ts`), so `"  "` and `""` are the same nothing to
+them. The schema states that once, as `$defs.nonEmptyText`, and refers to it where a string is a name:
+
+| field | in the set | why |
+|---|---|---|
+| node `id` | yes | `loadPredictions` reads it through the trimmed test and refuses a forecast it cannot name |
+| `source`, on a node and on an edge | yes | it is an id; the schema states the rule and the referential check adds its own sentence for a blank, because a check that resolves nothing must not be silent |
+| `target` | yes | `loadPredictions` reads it through the same test |
+| a comparison's `fact` | yes | `conditionProblems` reads it through the same test |
+| `from` / `to` on an edge | yes | the base path reads them through the same test; a blank end is a dangling relation the renderer would drop without a word |
+| `label`, `desc`, `link`, `code`, `unit`, `origin`, `status`, `flag`, `kind` | no | no reader applies the trimmed test to them; an empty `label` is a display choice, and the enumerated ones are refused by their `enum` if they are wrong |
+
+A document cannot pass the gate with a blank where a loader would then refuse the same field — that
+disagreement is what these rows are pinned against in `scripts/kg-contract.test.ts`.
+
 ## Predictions
 
 A forecast is a simulation, not a fact. It is a node — visible, dated, drawable — and it is the one

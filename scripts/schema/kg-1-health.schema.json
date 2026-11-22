@@ -52,6 +52,14 @@
       ]
     },
     "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "nonEmptyText": {
+      "description": "a string with something in it. Both readers of this contract trim before they answer — `isNonEmptyString` in scripts/lib/kg-contract.ts, `conditionProblems` in src/rules.ts, `loadPredictions` in src/prediction.ts — so a string of spaces is empty to them, while a bare `minLength: 1` counts it as content. A document this file accepted would then be thrown out by the loader, which is the disagreement this gate exists to prevent, so the rule is spelled once here and referred to by the fields that are read that way: a node id, a fact name, a forecast's target and source, and the two ends of an edge.",
+      "type": "string",
+      "not": {
+        "pattern": "^\\s*$",
+        "description": "must not be blank — an empty or whitespace-only string names nothing"
+      }
+    },
     "factValue": {
       "description": "one value a fact may hold, and so one value a comparison may compare it with",
       "oneOf": [{ "type": "number" }, { "type": "string" }, { "type": "boolean" }]
@@ -76,7 +84,7 @@
               "required": ["op", "value"],
               "additionalProperties": false,
               "properties": {
-                "fact": { "type": "string", "minLength": 1 },
+                "fact": { "$ref": "#/$defs/nonEmptyText" },
                 "op": { "const": "eq" },
                 "value": { "$ref": "#/$defs/factValue" }
               }
@@ -87,7 +95,7 @@
               "required": ["op", "value"],
               "additionalProperties": false,
               "properties": {
-                "fact": { "type": "string", "minLength": 1 },
+                "fact": { "$ref": "#/$defs/nonEmptyText" },
                 "op": { "const": "ne" },
                 "value": { "$ref": "#/$defs/factValue" }
               }
@@ -98,7 +106,7 @@
               "required": ["op", "value"],
               "additionalProperties": false,
               "properties": {
-                "fact": { "type": "string", "minLength": 1 },
+                "fact": { "$ref": "#/$defs/nonEmptyText" },
                 "op": { "const": "lt" },
                 "value": { "$ref": "#/$defs/factValue" }
               }
@@ -109,7 +117,7 @@
               "required": ["op", "value"],
               "additionalProperties": false,
               "properties": {
-                "fact": { "type": "string", "minLength": 1 },
+                "fact": { "$ref": "#/$defs/nonEmptyText" },
                 "op": { "const": "le" },
                 "value": { "$ref": "#/$defs/factValue" }
               }
@@ -120,7 +128,7 @@
               "required": ["op", "value"],
               "additionalProperties": false,
               "properties": {
-                "fact": { "type": "string", "minLength": 1 },
+                "fact": { "$ref": "#/$defs/nonEmptyText" },
                 "op": { "const": "gt" },
                 "value": { "$ref": "#/$defs/factValue" }
               }
@@ -131,7 +139,7 @@
               "required": ["op", "value"],
               "additionalProperties": false,
               "properties": {
-                "fact": { "type": "string", "minLength": 1 },
+                "fact": { "$ref": "#/$defs/nonEmptyText" },
                 "op": { "const": "ge" },
                 "value": { "$ref": "#/$defs/factValue" }
               }
@@ -142,7 +150,7 @@
               "required": ["op", "value"],
               "additionalProperties": false,
               "properties": {
-                "fact": { "type": "string", "minLength": 1 },
+                "fact": { "$ref": "#/$defs/nonEmptyText" },
                 "op": { "const": "in" },
                 "value": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/factValue" } }
               }
@@ -153,7 +161,7 @@
               "required": ["op"],
               "additionalProperties": false,
               "properties": {
-                "fact": { "type": "string", "minLength": 1 },
+                "fact": { "$ref": "#/$defs/nonEmptyText" },
                 "op": { "const": "exists" },
                 "value": { "not": { "description": "exists takes no value — it asks only whether the fact is there" } }
               }
@@ -224,7 +232,7 @@
       "required": ["id", "kind", "confirmed"],
       "description": "eight kinds, six of them events. An event is a fact in the record with a date in `when` and, unless it is the document itself, a `source` naming the document it came from. A summary is a virtual marker and a prediction is a simulation: both are visible, neither is an event. Fields outside this list are carried through untouched, which is how the viewer gains a key without the contract changing — and a field the contract puts on one kind (an observation's value, a condition's status) is typed only where the contract puts it.",
       "properties": {
-        "id": { "type": "string", "minLength": 1, "description": "unique and stable; never reused for different content" },
+        "id": { "$ref": "#/$defs/nonEmptyText", "description": "unique and stable; never reused for different content" },
         "label": { "type": "string" },
         "kind": {
           "enum": ["condition", "observation", "encounter", "medication", "procedure", "document", "summary", "prediction"],
@@ -235,8 +243,7 @@
           "description": "true when a human confirmed it; otherwise false and the UI says \"not confirmed\""
         },
         "source": {
-          "type": "string",
-          "minLength": 1,
+          "$ref": "#/$defs/nonEmptyText",
           "description": "id of the document node this fact came from; a document node carries none, because it is the provenance"
         },
         "when": { "$ref": "#/$defs/when" },
@@ -314,8 +321,7 @@
           "properties": {
             "kind": { "const": "prediction" },
             "target": {
-              "type": "string",
-              "minLength": 1,
+              "$ref": "#/$defs/nonEmptyText",
               "description": "id of the condition or observation this forecast is about"
             },
             "horizon": { "$ref": "#/$defs/date", "description": "the date the forecast is about — not the day it was made, which is the date printed on its source document" },
@@ -338,8 +344,8 @@
       "required": ["from", "to", "label"],
       "description": "a relation. `source` and `confidence` are carried when they are known; `valid_from`/`valid_to` when the relation itself is temporary — a relation that was true between two dates and is not true now is still a fact about the past, so it is closed, not deleted.",
       "properties": {
-        "from": { "type": "string", "minLength": 1 },
-        "to": { "type": "string", "minLength": 1 },
+        "from": { "$ref": "#/$defs/nonEmptyText" },
+        "to": { "$ref": "#/$defs/nonEmptyText" },
         "label": {
           "enum": [
             "tracks",
@@ -353,7 +359,7 @@
           ],
           "description": "the relation; the list is closed, and a new relation needs an entry in docs/DATA-CONTRACT.md first"
         },
-        "source": { "type": "string", "minLength": 1, "description": "id of the document node this relation came from" },
+        "source": { "$ref": "#/$defs/nonEmptyText", "description": "id of the document node this relation came from" },
         "confidence": { "$ref": "#/$defs/confidence" },
         "valid_from": { "$ref": "#/$defs/date" },
         "valid_to": { "oneOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }] }

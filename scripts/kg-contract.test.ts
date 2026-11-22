@@ -12,7 +12,7 @@ import {
   TEMPORAL_NODE_KINDS,
   validateKg,
 } from './lib/kg-contract'
-import { PREDICTION_FIELDS } from '../src/prediction'
+import { PREDICTION_FIELDS, loadPredictions } from '../src/prediction'
 import { conditionProblems } from '../src/rules'
 
 const FIXTURES = 'tests/fixtures/kg'
@@ -435,7 +435,11 @@ describe('a prediction is a simulation, not a fact', () => {
     ['in with an empty list', { fact: 'sex', op: 'in', value: [] }, 'in takes a non-empty list', 'at least 1 item'],
     ['in with an object in the list', { fact: 'sex', op: 'in', value: [{ sex: 'male' }] }, 'in takes a non-empty list', 'must be a number'],
     ['a leaf key that is not fact, op or value', { fact: 'age', op: 'eq', value: 40, weight: 2 }, 'unknown key "weight"', 'not part of the contract'],
-    ['an empty fact name', { fact: '', op: 'eq', value: 1 }, 'a comparison names one fact', 'must not be empty'],
+    ['an empty fact name', { fact: '', op: 'eq', value: 1 }, 'a comparison names one fact', 'must not be blank'],
+    // Both readers trim before they answer, so a fact name of spaces is empty to both. A bare
+    // `minLength: 1` reads it as content, which is how a document passed the gate and then threw.
+    ['a fact name of spaces', { fact: '   ', op: 'eq', value: 1 }, 'a comparison names one fact', 'must not be blank'],
+    ['an `exists` over a fact name of spaces', { fact: ' ', op: 'exists' }, 'a comparison names one fact', 'must not be blank'],
     ['an empty all', { all: [] }, 'can never fire', null],
     ['an empty any', { any: [] }, 'can never fire', null],
   ]
@@ -457,6 +461,62 @@ describe('a prediction is a simulation, not a fact', () => {
       }
     })
   }
+
+  /**
+   * The same disagreement, one level up from the condition. `loadPredictions` reads a prediction's
+   * own fields through the same trimmed test (`isNonEmptyString`), so a blank target, source or id
+   * has to be refused here as well — otherwise the document passes the gate and the loader throws.
+   * A blank `source` is the sharpest case: the referential check resolves an id, and an id of spaces
+   * is nothing to resolve, so before this the gate skipped the field entirely.
+   */
+  const blankOwnFields: Array<[string, (doc: ReturnType<typeof forecast>) => void]> = [
+    ['a target of spaces', (doc) => { pred(doc).target = '  ' }],
+    ['an empty target', (doc) => { pred(doc).target = '' }],
+    ['a source of spaces', (doc) => { pred(doc).source = '  ' }],
+    ['an empty source', (doc) => { pred(doc).source = '' }],
+    ['an id of spaces', (doc) => { pred(doc).id = '  ' }],
+  ]
+
+  for (const [name, blankIt] of blankOwnFields) {
+    test(`the gate and the loader both refuse a prediction with ${name}`, () => {
+      const doc = forecast()
+      blankIt(doc)
+      expect(validateKg(doc).map((issue) => issue.message).join(' | ')).toContain('must not be blank')
+      expect(() => loadPredictions(doc.nodes)).toThrow()
+    })
+  }
+
+  // A blank source and a source that points at nothing must not read alike: the schema states the
+  // rule, and the lookup then says it had nothing to resolve. The second half is the one that was
+  // missing — the guard skipped the check and the field went unreported.
+  test('a blank source is reported by the rule and by the lookup; a dangling one only by the lookup', () => {
+    const blank = forecast()
+    pred(blank).source = '   '
+    const blankIssues = validateKg(blank)
+    expect(blankIssues.map((issue) => issue.path)).toEqual([`$.nodes[${PREDICTION_KEY}].source`, `$.nodes[${PREDICTION_KEY}].source`])
+    expect(blankIssues[0].message).toContain('must not be blank')
+    expect(blankIssues[1].message).toContain('source is blank')
+
+    const dangling = forecast()
+    pred(dangling).source = 'src-gone'
+    const danglingIssues = validateKg(dangling)
+    expect(danglingIssues).toHaveLength(1)
+    expect(danglingIssues[0].message).toContain('not a node in this document')
+  })
+
+  test('a source on an edge that is blank is refused the same way', () => {
+    const doc = forecast()
+    doc.edges[0].source = '  '
+    const messages = validateKg(doc).map((issue) => issue.message).join(' | ')
+    expect(messages).toContain('must not be blank')
+    expect(messages).toContain('source is blank')
+  })
+
+  test('an edge whose end is spaces is refused — the same string rule, on a relation', () => {
+    const doc = forecast()
+    doc.edges[0].from = '   '
+    expect(validateKg(doc).map((issue) => issue.message).join(' | ')).toContain('must not be blank')
+  })
 
   test('an interval document date is compared by the day it starts', () => {
     const doc = forecast()

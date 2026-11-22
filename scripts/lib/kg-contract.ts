@@ -275,7 +275,7 @@ function crossReferences(doc: Json, health: boolean): Issue[] {
     const path = `$.edges[${index}]`
     for (const end of ['from', 'to'] as const) {
       const value = edge[end]
-      if (!isNonEmptyString(value)) continue // an absent end is reported by validateBase, or by the schema on the health path
+      if (!isNonEmptyString(value)) continue // an absent or blank end is reported by the schema ($defs.nonEmptyText), or by validateBase on the base path
       if (!byId.has(value)) {
         issues.push({ path: `${path}.${end}`, message: `edge points at "${value}", which is not a node in this document` })
       }
@@ -288,15 +288,26 @@ function crossReferences(doc: Json, health: boolean): Issue[] {
     const path = `$.nodes[${id}]`
     const kind = typeof node.kind === 'string' ? node.kind : ''
 
-    if (kind !== PROVENANCE_KIND && isNonEmptyString(node.source)) {
-      const parent = byId.get(node.source)
-      if (!parent) {
-        issues.push({ path: `${path}.source`, message: `source "${node.source}" is not a node in this document` })
-      } else if (parent.kind !== PROVENANCE_KIND) {
+    // Two sentences for a blank `source`, on purpose: the schema states the rule ($defs.nonEmptyText)
+    // and this says what the lookup did with it — an id of spaces names nothing, so there is nothing
+    // to resolve, and a check that quietly resolves nothing is how a fact ends up citing a document
+    // that is not there. A blank and a well-formed id that points at no node read differently.
+    if (kind !== PROVENANCE_KIND && node.source !== undefined) {
+      if (typeof node.source === 'string' && !isNonEmptyString(node.source)) {
         issues.push({
           path: `${path}.source`,
-          message: `"${node.source}" is a ${String(parent.kind)} node, not a document`,
+          message: `source is blank — a node that names no document cannot be traced to one`,
         })
+      } else if (isNonEmptyString(node.source)) {
+        const parent = byId.get(node.source)
+        if (!parent) {
+          issues.push({ path: `${path}.source`, message: `source "${node.source}" is not a node in this document` })
+        } else if (parent.kind !== PROVENANCE_KIND) {
+          issues.push({
+            path: `${path}.source`,
+            message: `"${node.source}" is a ${String(parent.kind)} node, not a document`,
+          })
+        }
       }
     }
 
@@ -317,15 +328,22 @@ function crossReferences(doc: Json, health: boolean): Issue[] {
 
   edges.forEach((edge, index) => {
     const path = `$.edges[${index}]`
-    if (isNonEmptyString(edge.source)) {
-      const parent = byId.get(edge.source)
-      if (!parent) {
-        issues.push({ path: `${path}.source`, message: `edge source "${edge.source}" is not a node in this document` })
-      } else if (parent.kind !== PROVENANCE_KIND) {
+    if (edge.source !== undefined) {
+      if (typeof edge.source === 'string' && !isNonEmptyString(edge.source)) {
         issues.push({
           path: `${path}.source`,
-          message: `edge source "${edge.source}" is a ${String(parent.kind)} node, not a document`,
+          message: 'source is blank — a relation that names no document cannot be traced to one',
         })
+      } else if (isNonEmptyString(edge.source)) {
+        const parent = byId.get(edge.source)
+        if (!parent) {
+          issues.push({ path: `${path}.source`, message: `edge source "${edge.source}" is not a node in this document` })
+        } else if (parent.kind !== PROVENANCE_KIND) {
+          issues.push({
+            path: `${path}.source`,
+            message: `edge source "${edge.source}" is a ${String(parent.kind)} node, not a document`,
+          })
+        }
       }
     }
 

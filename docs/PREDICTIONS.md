@@ -35,6 +35,14 @@ confidence; does not affect the estimate until its condition is met.* This is th
 `src/prediction.ts` (`PREDICTION_FIELDS`) and the schema's `$defs.node[prediction].required` are the
 same list, and `scripts/kg-contract.test.ts` holds them together so one cannot drift from the other.
 
+Blank is not a value. `target`, `source` and a condition's `fact` are required to name something, and
+the gate refuses `""` and `"  "` alike, because `loadPredictions` and `conditionProblems` trim before
+they answer: a forecast whose target is spaces would pass a gate that only counted characters and
+then be refused by the loader. `source` says so twice — once as the rule
+(`$defs.nonEmptyText`) and once from the check that would otherwise have resolved the id, so a blank
+source and a source that points at no node do not read alike. The full set, and why each string is in
+it or out of it, is DATA-CONTRACT §Node fields.
+
 ## It is not an event
 
 Six kinds are events and carry `when`: condition, observation, encounter, medication, procedure,
