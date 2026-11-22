@@ -62,7 +62,7 @@ const stamp = {
   fetch_url: `https://raw.githubusercontent.com/${slug}/${tag}/viewer.html`,
 }
 
-const stampFile = join(tmpdir(), `kg-viewer-${process.pid}.version`)
+const stampFile = join(tmpdir(), `health-viewer-${process.pid}.version`)
 writeFileSync(stampFile, JSON.stringify(stamp, null, 2) + '\n')
 
 // --- build the dist commit without touching this worktree -------------------

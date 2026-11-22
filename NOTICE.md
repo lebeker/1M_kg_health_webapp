@@ -12,8 +12,11 @@ licence, and where the licence text lives. The full texts sit in `LICENSES/`.
 | `body/models/skin-female2.glb`, `body/models/repair/female-surface-fitted.blend`, the fitted female surface under `body/models/repair/` | the female body surface | **CC0 1.0** — no conditions | `LICENSES/CC0-1.0.txt` |
 | `body/models/reproductive-female.glb`, `body/models/repair/female-repair.blend`, `body/models/repair/female-repair-v3.blend`, `body/models/repair/female-system-v2.blend` | the female reproductive geometry authored in this repository | **MIT**, same as the code | `LICENSE` |
 | `*.md`, `docs/` (including the wireframes and the published case pages) | documentation and design material | **MIT**, same as the code | `LICENSE` |
-| `body/lib/three.min.js`, `body/lib/OrbitControls.js`, `body/lib/GLTFLoader.js` | three.js r146 and two of its examples | **MIT**, © 2010-2022 Three.js Authors | header of each file |
-| `body/lib/d3-*.min.js` | d3-force-3d and the d3 modules it needs | **ISC**, © Mike Bostock, © Vasco Asturiano | header of each file |
+| `body/lib/three.min.js` | three.js r146, the renderer | **MIT**, © 2010-2022 three.js authors — this file does carry its own SPDX notice | `LICENSES/MIT-three-examples.txt`, and its header |
+| `body/lib/OrbitControls.js`, `body/lib/GLTFLoader.js` | two of three.js's own examples, vendored unminified | **MIT**, © 2010-2022 three.js authors — neither file carries a notice of its own, so this row is the only notice that travels | `LICENSES/MIT-three-examples.txt` |
+| `body/lib/d3-dispatch.min.js`, `body/lib/d3-quadtree.min.js`, `body/lib/d3-timer.min.js` | the d3 v3.0.1 modules the force layout needs | **ISC**, © 2010-2021 Mike Bostock — the files name the holder but not the licence | `LICENSES/ISC-d3.txt` |
+| `body/lib/d3-force-3d.min.js` | d3-force-3d v3.0.6, the force layout itself | **MIT**, © 2017 Vasco Asturiano — **not** ISC; the minified file carries a URL and no notice | `LICENSES/MIT-d3-force-3d.txt` |
+| `body/lib/d3-octree.min.js` | d3-octree v1.1.0, the layout's spatial index | **MIT**, © 2017 Vasco Asturiano — **not** ISC; the minified file carries a URL and no notice | `LICENSES/MIT-d3-octree.txt` |
 | `node_modules/` (installed, never shipped) | sigma, graphology, 3d-force-graph, React, Vite, Biome, TypeScript | each under the licence declared by its own package (`MIT`, `ISC`, `Apache-2.0`) | that package's `LICENSE` |
 
 The published viewer artefact carries code only — `dist/index.html`, `app.json` and
@@ -30,8 +33,8 @@ never reads. `body/README.md` keeps the model-by-model detail; this is the line 
   The layers `bones`, `muscles`, `cardio`, `nervous`, `lymphoid`, `organs`, `skin` and `skinbits`
   are exports of its atlas. Licensed **CC BY-SA 4.0**.
 - **BodyParts3D** — the Database Center for Life Science (DBCLS), Japan —
-  <https://dbarchive.biosciencedbc.jp/en/bodyparts3d/> — the open atlas Z-Anatomy is based in part
-  on. Original set licensed **CC BY-SA 2.1 JP**.
+  <https://dbarchive.biosciencedbc.jp/en/bodyparts3d/desc.html> — the open atlas Z-Anatomy is based
+  in part on. Original set licensed **CC BY-SA 2.1 JP**.
 - **Blender Studio — Human Base Meshes v1.2.0** — <https://www.blender.org/download/demo-files/> —
   the base for the fitted female surface (`skin-female2.glb`). Licensed **CC0 1.0**.
 - **"Body female realistic"** — a body scan on Wikimedia Commons by Dan Ulrich, Paul Kotelevets,
@@ -39,8 +42,12 @@ never reads. `body/README.md` keeps the model-by-model detail; this is the line 
   as a source. Licensed **CC0 1.0**.
 - **three.js** — <https://threejs.org> — rendered the layers, the organ nodes and the edges, and
   produced the inspection renders in `body/shots/`. Licensed **MIT**.
-- **d3** — <https://d3js.org> — the force layout behind the graph view, and **d3-force-3d** by Vasco
-  Asturiano — <https://github.com/vasturiano/d3-force-3d>. Licensed **ISC**.
+- **d3** — <https://d3js.org> — the d3 v3 modules behind the graph view (`d3-dispatch`,
+  `d3-quadtree`, `d3-timer`), licensed **ISC**, © Mike Bostock; and **d3-force-3d** /
+  **d3-octree** by Vasco Asturiano — <https://github.com/vasturiano/d3-force-3d>,
+  <https://github.com/vasturiano/d3-octree> — licensed **MIT**, © 2017 Vasco Asturiano. The two are
+  often assumed to be one licence because they are vendored side by side in `body/lib/`; they are
+  not, and the rows above name the right one for each file.
 
 The 104-organ export, the eight layered exports, the female reproductive geometry and everything
 under `body/tools/` were authored in this repository; `HISTORY.md` records what was tried and what

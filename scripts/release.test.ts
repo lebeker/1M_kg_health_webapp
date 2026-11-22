@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 /**
@@ -21,8 +21,10 @@ import { join } from 'node:path'
  *      share-alike licence that is not stated is a redistribution nobody can legally make.
  *
  *   3. **attribution** — the CC BY-SA models must name Z-Anatomy and BodyParts3D wherever they
- *      travel, and the vendored libraries keep their own notices. The credits sit at the root
- *      because a redistributor reads the root, not `body/README.md`.
+ *      travel, at an address that answers, and every vendored library must be mapped to the
+ *      licence its own package declares — not to a licence text that is assumed to be in a file
+ *      header. The credits sit at the root because a redistributor reads the root, not
+ *      `body/README.md`.
  *
  *   4. **models** — `body/models/` is content, not build output: the page loads sixteen GLBs and a
  *      fresh clone must render them without a network call. So `.gitignore` keeps rebuild
@@ -54,6 +56,56 @@ function shippedModels(): string[] {
   const loose = [...page.matchAll(/loadFile\(\s*"[a-z-]+",\s*"([a-z0-9-]+)"/g)].map((m) => m[1])
   return [...new Set([...rows, ...loose])].sort()
 }
+
+/**
+ * `NOTICE.md` is a table of path → licence → text. These read it as data so the tests can hold the
+ * map to something outside itself instead of asking whether some string appears somewhere in it.
+ */
+function noticeRows(): string[][] {
+  return read('NOTICE.md')
+    .split('\n')
+    .filter((line) => line.startsWith('|') && !line.includes('---'))
+    .map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()))
+    .filter((cells) => cells.length >= 4)
+}
+
+/** The row covering a path; siblings may share one row (`a.js`, `b.js`). */
+const noticeRowFor = (path: string) =>
+  noticeRows().find((cells) => cells[0].includes(`\`${path}\``))
+
+/** The clause that makes a text *that* licence, so a pointer at the wrong file fails. */
+const LICENCE_CLAUSE: Record<string, string> = {
+  MIT: 'Permission is hereby granted, free of charge',
+  ISC: 'Permission to use, copy, modify, and/or distribute this software',
+  CC0: 'Statement of Purpose',
+  'CC BY-SA': 'Creative Commons Attribution-ShareAlike 4.0 International Public License',
+}
+
+/** The licence a map row names first: `**MIT**, © …` → `MIT`. */
+function licenceIn(cell: string): string | undefined {
+  const bold = cell.match(/\*\*([^*]+)\*\*/)?.[1] ?? ''
+  return Object.keys(LICENCE_CLAUSE).find((name) => bold.startsWith(name))
+}
+
+/**
+ * The vendored files, the npm package each was copied from, the licence that package declares and
+ * the copyright holder that must travel with it. The d3 files are deliberately listed one by one:
+ * three of them are ISC (Mike Bostock) and two are MIT (Vasco Asturiano), and a single row for
+ * `d3-*.min.js` is exactly how a redistributor ends up carrying the wrong licence.
+ */
+const VENDORED = [
+  { file: 'body/lib/three.min.js', pkg: 'three', licence: 'MIT', holder: 'three.js authors' },
+  { file: 'body/lib/OrbitControls.js', pkg: 'three', licence: 'MIT', holder: 'three.js authors' },
+  { file: 'body/lib/GLTFLoader.js', pkg: 'three', licence: 'MIT', holder: 'three.js authors' },
+  { file: 'body/lib/d3-dispatch.min.js', pkg: 'd3-dispatch', licence: 'ISC', holder: 'Mike Bostock' },
+  { file: 'body/lib/d3-quadtree.min.js', pkg: 'd3-quadtree', licence: 'ISC', holder: 'Mike Bostock' },
+  { file: 'body/lib/d3-timer.min.js', pkg: 'd3-timer', licence: 'ISC', holder: 'Mike Bostock' },
+  { file: 'body/lib/d3-force-3d.min.js', pkg: 'd3-force-3d', licence: 'MIT', holder: 'Vasco Asturiano' },
+  { file: 'body/lib/d3-octree.min.js', pkg: 'd3-octree', licence: 'MIT', holder: 'Vasco Asturiano' },
+]
+
+/** The pure modules authored here; everything else in `body/lib/` came from somewhere else. */
+const OUR_MODULES = new Set(['main-view.js', 'state-list.js', 'timeline-step.js'])
 
 describe('rename: one identity, and it is the health map', () => {
   test('the package is the app, not the science viewer it was copied from', () => {
@@ -117,26 +169,67 @@ describe('licences: a collection, with each part stated', () => {
 })
 
 describe('attribution: the credits travel with the models', () => {
-  test('Z-Anatomy and BodyParts3D are named, with where to find them', () => {
+  test('Z-Anatomy and BodyParts3D are named, at an address that answers', () => {
     const notice = read('NOTICE.md')
     expect(notice).toContain('Z-Anatomy')
     expect(notice).toContain('https://github.com/Z-Anatomy/Models-of-human-anatomy')
     expect(notice).toContain('BodyParts3D')
     expect(notice).toContain('Database Center for Life Science')
-    expect(notice).toContain('https://dbarchive.biosciencedbc.jp/en/bodyparts3d/')
+    // The archive's index page for BodyParts3D (`…/bodyparts3d/`) returns 404 as of 2026-11-22;
+    // `desc.html` is the page that returns 200, so that is the address the credit carries. Pinning
+    // the dead URL instead would make this suite complicit in the dead link rather than a check
+    // on it.
+    expect(notice).toContain('https://dbarchive.biosciencedbc.jp/en/bodyparts3d/desc.html')
+    expect(notice).not.toContain('dbarchive.biosciencedbc.jp/en/bodyparts3d/>')
   })
 
-  test('the CC0 surface names its authors, and the vendored libraries keep their notices', () => {
+  test('the CC0 surface names its authors, and the one file with its own notice keeps it', () => {
     const notice = read('NOTICE.md')
     for (const name of ['Dan Ulrich', 'Paul Kotelevets', 'Tonatiuh de San Julián', 'Julien Kaspar'])
       expect(notice).toContain(name)
     expect(notice).toContain('Blender Studio')
     expect(notice).toContain('three.js')
     expect(notice).toContain('d3')
-    // the files themselves still carry the notices the notice points at
+    // of the eight vendored files this is the only one that actually carries a notice; the rest
+    // are covered by the texts in `LICENSES/`, which the next test holds to the packages
     expect(read('body/lib/three.min.js')).toContain('SPDX-License-Identifier: MIT')
-    expect(read('body/lib/d3-quadtree.min.js')).toContain('Mike Bostock')
-    expect(read('body/lib/d3-force-3d.min.js')).toContain('vasturiano/d3-force-3d')
+  })
+
+  test('every vendored file is mapped to the licence its own package declares', () => {
+    for (const { file, pkg, licence, holder } of VENDORED) {
+      const row = noticeRowFor(file)
+      expect(row, `${file}: no row in NOTICE.md`).toBeDefined()
+      const cells = row ?? ['', '', '', '']
+      expect(licenceIn(cells[2]), `${file}: NOTICE.md names the wrong licence`).toBe(licence)
+
+      // the text cell has to name a file that exists, that is that licence, and that carries the
+      // holder — "see the header" is not a notice when the header has no notice in it
+      const texts = [...cells[3].matchAll(/`(LICENSES\/[^`]+)`/g)].map((m) => m[1])
+      expect(texts.length, `${file}: the map's text cell names no licence text`).toBeGreaterThan(0)
+      for (const text of texts) {
+        expect(existsSync(join(ROOT, text)), `${text} does not exist`).toBe(true)
+        const body = read(text)
+        expect(body, `${text} is not a ${licence} text`).toContain(LICENCE_CLAUSE[licence] ?? '\u0000')
+        expect(body.toLowerCase(), `${text} does not name ${holder}`).toContain(holder.toLowerCase())
+      }
+
+      // …and the package the file came from declares the same licence, so the map cannot drift
+      // away from upstream without this failing. Licence only: the vendored three is r146 while
+      // the installed one is 0.186.x, so the versions legitimately differ.
+      const manifest = `node_modules/${pkg}/package.json`
+      expect(existsSync(join(ROOT, manifest)), `${manifest} is missing — run \`bun install\``).toBe(true)
+      expect(json<{ license: string }>(manifest).license, `${pkg} declares`).toBe(licence)
+      const upstream = read(`node_modules/${pkg}/LICENSE`)
+      expect(upstream, `node_modules/${pkg}/LICENSE`).toContain(LICENCE_CLAUSE[licence] ?? '\u0000')
+    }
+  })
+
+  test('no file vendored into body/lib is left off the map', () => {
+    const mapped = new Set(VENDORED.map(({ file }) => file.replace('body/lib/', '')))
+    const inLib = readdirSync(join(ROOT, 'body/lib'))
+      .filter((name) => name.endsWith('.js') && !OUR_MODULES.has(name))
+      .sort()
+    expect(inLib).toEqual([...mapped].sort())
   })
 
   test('the model-specific detail keeps a pointer back to the root notice', () => {

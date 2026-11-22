@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "kg-viewer",
+      "name": "health-viewer",
       "dependencies": {
         "3d-force-graph": "^1.80.1",
         "graphology": "^0.26.0",
