@@ -239,9 +239,10 @@ function printHelp(to: (line: string) => void = console.log) {
   --files <path>...    instead of a commit: say whether this diff needs a run at all
   --json               print the result as JSON
 
-Exit 0 = a clean, passing, policy-complete run exists for that commit, or (with --files) at
-least one of the paths is app surface. Exit 1 = it does not, or (with --files) the diff is not
-app surface — and the reason is the one sentence printed. No run is ever invented here.`)
+Exit 0 = a clean, passing, policy-complete run exists for that commit, or (with --files) the
+question was answered: the list needs a run, or it does not. Exit 1 = no such run exists, or
+--files was given no paths to ask about, or a flag was unusable — the reason is the one sentence
+printed. No run is ever invented here.`)
 }
 
 export type GateIo = { out: (line: string) => void; err: (line: string) => void }

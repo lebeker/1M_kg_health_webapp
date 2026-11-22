@@ -83,14 +83,21 @@ function hasExpect(body: string): boolean {
  * on the board, so "a product card without a user question" has one definition.
  *
  * `surface` is what the caller knows about the paths: the draft's own list, or the `## surface`
- * section of a body that already exists. When it is empty the card is not a product card and
- * only the block/expect pair is checked for consistency.
+ * section of a body that already exists. Three states, and the difference matters:
+ * an array with surface paths is a product card, an empty array is a card that says it is not,
+ * and `null` is a card that never said. `null` is a problem, not an exemption — reading silence as
+ * "touches no surface" is how every card on the board came back "fine" while none of them was
+ * checked (review round 2, defect 1).
  */
-export function shapeProblems(input: { body: string; surface: string[] }): ShapeProblem[] {
+export function shapeProblems(input: { body: string; surface: string[] | null }): ShapeProblem[] {
   const problems: ShapeProblem[] = []
-  const product = appSurface(input.surface).length > 0
+  if (input.surface === null) {
+    problems.push({ problem: 'carries no `## surface` section, so whether it is a product card is unchecked — it has to name the paths it changes before it can be called exempt' })
+  }
+  const surface = input.surface ?? []
+  const product = appSurface(surface).length > 0
   if (product && !hasE2eBlock(input.body)) {
-    problems.push({ problem: `it changes ${input.surface.join(', ')}, so it needs a \`## e2e\` block with a user's question` })
+    problems.push({ problem: `it changes ${surface.join(', ')}, so it needs a \`## e2e\` block with a user's question` })
   }
   if (hasE2eBlock(input.body) && !hasExpect(input.body)) {
     problems.push({ problem: 'its `## e2e` block states no `expect:` text, so the run cannot check the card\'s own claim' })
@@ -104,19 +111,53 @@ function board(args: string[]): string {
   return execFileSync('hermes', ['kanban', ...args], { encoding: 'utf8', env }).trim()
 }
 
-function stamp(cardId: string, e2e: { prompt: string; expect: string[] }): string {
-  const card = readCard(cardId)
-  if (/^##\s*e2e\s*$/im.test(card.body)) throw new Error(`${card.id} already carries an \`## e2e\` block; edit it instead of stamping a second one`)
+/** A `## surface` section built from the paths the caller says the card will change. */
+export function surfaceSection(paths: string[]): string {
+  return ['## surface', ...appSurface(paths).map((hit) => `- ${hit.path} — ${hit.area}`)].join('\n')
+}
+
+/** Put a block after a `## <name>` section, so a stamped card reads in the same order as a rendered one. */
+function insertAfterSection(body: string, name: string, chunk: string): string {
+  const heading = new RegExp(`^##\\s*${name}\\s*$`, 'im').exec(body)
+  if (!heading) return `${body.trimEnd()}\n\n${chunk}\n`
+  const start = heading.index + heading[0].length
+  const next = /^##\s/m.exec(body.slice(start))
+  // The section runs to the next `## ` heading or the end of the body; everything in it stays.
+  const at = next ? start + next.index : body.length
+  const head = body.slice(0, at).trimEnd()
+  const tail = next ? `\n\n${body.slice(at).trimStart()}` : ''
+  return `${head}\n\n${chunk}${tail}\n`
+}
+
+/**
+ * The stamped body: the `## e2e` block, and — when the card never said what it touches — the
+ * `## surface` section the check reads. A card cannot be stamped exempt by silence, so `--path`
+ * is required in exactly that case, and refused when none of the paths is app surface: then the
+ * card is genuinely not a product card and needs no block at all.
+ */
+export function stampBody(body: string, e2e: { prompt: string; expect: string[] }, paths: string[]): string {
+  if (/^##\s*e2e\s*$/im.test(body)) throw new Error('it already carries an `## e2e` block; edit it instead of stamping a second one')
   const block = e2eBlock(e2e)
-  const body = card.body.includes('## surface')
-    ? card.body.replace(/(^##\s*surface\s*$[\s\S]*?)(?=^##\s)/m, `$1\n${block}\n\n`)
-    : `${card.body.trimEnd()}\n\n${block}\n`
-  board(['edit', card.id, '--body', body])
+  if (surfacePaths(body) !== null) return insertAfterSection(body, 'surface', block)
+  const surface = appSurface(paths)
+  if (surface.length === 0) {
+    throw new Error(
+      paths.length === 0
+        ? 'it carries no `## surface` section: pass --path for each file it will change, so the card says what it touches instead of leaving the question unchecked'
+        : `none of ${paths.join(', ')} is app surface, so the card needs no \`## surface\` or \`## e2e\` block — stamp nothing`,
+    )
+  }
+  return `${body.trimEnd()}\n\n${surfaceSection(paths)}\n\n${block}\n`
+}
+
+function stamp(cardId: string, e2e: { prompt: string; expect: string[] }, paths: string[]): string {
+  const card = readCard(cardId)
+  board(['edit', card.id, '--body', stampBody(card.body, e2e, paths)])
   return card.id
 }
 
-function printHelp() {
-  console.log(`usage: bun scripts/card-template.ts [options]
+function printHelp(to: (line: string) => void = console.log) {
+  to(`usage: bun scripts/card-template.ts [options]
 
   --jira <KEY>          Jira key, e.g. SCRUM-16
   --title <text>        card title
@@ -130,13 +171,32 @@ function printHelp() {
   --create [--assignee <profile>]   create the card on the board (refuses a product card with no prompt)
 
   bun scripts/card-template.ts --check <task-id>    does this card still carry its claim?
-  bun scripts/card-template.ts --stamp <task-id> --prompt "..." --expect "..."
+  bun scripts/card-template.ts --stamp <task-id> --prompt "..." --expect "..." [--path <path>...]
+
+--check exits 0 only when the card's own \`## surface\` section says what it touches and the answer
+is complete: a product card with a question, or a card that names no product path. A card with no
+\`## surface\` section at all is exit 2 — silence is not an exemption — and --stamp writes the
+section, which is why --path is required when the card has none.
 
 A product card with no user question is refused, so the card that runs no e2e is the card that
 does not exist.`)
 }
 
-function main(argv: string[]): number {
+export type CardIo = { out: (line: string) => void; err: (line: string) => void }
+
+const CONSOLE_IO: CardIo = { out: (line) => console.log(line), err: (line) => console.error(line) }
+
+export function main(argv: string[], io: CardIo = CONSOLE_IO): number {
+  try {
+    return run(argv, io)
+  } catch (error) {
+    // One sentence, no stack: a refusal is an answer, not a crash.
+    io.err(error instanceof Error ? error.message : String(error))
+    return 1
+  }
+}
+
+function run(argv: string[], io: CardIo): number {
   const draft: CardDraft = { jira: '', title: '', acceptance: '', paths: [], e2e: { prompt: '', expect: [] } }
   let json = false
   let create = false
@@ -193,7 +253,7 @@ function main(argv: string[]): number {
         break
       case '--help':
       case '-h':
-        printHelp()
+        printHelp(io.out)
         return 0
       default:
         throw new Error(`unknown argument ${arg}`)
@@ -202,37 +262,40 @@ function main(argv: string[]): number {
 
   if (check) {
     const card = readCard(check)
-    const problems = shapeProblems({ body: card.body, surface: surfacePaths(card.body) ?? [] })
+    // The section, exactly as the card states it: `null` is a card that never said what it
+    // touches, and that is a problem, not an exemption (it used to answer "fine — touches no
+    // surface" for every card on the board, which carried no section at all).
+    const problems = shapeProblems({ body: card.body, surface: surfacePaths(card.body) })
     if (problems.length === 0) {
-      console.log(`${card.id}: fine — ${card.prompt ? 'carries its own question' : 'touches no surface'}`)
+      io.out(`${card.id}: fine — ${card.prompt ? 'carries its own question' : 'its `## surface` section names no product path, so it runs no e2e'}`)
       return 0
     }
-    for (const problem of problems) console.error(`${card.id}: ${problem.problem}`)
-    console.error('  fix it: bun scripts/card-template.ts --stamp <task-id> --prompt "..." --expect "..."')
+    for (const problem of problems) io.err(`${card.id}: ${problem.problem}`)
+    io.err('  fix it: bun scripts/card-template.ts --stamp <task-id> --prompt "..." --expect "..." [--path <path it changes>]')
     return 2
   }
 
   if (stampId) {
     if (!draft.e2e.prompt || draft.e2e.expect.length === 0) {
-      console.error('--stamp needs --prompt and at least one --expect')
+      io.err('--stamp needs --prompt and at least one --expect')
       return 2
     }
-    console.log(stamp(stampId, draft.e2e))
+    io.out(stamp(stampId, draft.e2e, draft.paths))
     return 0
   }
 
   if (!draft.jira || !draft.title) {
-    printHelp()
+    printHelp(io.out)
     return 1
   }
   const body = renderCard(draft)
   const problems = shapeProblems({ body, surface: draft.paths })
   if (problems.length > 0) {
-    for (const problem of problems) console.error(`refused: ${problem.problem}`)
+    for (const problem of problems) io.err(`refused: ${problem.problem}`)
     return 2
   }
   if (json) {
-    console.log(JSON.stringify({ body, surface: appSurface(draft.paths) }, null, 2))
+    io.out(JSON.stringify({ body, surface: appSurface(draft.paths) }, null, 2))
     return 0
   }
   if (!create) {
@@ -241,7 +304,7 @@ function main(argv: string[]): number {
   }
   const file = join(mkdtempSync(join(tmpdir(), 'card-create-')), 'body.md')
   writeFileSync(file, body)
-  console.log(board(['create', draft.title, '--body-file', file, '--assignee', assignee, '--completion-contract', 'local-only']))
+  io.out(board(['create', draft.title, '--body-file', file, '--assignee', assignee, '--completion-contract', 'local-only']))
   return 0
 }
 

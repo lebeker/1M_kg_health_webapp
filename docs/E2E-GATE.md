@@ -13,7 +13,7 @@ own head, and that status is posted by exactly one thing: `bun run e2e` passing 
 
 | # | Where | What it does | What it cannot do |
 |---|---|---|---|
-| 1 | `scripts/card-template.ts` | a card that names app-surface paths and carries no `## e2e` block is refused before it exists | it only speaks for cards created through it |
+| 1 | `scripts/card-template.ts` | a card that names app-surface paths and carries no `## e2e` block is refused before it exists; `--check` asks the same of a card already on the board, and a card carrying no `## surface` section is reported as unchecked (exit 2), not as exempt | the `## surface` section is still the card's own claim — a card that writes `- none` is taken at its word until CI looks at its actual diff |
 | 2 | `.github/workflows/verify.yml` → `scripts/e2e/ci-gate.ts` | on a pull request, if the diff touches the surface and there is no green `e2e` status on the head, `verify` fails | GitHub still cannot run the agent, so the run itself is local |
 | 3 | branch protection | `verify` is a required check on `main`; red `verify` means no merge, and auto-merge waits instead of landing | the required list is admin-only, so this file cannot read it back |
 | 4 | `scripts/e2e/run.ts` | a passing run attaches its evidence to the card and posts the receipt; a red run posts `failure`, comments, and moves the card out of `review` | a card a live worker holds is blocked, not reopened — the worker owns that transition |
@@ -99,3 +99,12 @@ request.
 - The CI step waits up to ten minutes for the status, because a worker pushes before it runs. A
   run that takes longer than that leaves `verify` red until it is re-run — the failure message says
   so, and re-running the job is the fix.
+- **The gate does not gate itself.** `scripts/e2e/**`, `scripts/card-template.ts` and
+  `.github/workflows/verify.yml` sit outside `APP_SURFACE`, so a pull request that deletes the
+  receipt step from `verify.yml`, or makes `ci-gate.ts` exit 0, is a change to the gate itself that
+  merges on an ordinary second-identity approval with no clean-room run behind it — `bun
+  scripts/e2e/gate.ts --files scripts/e2e/ci-gate.ts .github/workflows/verify.yml` says `no e2e
+  needed`. The reviewer of a diff that touches those paths therefore checks the receipt step and
+  `ci-gate.ts` by hand. Whether they should join the surface list (cost: a clean-room run for every
+  gate-maintenance branch) is an owner trade-off recorded on card t_036c0001, not something this
+  list decides by itself.

@@ -251,6 +251,19 @@ describe('the command line answers the question it advertises', () => {
     expect(result.stdout.join('\n')).toContain('no e2e needed')
   })
 
+  test('the help text says the same exit codes the code does', () => {
+    const result = cli(['--help'])
+    expect(result.code).toBe(0)
+    const text = result.stdout.join('\n').replace(/\s+/g, ' ')
+    // "does this diff need a run" is an answer either way, so both outcomes are exit 0; only a
+    // missing run, no paths, or an unusable flag is exit 1.
+    expect(text).toContain('the question was answered')
+    expect(text).not.toContain('the diff is not app surface')
+    const nonSurface = cli(['--files', 'docs/PLAN.md'])
+    expect(nonSurface.code).toBe(0)
+    expect(nonSurface.stdout.join('\n')).toContain('no e2e needed')
+  })
+
   test('--files with no paths is a usage error, never an exemption', () => {
     const result = cli(['--files'])
     expect(result.code).toBe(1)

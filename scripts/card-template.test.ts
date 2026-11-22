@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { e2eBlock, renderCard, shapeProblems, surfacePaths } from './card-template'
+import { e2eBlock, main, renderCard, shapeProblems, stampBody, surfacePaths } from './card-template'
 import { parseCard, readCard } from './e2e/card'
 
 const product = {
@@ -67,13 +67,107 @@ describe('a product card carries its own question, before anybody writes prose',
     expect(shapeProblems({ body: stamped, surface: surfacePaths(stamped) ?? [] })).toHaveLength(1)
   })
 
-  test('a body with no surface section is not silently treated as a product card', () => {
+  test('a body with no surface section is an unchecked card, not an exempt one', () => {
     expect(surfacePaths('# a card\n\nsome prose')).toBeNull()
-    expect(shapeProblems({ body: '# a card', surface: surfacePaths('# a card') ?? [] })).toHaveLength(0)
+    const problems = shapeProblems({ body: '# a card', surface: surfacePaths('# a card') })
+    expect(problems).toHaveLength(1)
+    expect(problems[0].problem).toContain('## surface')
+    expect(problems[0].problem).toContain('unchecked')
+    // A card that has said it touches nothing is still exempt: the section is the answer, and
+    // an empty list is an answer whereas `null` is silence.
+    expect(shapeProblems({ body: '# a card', surface: [] })).toHaveLength(0)
   })
 
   test('the parsed card keeps the mode when a card is marked light', () => {
     const card = parseCard(`${renderCard(product)}\n\ne2e: light\n`, 'T05')
     expect(card.mode).toBe('light')
+  })
+})
+
+/** Run the CLI with its output captured, so a test reads what a person would read. */
+function cli(argv: string[]): { code: number; stdout: string[]; stderr: string[] } {
+  const stdout: string[] = []
+  const stderr: string[] = []
+  const code = main(argv, { out: (line) => stdout.push(line), err: (line) => stderr.push(line) })
+  return { code, stdout, stderr }
+}
+
+/** A card as a file, which `readCard` accepts wherever it accepts a task id. */
+function cardFile(body: string): string {
+  const dir = mkdtempSync(join(tmpdir(), 'card-template-cli-'))
+  const path = join(dir, 'card.md')
+  writeFileSync(path, body)
+  return path
+}
+
+/** A card written before this template existed: prose, no `## surface`, no `## e2e`. */
+const bare = '# T07 — Date-addressable timeline\n\nput the timeline on a date, not a scroll order\n'
+
+describe('--check answers for the card on the board, not for the template', () => {
+  test('a card carrying no `## surface` section is unchecked: exit 2, not "fine"', () => {
+    const result = cli(['--check', cardFile(bare)])
+    expect(result.code).toBe(2)
+    expect(result.stdout).toEqual([])
+    expect(result.stderr.join('\n')).toContain('## surface')
+    expect(result.stderr.join('\n')).toContain('unchecked')
+    expect(result.stderr.join('\n')).toContain('--stamp')
+  })
+
+  test('a card whose section names no product path is fine, and says which answer it gave', () => {
+    const result = cli(['--check', cardFile(renderCard({ ...product, paths: ['docs/WIDGETS.md'] }))])
+    expect(result.code).toBe(0)
+    expect(result.stdout.join('\n')).toContain('fine')
+    expect(result.stdout.join('\n')).toContain('names no product path')
+  })
+
+  test('a product card with no e2e block is exit 2 and names the paths it changes', () => {
+    const body = renderCard({ ...product, paths: ['body/index.html'] }).replace(/## e2e[\s\S]*?(?=Commit trailer)/, '')
+    const result = cli(['--check', cardFile(body)])
+    expect(result.code).toBe(2)
+    expect(result.stderr.join('\n')).toContain('body/index.html')
+    expect(result.stderr.join('\n')).toContain('## e2e')
+  })
+
+  test('the same card passes once the block is there', () => {
+    const result = cli(['--check', cardFile(renderCard(product))])
+    expect(result.code).toBe(0)
+    expect(result.stdout.join('\n')).toContain('carries its own question')
+  })
+})
+
+describe('--stamp writes what --check reads, so a stamped card is not unchecked', () => {
+  const e2e = { prompt: 'who is this record about, and how old are they', expect: ['age 65'] }
+
+  test('a card with no surface section gets the section from --path, before the block', () => {
+    const body = stampBody(bare, e2e, ['body/index.html', 'docs/PLAN.md'])
+    expect(surfacePaths(body)).toEqual(['body/index.html'])
+    expect(body.indexOf('## surface')).toBeLessThan(body.indexOf('## e2e'))
+    expect(shapeProblems({ body, surface: surfacePaths(body) })).toHaveLength(0)
+    expect(body).toContain('put the timeline on a date')
+  })
+
+  test('with no --path it refuses: silence cannot be stamped into an exemption', () => {
+    expect(() => stampBody(bare, e2e, [])).toThrow(/--path/)
+  })
+
+  test('with paths that are not app surface it refuses to write a product block at all', () => {
+    expect(() => stampBody(bare, e2e, ['docs/PLAN.md'])).toThrow(/needs no|not app surface/)
+  })
+
+  test('a card that already has a section keeps it and gets the block after it', () => {
+    const body = stampBody(renderCard({ ...product, paths: ['body/index.html'] }).replace(/## e2e[\s\S]*?(?=Commit trailer)/, ''), e2e, [])
+    expect(surfacePaths(body)).toEqual(['body/index.html'])
+    expect(body.indexOf('## surface')).toBeLessThan(body.indexOf('## e2e'))
+    expect(body).toContain('Commit trailer: `Task: SCRUM-16`.')
+  })
+
+  test('stamping a card that already carries a block is refused instead of doubling it', () => {
+    expect(() => stampBody(renderCard(product), e2e, ['body/index.html'])).toThrow(/already carries/)
+  })
+
+  test('--stamp without a prompt is exit 2 before anything is written', () => {
+    const result = cli(['--stamp', 't_00000000', '--path', 'body/index.html'])
+    expect(result.code).toBe(2)
+    expect(result.stderr.join('\n')).toContain('--prompt')
   })
 })
