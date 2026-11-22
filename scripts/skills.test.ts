@@ -113,11 +113,28 @@ describe('the code a SKILL.md carries is the code the repo tests', () => {
       expect(embedded).not.toBeNull()
       const source = readFileSync(scriptFile(skill, script), 'utf8').replace(/\n+$/, '')
       expect(embedded?.replace(/\n+$/, '')).toBe(source)
-      // It reaches the agent without a build step, so it must not import anything but stdlib.
+      // It reaches the agent without a build step, so it must not import anything but stdlib. The
+      // list is the standard library these skills actually use, not a budget: a skill that needs
+      // another stdlib module adds it here, and a third-party import has no path through.
       for (const line of source.split('\n')) {
         if (!line.startsWith('import ') && !line.startsWith('from ')) continue
         const module = line.replace(/^import |^from /, '').split(/[ .]/)[0]
-        expect(['argparse', 'json', 're', 'sys', '__future__', 'pathlib']).toContain(module)
+        expect([
+          'argparse',
+          'json',
+          're',
+          'sys',
+          '__future__',
+          'pathlib',
+          // add-prediction writes the document and asks PubMed about the PMID.
+          'datetime',
+          'html',
+          'math',
+          'os',
+          'tempfile',
+          'typing',
+          'urllib',
+        ]).toContain(module)
       }
     })
   }
