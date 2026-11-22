@@ -100,6 +100,28 @@ The rules (order, annual marker, today row) live in `lib/state-list.js`, pure an
 The body's layer rail now sits under the list in the same column; the collapse button folds the
 whole column, which is the width the stage's framing maths has always assumed.
 
+## Main view — the centre (T11)
+
+Picking a record opens it in the centre, over the body. The event decides the layout: an analysis
+opens its panel as a table (marker, value, reference, flag — a lipid panel is four rows, a single
+test is one) with the lab, its address, a link to the original scan, the plain-language meaning and
+the linked items; a diagnosis opens its verdict (an official note with doctor, clinic and links, or
+a generated one with the `not confirmed` badge and no doctor link) and, separately, what was decided
+— tests, drugs, diet, activity, restrictions; a summary opens plan versus fact, and carries no links
+and no assignments. Records that are not a state — a decision, a visit, a drug, a document — get
+their own facts instead of a panel they do not have.
+
+The four marks carry the card's meaning: the yellow triangle says check before acting (a generated
+note, or a doctor's note a later test contradicts), the skull says dangerous, do not act, a red `!`
+on an assignment says a known side effect or low trust in the generator, and a yellow `!` says
+plausible but unverified. Model advice is red until there is no alternative, a real diagnosis stands
+behind it, or the reader applied it and it helped.
+
+The rules live in `lib/main-view.js`, pure and DOM-free, so `scripts/main-view.test.ts` states them
+as data; `docs/MAIN-VIEW.md` lists the optional keys the views read. `window.__mainView()` returns
+what the page drew, for the acceptance run; the ✕ hides the view and nothing else — the record stays
+selected and its row stays marked.
+
 ## Earlier interface experiment
 
 The Forma/constellation experiment has been moved to `constellation.html`; it is not the

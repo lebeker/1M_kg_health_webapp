@@ -166,6 +166,71 @@
 .nle .small { font-size:11px; color:#8f8f9c; }
 .nbadge { display:inline-block; padding:1px 6px; border-radius:10px; font-size:10px; margin-left:6px;
           border:1px solid currentColor; }
+
+  /* widget 9: the main view. The event decides which layout fills it, so the container is one
+     box with one header and the body is rebuilt on every selection. It opens over the body: the
+     3D scene is a backdrop, not a second answer to the same question. */
+  #main { position:fixed; left:244px; top:122px; bottom:52px; width:min(700px, calc(100vw - 600px));
+    min-width:420px; z-index:5; display:flex; flex-direction:column; overflow:hidden;
+    background:rgba(12,15,19,.96); border:1px solid var(--line); border-radius:10px;
+    box-shadow:0 18px 48px rgba(0,0,0,.55); }
+  #main[hidden] { display:none; }
+  #main header { display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:8px 12px; border-bottom:1px solid var(--line); font-size:10.5px; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--mut); }
+  #main header .btn { padding:2px 6px; border:1px solid transparent; background:transparent; color:var(--mut); }
+  #main .mbody { padding:14px 16px 18px; overflow:auto; }
+  #main .mtitle { margin:0 0 2px; font-size:17px; font-weight:600; color:#eef4fa; }
+  #main .msub { color:var(--mut); font-size:11px; letter-spacing:.05em; text-transform:uppercase; margin-bottom:14px; }
+  #main .msec { font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:#7f8b98;
+    margin:18px 0 6px; padding-bottom:3px; border-bottom:1px solid #1d2630; }
+  #main .mtext { color:#cfdae5; font-size:13px; line-height:1.55; margin:8px 0 0; }
+  #main .mno { color:#7c8896; font-style:italic; font-size:12px; }
+  #main .mgap { color:#8a7a4a; font-size:11.5px; margin-top:6px; }
+  #main .mrow { display:flex; gap:8px; align-items:baseline; padding:4px 0; border-bottom:1px solid #171e26; }
+  #main .mrow:last-child { border-bottom:0; }
+  #main .mrow .mrl { color:#93a4b5; font-size:11px; min-width:74px; }
+  #main .mrow .mrv { color:#dbe6f1; font-size:12.5px; }
+  #main .mrow .mrv .mdetail { display:block; color:#93a4b5; font-size:11.5px; margin-top:1px; }
+  #main .mgroup { font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:#a9b6c3;
+    margin:10px 0 2px; }
+  /* widget 10: the whole panel as a table — a lipid panel is four rows, a single test is one */
+  #main table.mtab { width:100%; border-collapse:collapse; font-size:12.5px; margin-top:4px; }
+  #main .mtab th { text-align:left; font-weight:600; color:#8b98a6; font-size:10px; letter-spacing:.07em;
+    text-transform:uppercase; padding:0 8px 4px 0; border-bottom:1px solid #2a3542; }
+  #main .mtab td { padding:6px 8px 6px 0; border-bottom:1px solid #182029; color:#dbe6f1;
+    font-variant-numeric:tabular-nums; vertical-align:baseline; }
+  #main .mtab td.out { color:#e8a07e; }
+  #main .mtab .mcode { display:block; color:#6f7c8a; font-size:10px; letter-spacing:.03em; }
+  #main .mtab td.mk-ref { color:#93a4b5; }
+  #main .flab { border:1px solid #3d4b5a; border-radius:9px; padding:0 6px; font-size:10px; color:#cfdae5; }
+  #main .frange { color:#c9a86a; font-size:11px; }
+  /* widget 11: lab, address, the scan — and what is missing, said instead of left blank */
+  #main a.mlink { display:inline-block; color:#8fc2f0; font-size:12px; margin-top:4px; }
+  #main .mbadge { display:inline-block; border:1px solid #c9a86a; color:#e0bd7a; border-radius:10px;
+    padding:0 7px; font-size:10.5px; letter-spacing:.04em; margin-right:8px; }
+  #main .mverdict { margin:4px 0 0; }
+  #main .mwhy { color:#c9a86a; font-size:11.5px; margin-top:5px; }
+  #main .mverdict.gen .mtext { color:#c4cfda; }
+  /* the four marks, one place each: the glyph carries the meaning, the title carries the words */
+  #main .mk { font-size:13px; line-height:1; display:inline-block; margin-left:8px; }
+  #main .mk.check { color:#e8c34a; }
+  #main .mk.danger { color:#e2725b; }
+  #main .mk.red { color:#e2725b; font-weight:700; }
+  #main .mk.amber { color:#e8c34a; font-weight:700; }
+  /* widget 13: linked items are links, always */
+  #main .mlink-list { display:flex; flex-direction:column; gap:2px; }
+  #main .mlink-list button { justify-content:flex-start; gap:8px; border:1px solid transparent;
+    background:transparent; padding:4px 6px; text-align:left; }
+  #main .mlink-list button:hover { background:#18202b; border-color:#2a3542; }
+  #main .mlink-list .mlrel { color:#7f8b98; font-size:10.5px; min-width:86px; }
+  #main .mlink-list .mldate { color:#7f8b98; font-size:10.5px; margin-left:auto; }
+  #main .mlink-list .mrow, #main .mlink-list .row-link { display:flex; align-items:baseline; gap:8px;
+    padding:4px 6px; border-bottom:0; }
+  #main .mlink-list .row-link { color:#dbe6f1; text-decoration:none; margin-top:0; }
+  #main .mlink-list .row-link:hover { background:#18202b; }
+  #main .mlink-list .nolink { color:#8b98a6; font-style:italic; }
+  .srow.hl { background:#1b2532; }
 </style>
 </head>
 <body>
@@ -224,6 +289,12 @@
   </aside>
 </div>
 
+<!-- widget 9: the main view. One container in the centre; the event fills it. -->
+<section id="main" aria-label="record" hidden>
+  <header><span id="mainKicker">record</span><button class="btn" id="mainClose" title="close">✕</button></header>
+  <div class="mbody" id="mainBody"></div>
+</section>
+
 <div id="tl"><div class="track" id="tlTrack"></div></div>
 <div id="tlCard" hidden></div>
 
@@ -240,6 +311,7 @@
 <script src="lib/d3-force-3d.min.js"></script>
 <script src="lib/timeline-step.js"></script>
 <script src="lib/state-list.js"></script>
+<script src="lib/main-view.js"></script>
 <script>
 const LAYERS = [
   { id:"skin",     name:"skin · teeth · nails", color:0xe8c9a0, filesBySex:true,
@@ -267,7 +339,8 @@ const state = {
   analysisOpen:true, analysisHidden:new Set(), layersOpen:true,
   edgeOff:new Set(),         // edge types the user has hidden
   date:null,                // the day the timeline is pointing at: analyses fade with distance
-  event:null                // the record the reader picked in the left list, if any
+  event:null,               // the record the reader picked in the left list, if any
+  mainHidden:false          // ✕ on the main view: closing it is not a deselection
 };
 const EYE_OUT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
 const SHELL_OPACITY = 0.45;
@@ -864,6 +937,14 @@ function selectAnalysis(a) {
 
   panel.hidden = false;
   if (a.node) focusOn(a.node);
+  /* a document on the body is a record in the left list: opening it opens its view in the centre
+     and marks its row, so one record is never two different things in two places */
+  if (docById(a.id)) {
+    state.event = a.id;
+    state.mainHidden = false;
+    markStateRow();
+    renderMain();
+  }
 }
 
 /* The ✕ hides the panel and nothing else. Closing the panel is not a gesture that means "back to
@@ -876,6 +957,9 @@ function closePanel() {
   clearHighlight();
 }
 document.getElementById("nodeClose").onclick = closePanel;
+/* the main view's ✕ hides the view and nothing else: the record stays selected and its row stays
+   marked, because closing a view is not a deselection. */
+document.getElementById("mainClose").onclick = () => { state.mainHidden = true; renderMain(); };
 
 /* double-click any node to fly to it: the same framing a selection gets, no second camera path */
 renderer.domElement.addEventListener("dblclick", e => {
@@ -2422,6 +2506,9 @@ let ANALYSES = toAnalyses(KGDATA && KGDATA.nodes);
 /* every dated record of the document, whatever its kind: the left list reads this, the ruler and
    the marks keep reading ANALYSES, because a diagnosis has no value to paint a sphere with */
 let DOC_NODES = (KGDATA && KGDATA.nodes) || [];
+/* the relations, untouched: the main view reads `contradicts`, `treated_by` and `advised` from
+   them instead of inventing a link the document does not have */
+let DOC_EDGES = (KGDATA && KGDATA.edges) || [];
 
 /* One document in, one view out: the demo and an embedded graph are the same shape, so the
    panel, the ruler and the marks do not care which of the two arrived. */
@@ -2433,6 +2520,7 @@ function applyDocument(doc) {
   LE_BY_SEX = meta.life_expectancy || { male: 74, female: 80 };
   ANALYSES = toAnalyses(doc && doc.nodes);
   DOC_NODES = (doc && doc.nodes) || [];
+  DOC_EDGES = (doc && doc.edges) || [];
 }
 
 /* The demo is an artifact fetched on demand, not part of the page: a reader who never asks for
@@ -2700,6 +2788,7 @@ function refreshPick() {
   if (best) best.classList.add("pick");
   tlReadout();            // the date readout and the player's enabled state follow the marker
   markStateRow();         // the left list marks the record standing on the chosen date
+  renderMain();           // the centre shows that record, in the layout its event type owns
 }
 
 /* ---- the left list: what was known then, one row per record (widget 7)
@@ -2724,12 +2813,14 @@ function buildStateList() {
     t.className = "t"; t.textContent = row.note;
     el.appendChild(d); el.appendChild(t);
     el.addEventListener("click", () => {
+      state.mainHidden = false;              // picking a record opens its view again
       selectDate(dayOf(row.date), row.id);   // the ruler moves to that record's day...
       centreRow(el);                          // ...and the row stays in the middle of the list
     });
     box.appendChild(el);
   });
   markStateRow();
+  renderMain();
 }
 
 /* widget 8: exactly one row is marked. Picking a record marks that record; a date chosen on the
@@ -2754,6 +2845,284 @@ function centreRow(el) {
   if (!box || !el) return;
   const b = box.getBoundingClientRect(), r = el.getBoundingClientRect();
   box.scrollTop += (r.top - b.top) - (b.height - r.height) / 2;
+}
+
+/* ---- the main view: one view per event type, picked by the event (widget 9)
+   The rules — which view, what a marker row is, what a warning means, what belongs to a note —
+   live in `MainView` (lib/main-view.js), pure and tested. This half only decides what it looks
+   like. Nothing here writes to the document, and nothing invents a value the document lacks. */
+function docById(id) {
+  const key = String(id);
+  return DOC_NODES.find(n => n && String(n.id) === key) || null;
+}
+function mk(tag, cls, text) {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (text !== undefined && text !== null) el.textContent = String(text);
+  return el;
+}
+const MARK_GLYPH = { check: "\u26a0", danger: "\u2620", red: "!", amber: "!" };
+const MARK_WORD = {
+  check: "yellow triangle: check before acting",
+  danger: "skull: dangerous, do not act",
+  red: "red !: known side effect, or we do not trust the generator",
+  amber: "yellow !: plausible but unverified"
+};
+function markIcon(kind) {
+  if (!kind || !MARK_GLYPH[kind]) return null;
+  const s = mk("span", "mk " + kind, MARK_GLYPH[kind]);
+  s.title = MARK_WORD[kind];
+  s.dataset.mark = kind;
+  return s;
+}
+function sourceLine(label, value) {
+  const row = mk("div", "mrow");
+  row.appendChild(mk("span", "mrl", label));
+  row.appendChild(mk("span", "mrv", value));
+  return row;
+}
+function linkEl(text, href) {
+  const a = mk("a", "mlink", text);
+  a.href = href;
+  a.target = "_blank";
+  a.rel = "noreferrer";
+  return a;
+}
+/* widget 13: a link that opens the item in this view. Hovering it highlights the matching row in
+   the left list — one widget, one number, one behaviour. A linked document that never became a
+   row in the list still has a file behind it, so it opens that instead of pretending to be a
+   record; an item with neither is a relation the reader cannot act on, and it says so. */
+function linkedList(node, context) {
+  const items = MainView.linked(node, context);
+  if (!items.length) return mk("div", "mgap", "nothing else in this document points at it");
+  const box = mk("div", "mlink-list");
+  const rowOf = id => document.querySelector('#stateRows .srow[data-record="' +
+    (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+  items.forEach(item => {
+    const target = docById(item.id);
+    const isRow = STATE_ROWS.some(r => r.id === item.id);
+    const href = target && (target.scan || target.link);
+    let el;
+    if (isRow) {
+      el = mk("button");
+      el.dataset.link = item.id;
+      el.addEventListener("click", () => openLinked(item));
+      el.addEventListener("mouseenter", () => { const r = rowOf(item.id); if (r) r.classList.add("hl"); });
+      el.addEventListener("mouseleave", () => { const r = rowOf(item.id); if (r) r.classList.remove("hl"); });
+    } else if (href) {
+      el = linkEl("", href);
+      el.dataset.link = item.id;
+      el.className = "mlink row-link";
+    } else {
+      el = mk("span", "mrow nolink");
+      el.title = "this item is in the document but has no record and no file to open";
+    }
+    el.appendChild(mk("span", "mlrel", item.rel || "linked"));
+    el.appendChild(mk("span", "mlname", item.label));
+    el.appendChild(mk("span", "mldate", item.date));
+    box.appendChild(el);
+  });
+  return box;
+}
+/* A linked item is opened the same way a row is: the ruler moves to its day and it becomes the
+   record in the middle. An item the document never dated cannot be opened — it has nowhere to
+   stand on a timeline — so it says so instead of pretending. */
+function openLinked(item) {
+  if (!item || !item.date) return;
+  state.mainHidden = false;
+  selectDate(dayOf(item.date), item.id);
+}
+
+function renderAnalysis(body, node, row, context) {
+  body.appendChild(mk("h2", "mtitle", (node && (node.label || node.id)) || row.note));
+  const sub = [row.date, node && (node.panel || node.organ)].filter(Boolean);
+  body.appendChild(mk("div", "msub", sub.join(" · ")));
+
+  /* widget 10: the whole panel as a table. A lipid panel is four rows, a single test is one. */
+  const markers = MainView.markers(node);
+  if (!markers.length) {
+    body.appendChild(mk("p", "mno", "no number on this record — there is nothing to put in a table"));
+  } else {
+    const table = mk("table", "mtab");
+    const head = mk("thead");
+    const hr = mk("tr");
+    ["marker", "value", "reference", "flag"].forEach(h => hr.appendChild(mk("th", "", h)));
+    head.appendChild(hr);
+    table.appendChild(head);
+    const tbody = mk("tbody");
+    markers.forEach(m => {
+      const tr = mk("tr");
+      tr.dataset.marker = m.name;
+      const name = mk("td", "mk-name", m.name);
+      if (m.code) name.appendChild(mk("span", "mcode", m.code));
+      tr.appendChild(name);
+      tr.appendChild(mk("td", "mk-value" + (m.out ? " out" : ""),
+                        m.value + (m.unit ? " " + m.unit : "")));
+      tr.appendChild(mk("td", "mk-ref", m.reference || "—"));
+      const flag = mk("td", "mk-flag");
+      if (m.from === "lab") {
+        flag.appendChild(mk("span", "flab", m.flag));
+      } else if (m.from === "range") {
+        const word = m.ref && m.ref[1] !== null && m.value > m.ref[1] ? "above range" : "below range";
+        const f = mk("span", "frange", word);
+        f.title = "the lab printed no flag; this is the page's reading of the value against the reference";
+        flag.appendChild(f);
+      }
+      tr.appendChild(flag);
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    body.appendChild(table);
+  }
+
+  /* widget 11: where the numbers came from — and every field that is missing, said out loud */
+  body.appendChild(mk("div", "msec", "where it came from"));
+  const source = MainView.sourceOf(node, docById);
+  body.appendChild(sourceLine("lab", source.lab || "—"));
+  if (source.address) body.appendChild(sourceLine("address", source.address));
+  if (source.document) {
+    body.appendChild(sourceLine("document", source.document.label +
+      (source.document.confirmed ? "" : " · not confirmed")));
+  }
+  if (source.link) body.appendChild(linkEl("open the original scan", source.link));
+  if (source.gaps.length) body.appendChild(mk("div", "mgap", "missing: " + source.gaps.join(" · ")));
+
+  /* widget 12: what the numbers mean in human terms */
+  const meaning = MainView.meaning(node);
+  body.appendChild(mk("div", "msec", "what it means"));
+  body.appendChild(meaning ? mk("p", "mtext", meaning)
+                           : mk("p", "mno", "nobody has written down what this means yet"));
+
+  body.appendChild(mk("div", "msec", "linked items"));
+  body.appendChild(linkedList(node, context));
+}
+
+function renderDiagnosis(body, node, row, context) {
+  const verdict = MainView.verdict(node, context);
+  body.appendChild(mk("h2", "mtitle", (node && (node.label || node.id)) || row.note));
+  body.appendChild(mk("div", "msub", row.date + " · " +
+    (verdict.official ? "a doctor's note" : "a generated note") +
+    (node && node.status ? " · " + node.status : "")));
+
+  /* widget 14: the verdict. Two kinds that never mix: an official note, or a generated one. */
+  const head = mk("div", "mverdict" + (verdict.generated ? " gen" : ""));
+  if (verdict.badge) head.appendChild(mk("span", "mbadge", verdict.badge));
+  const mark = markIcon(verdict.warning === "danger" ? "danger" : verdict.warning === "check" ? "check" : "");
+  if (mark) head.appendChild(mark);
+  if (verdict.official) {
+    if (verdict.doctor) head.appendChild(sourceLine("doctor", verdict.doctor));
+    if (verdict.clinic) head.appendChild(sourceLine("clinic", verdict.clinic));
+  }
+  const officialLinks = verdict.links;
+  officialLinks.forEach(l => head.appendChild(linkEl(l.title, l.href)));
+  if (verdict.why.length) head.appendChild(mk("div", "mwhy", verdict.why.join(" · ")));
+  body.appendChild(head);
+  body.appendChild(verdict.text ? mk("p", "mtext", verdict.text)
+                                : mk("p", "mno", "the note carries no text"));
+
+  /* widget 15: what was decided — separately, and each line can carry a warning */
+  body.appendChild(mk("div", "msec", "what was decided"));
+  const decided = MainView.assignments(node, context);
+  const groups = MainView.groups.filter(g => decided[g].length);
+  if (!groups.length) {
+    body.appendChild(mk("div", "mgap", "nothing was decided in this note"));
+  }
+  groups.forEach(group => {
+    body.appendChild(mk("div", "mgroup", group));
+    decided[group].forEach(item => {
+      const line = mk("div", "mrow assignment");
+      line.dataset.assignment = item.id;
+      const g = mk("span", "mrl", item.date);
+      line.appendChild(g);
+      const v = mk("span", "mrv");
+      v.appendChild(mk("span", "mlabel", item.label));
+      if (item.detail) v.appendChild(mk("span", "mdetail", item.detail));
+      if (!item.confirmed) v.appendChild(mk("span", "mbadge", "not confirmed"));
+      line.appendChild(v);
+      const icon = markIcon(item.tone);
+      if (icon) line.appendChild(icon);
+      body.appendChild(line);
+    });
+  });
+
+  body.appendChild(mk("div", "msec", "linked items"));
+  body.appendChild(linkedList(node, context));
+}
+
+function summaryBlock(body, title, lines, empty, note) {
+  body.appendChild(mk("div", "msec", title));
+  if (lines.length) {
+    lines.forEach(line => body.appendChild(mk("div", "mrow summary", line)));
+  } else {
+    body.appendChild(mk("div", "mno", note || empty));
+  }
+}
+
+function renderSummary(body, row, node, context) {
+  const summary = MainView.summaryOf(row, node, context);
+  body.appendChild(mk("h2", "mtitle", node ? (node.label || node.id) : row.title));
+  body.appendChild(mk("div", "msub", (summary.period || row.date) +
+    (summary.generated ? " · computed at launch, not stored" : " · stored in the document")));
+  if (node && node.confirmed !== true) body.appendChild(mk("span", "mbadge", "not confirmed"));
+
+  /* widgets 16, 17, 18. A summary reports; it carries no links and no assignments, so this view
+     has none to draw — and that is the acceptance, not an omission. */
+  summaryBlock(body, "what was planned", summary.planned, "nothing was planned in this period");
+  summaryBlock(body, "what was done", summary.done, "nothing was done in this period");
+  summaryBlock(body, "went to plan", summary.held, "", "nothing held");
+  summaryBlock(body, "went to hell", summary.dropped, "", "nothing was dropped");
+  if (summary.note) body.appendChild(mk("div", "mgap", summary.note));
+}
+
+/* A record that is not a state — a decision, a visit, a drug, a document — gets its own facts,
+   never a panel or a verdict it does not have. */
+function renderRecord(body, node, row, context) {
+  body.appendChild(mk("h2", "mtitle", node ? (node.label || node.id) : row.note));
+  const sub = [row.date, row.kind];
+  if (node && node.status) sub.push(node.status);
+  body.appendChild(mk("div", "msub", sub.join(" · ")));
+  if (node && node.confirmed !== true) body.appendChild(mk("span", "mbadge", "not confirmed"));
+
+  const text = node && (node.text || node.summary || node.desc);
+  if (text) body.appendChild(mk("p", "mtext", text));
+
+  if (node) {
+    /* a record is not a lab report: it carries the document that holds it, never a lab's address */
+    body.appendChild(mk("div", "msec", "where it came from"));
+    const doc = node.source ? docById(node.source) : null;
+    if (doc) {
+      body.appendChild(sourceLine("document", String(doc.label || doc.id)));
+      const href = doc.link || doc.scan;
+      if (href) body.appendChild(linkEl("open the document", href));
+    } else if (node.source) {
+      body.appendChild(sourceLine("document", String(node.source)));
+      body.appendChild(mk("div", "mgap", "the document it names is not in this file"));
+    } else {
+      body.appendChild(mk("div", "mgap", "no document is named for this record"));
+    }
+    body.appendChild(mk("div", "msec", "linked items"));
+    body.appendChild(linkedList(node, context));
+  }
+}
+
+function renderMain() {
+  const box = document.getElementById("main");
+  const body = document.getElementById("mainBody");
+  if (!box || !body) return;
+  const row = state.event ? STATE_ROWS.find(r => r.id === state.event) : null;
+  if (!row || state.mainHidden) { box.hidden = true; return; }
+  const node = docById(row.id);
+  const view = MainView.viewOf(row, node);
+  const context = { nodes: DOC_NODES, edges: DOC_EDGES, byId: docById, today: iso(new Date()) };
+  body.innerHTML = "";
+  if (view === "analysis") renderAnalysis(body, node, row, context);
+  else if (view === "diagnosis") renderDiagnosis(body, node, row, context);
+  else if (view === "summary") renderSummary(body, row, node, context);
+  else renderRecord(body, node, row, context);
+  document.getElementById("mainKicker").textContent = row.date + " · " + view;
+  box.hidden = false;
+  box.dataset.view = view;
+  box.dataset.record = row.id;
 }
 
 function tlCard(e, d, hits) {
@@ -3021,6 +3390,32 @@ window.__selectRecord = id => {           // the row's own click path, for the a
   return { date: state.date, marked: el.classList.contains("on"), scrollTop: box.scrollTop,
            index: [...box.children].indexOf(el), rows: box.children.length };
 };
+/* the main view as data, for the acceptance run: what the page actually drew, not what it meant */
+window.__mainView = () => {
+  const box = document.getElementById("main");
+  const body = document.getElementById("mainBody");
+  if (!box || box.hidden || !body) return null;
+  const title = body.querySelector(".mtitle");
+  return {
+    view: box.dataset.view || "",
+    record: box.dataset.record || "",
+    title: title ? title.textContent : "",
+    kicker: document.getElementById("mainKicker").textContent,
+    sections: [...body.querySelectorAll(".msec")].map(s => s.textContent),
+    rows: [...body.querySelectorAll("table.mtab tbody tr")].map(tr =>
+      [...tr.children].map(td => td.textContent)),
+    marks: [...body.querySelectorAll(".mk")].map(m => m.dataset.mark + " · " + m.title),
+    badges: [...body.querySelectorAll(".mbadge")].map(b => b.textContent),
+    links: [...body.querySelectorAll(".mlink-list [data-link]")].map(b => b.dataset.link),
+    assignments: [...body.querySelectorAll(".mrow.assignment")].map(a => ({
+      id: a.dataset.assignment,
+      mark: a.querySelector(".mk") ? a.querySelector(".mk").dataset.mark : "",
+      text: a.textContent
+    })),
+    text: body.innerText
+  };
+};
+window.__mainClose = () => { document.getElementById("mainClose").click(); return Boolean(state.mainHidden); };
 </script>
 </body>
 </html>
