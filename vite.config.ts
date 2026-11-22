@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite'
+import { resolve } from 'node:path'
 import react from '@vitejs/plugin-react'
 import { viteSingleFile } from 'vite-plugin-singlefile'
 
@@ -24,6 +25,12 @@ export default defineConfig(() => {
     base: './',
     plugins: multi ? [react()] : [react(), viteSingleFile()],
     build: {
+      // The entry document is `graph.html`, not `index.html`. The repository root is what GitHub
+      // Pages serves, and the root `index.html` is the published case page (scripts/build-case.ts)
+      // — one file cannot be both, and the address a reader reaches without knowing a filename
+      // has to render the case rather than a script tag pointing at a file the site never builds.
+      // The emitted file is `dist/graph.html`, named for the page it is.
+      rollupOptions: { input: { index: resolve(import.meta.dirname, 'graph.html') } },
       outDir: multi ? 'dist-multi' : 'dist',
       emptyOutDir: true,
       target: 'es2020',

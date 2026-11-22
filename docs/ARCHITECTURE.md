@@ -79,10 +79,10 @@ This repo, and two pages in it, because a page here has two different jobs:
 
 | page | built from | what it is |
 |---|---|---|
-| `dist/index.html` | `src/` (React, `bun run build`) | the viewer a skill ships: the whole `kg/1` graph in sigma 2D and in the 3D force graph, with the notes beside it. `scripts/bundle.mjs` copies it into a skill as `assets/viewer.html` |
+| `dist/graph.html` | `src/` (React, `bun run build`, entry `graph.html`) | the viewer a skill ships: the whole `kg/1` graph in sigma 2D and in the 3D force graph, with the notes beside it. `scripts/bundle.mjs` copies it into a skill as `assets/viewer.html` |
 | `body/index.html` | hand-written, no build step | the health page: the body, the timeline, the records list, one main view per event type. Pulls its three.js and its `body/lib/*.js` modules from the folder beside it; no network |
 
-Both read a `kg/1` JSON document — `dist/index.html` whichever one it is handed, `body/index.html`
+Both read a `kg/1` JSON document — `dist/graph.html` whichever one it is handed, `body/index.html`
 one in the `kg/1-health` profile — and neither writes it.
 
 **Owns:** layout, widget behaviour, empty states, what is shown when a field is missing, and the
@@ -100,10 +100,12 @@ replaces that text and changes nothing else. `body/index.html` is that template,
 and never fetches a document. The case page is an artifact built from `kg_demo.json`:
 `bun run build:demo` writes that document into the placeholder and produces `dist/demo.html`, with the
 page's own `lib/` beside it so it opens from `file://`. `bun run build:case` writes the same page to
-`case.html` at the repository root, with one `<base>` naming `body/` where the assets live: that is the
-copy the published site serves, because `dist/` is never published and the template there would open
-empty. Nothing about the page changes with the data — same head, same scripts, same styles, one
-`<base>` — and a renderer does the same for the reader's own document.
+`index.html` and `case.html` at the repository root, with one `<base>` naming `body/` where the assets
+live: those are the copies the published site serves, because `dist/` is never published and the
+template there would open empty. `index.html` is the address a reader reaches without knowing a
+filename (Pages answers `/` with it), and `case.html` is the same bytes under the name the docs use.
+Nothing about the page changes with the data — same head, same scripts, same styles, one `<base>` —
+and a renderer does the same for the reader's own document.
 
 With a document in hand the page opens on its latest record; with no document it has no record to
 open and the centre stays closed, so the template still starts empty.

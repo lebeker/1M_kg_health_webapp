@@ -24,14 +24,14 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
-const built = join(root, 'dist', 'index.html')
+const built = join(root, 'dist', 'graph.html')
 
 const fail = (msg) => {
   console.error(msg)
   process.exit(1)
 }
 
-if (!existsSync(built)) fail('dist/index.html is missing — run `bun run build:local` first')
+if (!existsSync(built)) fail('dist/graph.html is missing — run `bun run build:local` first')
 const manifest = join(root, 'app.json')
 if (!existsSync(manifest)) fail('app.json is missing — it is the app\'s own declaration')
 

@@ -32,8 +32,10 @@ own entry document, and the builder that writes the demo artifact.
 |---|---|
 | `body/` | the page: header, timeline, columns, centre, right panel, the anatomy models it loads, the demo build and its artifact |
 | `src/` | the graph view and the node panel |
-| `index.html` | the graph page's entry document, which the viewer mounts into |
-| `scripts/build-demo.ts` | the case build: the builder that writes `dist/demo.html` |
+| `graph.html` | the graph page's entry document, which the viewer mounts into |
+| `index.html` | the published root page: what GitHub Pages answers `/` with |
+| `case.html` | the published case page, the alias the docs name |
+| `scripts/build-demo.ts`, `scripts/build-case.ts` | the case build: the builders that write `dist/demo.html` and the published root page |
 | `app.json` | the demo build: the app manifest |
 | `package.json`, the lockfile, `vite.config.*`, `tsconfig.json` | the build itself |
 

@@ -189,11 +189,14 @@ describe('the diff decides which branches need a run', () => {
     // Each of these was exempt before the first review round: the anatomy the centre and the
     // right panel are made of, the document the viewer mounts into, and the builder that emits
     // the case page. A pull request touching only one of them moved the product.
-    for (const path of ['body/models/heart.glb', 'body/models/bones.glb', 'index.html', 'scripts/build-demo.ts', 'body/constellation.html']) {
+    for (const path of ['body/models/heart.glb', 'body/models/bones.glb', 'graph.html', 'index.html', 'case.html', 'scripts/build-demo.ts', 'scripts/build-case.ts', 'body/constellation.html']) {
       expect(needsE2e([path])).toBe(true)
     }
     expect(appSurface(['body/models/heart.glb'])[0].area).toContain('centre')
-    expect(appSurface(['index.html'])[0].area).toContain('entry document')
+    expect(appSurface(['graph.html'])[0].area).toContain('entry document')
+    // the root page is what Pages answers `/` with, and it is a build output: a diff that only
+    // regenerates it still changed what a visitor to the bare address sees
+    expect(appSurface(['index.html'])[0].area).toContain('published root page')
   })
 
   test('the allowlist is exactly the things that cannot move the product on their own', () => {
