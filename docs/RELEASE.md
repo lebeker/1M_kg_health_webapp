@@ -48,7 +48,13 @@ code's licence is the root `LICENSE`.
 | the application, tools, skills, docs | MIT | `LICENSE`, `LICENSES/MIT.txt` |
 | the anatomy atlas and the layers exported from it | CC BY-SA 4.0 | `LICENSES/CC-BY-SA-4.0.txt` |
 | the female body surface | CC0 1.0 | `LICENSES/CC0-1.0.txt` |
-| vendored three.js and d3 | MIT / ISC | the header of each file under `body/lib/` |
+| vendored three.js and its two examples | MIT | `LICENSES/MIT-three-examples.txt` |
+| vendored d3 v3.0.1 modules | ISC | `LICENSES/ISC-d3.txt` |
+| vendored d3-force-3d and d3-octree | MIT | `LICENSES/MIT-d3-force-3d.txt`, `LICENSES/MIT-d3-octree.txt` |
+
+The vendored rows are separate because they are separate licences, and because the point of the
+text column is that a notice has to travel with the copy: only `three.min.js` carries one of its
+own, so for the other seven files those texts are the notice.
 
 The root `LICENSE` stays a plain MIT text: a licence a tool recognises is worth more than a licence
 with a preamble. What MIT covers, and what it does not, is `NOTICE.md`'s job.

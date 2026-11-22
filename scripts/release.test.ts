@@ -158,6 +158,17 @@ describe('licences: a collection, with each part stated', () => {
     expect(read('LICENSES/MIT.txt')).toStartWith('MIT License')
   })
 
+  test('the release note points at licence texts that exist', () => {
+    // the same defect lives in two files: `NOTICE.md` is the map, `docs/RELEASE.md` is the summary
+    // a release reader gets. Both name texts, so both are held to real files.
+    const note = read('docs/RELEASE.md')
+    const texts = [...note.matchAll(/`(LICENSES\/[^`]+)`/g)].map((m) => m[1])
+    expect(texts.length).toBeGreaterThan(2)
+    for (const text of texts) expect(existsSync(join(ROOT, text)), `${text} does not exist`).toBe(true)
+    // a licence text is a file, not a claim about a file header
+    expect(note).not.toContain('header of each file')
+  })
+
   test('NOTICE maps each kind of material to its licence and its text', () => {
     const notice = read('NOTICE.md')
     expect(notice).toContain('MIT')
