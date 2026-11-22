@@ -362,7 +362,6 @@
 
 <div class="bar">
   <b class="only-main">Body</b>
-  <button id="loadDemo" class="only-main" title="load demo/graph.json — invented records, nothing saved">load demo</button>
 
   <!-- the graph view's own chrome: back to the product, and what the view does and does not do -->
   <button id="graphBack" class="only-graph" title="back — returns to the selected date">← back</button>
@@ -2675,14 +2674,16 @@ const KGDATA = (() => {
   try { return JSON.parse(el.textContent); } catch (e) { console.warn("kg-graph: bad JSON", e); return null; }
 })();
 
-/* The page ships no records of anyone. A document arrives in one of two ways: embedded in the
-   page (`<script id="kg-graph">`, what the render command writes) or fetched from
-   demo/graph.json when the reader asks for the demo. An empty page is a valid page: no profile,
-   no analyses, an empty ruler — never somebody else's labs as the default start.
+/* Two surfaces, two rules (SCRUM-48). The checked-in page is the demo artifact: it carries no
+   document of its own, so at launch it fetches demo/graph.json and opens with the case already on
+   screen — a demo that needs a click before it has anything in it is not a demo. A rendered page
+   is the reader's own: the render command writes `<script id="kg-graph">` into a copy, and that
+   page draws the document it was handed, never the demo. A document with no records stays empty —
+   no profile, no analyses, an empty ruler — because a reader's page is not a shop window.
 
-   Neither path is user data. Nothing on this page writes to storage, so loading the demo leaves
-   an empty record of the reader's own. `scripts/demo-user.test.ts` (T23) runs this load against
-   the artifact in a clean workspace and holds that: no key written, no profile taken. */
+   Neither path is user data. Nothing on this page writes to storage, so the demo leaves an empty
+   record of the reader's own. `scripts/demo-user.test.ts` (T23) runs this load against the
+   artifact in a clean workspace and holds that: no key written, no profile taken. */
 
 /* Which nodes get a mark on the ruler and a row in the legend: something with a number and an
    organ. In the health contract that is an `observation` — one value, or a panel in `values` —
@@ -2785,15 +2786,14 @@ function applyDocument(doc) {
   DOC_EDGES = (doc && doc.edges) || [];
 }
 
-/* The demo is an artifact fetched on demand, not part of the page: a reader who never asks for
-   it never sees it, and the fetch is the only place those records come from. */
+/* The demo is the checked-in page's own case, fetched from the artifact beside it (SCRUM-48). No
+   button asks for it: opening the demo page loads it, because an empty demo is not a demo. A
+   rendered page carries its document in `#kg-graph` and never calls this. */
 let demoState = "absent";
 async function loadDemo() {
   if (demoState === "loading" || demoState === "loaded") return;
   demoState = "loading";
-  const btn = document.getElementById("loadDemo");
   const foot = document.getElementById("foot");
-  if (btn) { btn.disabled = true; btn.textContent = "loading demo…"; }
   try {
     const res = await fetch("demo/graph.json", { cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
@@ -2805,11 +2805,9 @@ async function loadDemo() {
     buildStateList();       // the left list is read from the document, and the today row is remade
     paintFade();
     demoState = "loaded";
-    if (btn) btn.textContent = "demo loaded";
     if (foot) foot.textContent = "demo · invented records, not a patient history · nothing saved";
   } catch (error) {
     demoState = "absent";
-    if (btn) { btn.disabled = false; btn.textContent = "load demo"; }
     if (foot) foot.textContent = "Could not load demo/graph.json — " + error.message;
     console.error("demo/graph.json did not load", error);
   }
@@ -2924,7 +2922,7 @@ function buildTimeline() {
     // no document, no profile: an empty ruler rather than a life made up for the reader
     const empty = document.createElement("div");
     empty.className = "empty";
-    empty.textContent = "no records yet — load the demo, or a document of your own";
+    empty.textContent = "no records yet";
     T.appendChild(empty);
     TL.winFrom = TL.winTo = null;
     TL.xw0 = TL.xw1 = TL.stepY = 0;
@@ -3906,14 +3904,17 @@ document.getElementById("layer3d").onclick = () => {
 document.getElementById("layerYes").onclick = () => { askLayer3d(false); startViewer(); };
 document.getElementById("layerNo").onclick = () => askLayer3d(false);
 
-const loadDemoBtn = document.getElementById("loadDemo");
-if (loadDemoBtn) loadDemoBtn.onclick = loadDemo;
-
 buildLegend();
 buildStateList();       // today's summary is made here, at launch, and never stored
 buildTimeline();        // the ruler is the product's: it no longer waits for the graph's models
 refreshPick();          // ends in markStateRow + renderMain — the main flow stands on its own
 tick();
+
+/* SCRUM-48: the checked-in page is the demo, and a demo opens with its case. When no renderer has
+   written a document into this copy (`#kg-graph` absent), the case is fetched now, at launch, and
+   the page opens on it — no button, no interaction. A rendered page carries its document and never
+   takes this path, so a reader's own page keeps its own start (empty or full) and fetches nothing. */
+if (!KGDATA) loadDemo();
 
 window.addEventListener("resize", () => { if (bodyBox) { buildTimeline(); refreshPick(); } });
 window.__ready = () => pending === 0 && !!bodyBox && failedFiles.length === 0;

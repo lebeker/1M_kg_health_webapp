@@ -134,9 +134,25 @@ read from the observation itself. The diet, activity and restriction lines are i
 the contract has no decision kind to hang them on. There is no stored summary and no prediction in
 the file — the page generates its annual markers (T10) and forecasts have their own fixtures.
 
-Loading it is a view and never a record: the page has no write path, so a clean reader who loads
+Loading it is a view and never a record: the page has no write path, so a clean reader who opens
 the demo still has nothing of their own stored. `scripts/demo-user.test.ts` (T23) executes the
 page's own `loadDemo` against this file with an empty storage and fails if a single key appears.
+
+### The demo page opens with the case (SCRUM-48)
+
+The checked-in `body/index.html` carries no document of its own, and that is what makes it the demo
+artifact: at launch it fetches `demo/graph.json` and opens on the case — the same timeline, the same
+47 records in the left list, the same centre view a click used to produce. There is no *load demo*
+button, because a demo that waits for a click is an empty page.
+
+A rendered page is the other surface. The render command writes the reader's document into
+`<script id="kg-graph">`, and the page draws what it was handed: it never calls `loadDemo`, and a
+document with no records keeps its empty start (no profile, an empty ruler, the records list's
+"nothing recorded yet"). The guard is one line — `if (!KGDATA) loadDemo()` — and
+`scripts/demo-user.test.ts` executes it both ways, with no document and with an empty one.
+
+The case stays the fetched artifact it was: the page never inlines it, so the checked-in file carries
+no patient history and nothing of the demo travels into a reader's rendered copy.
 
 ## Export — how a marker leaves, and how it does not
 

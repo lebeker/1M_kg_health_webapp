@@ -85,7 +85,6 @@ describe('the graph button beside the profile control (SCRUM-49)', () => {
     // the bar opens on the wordmark; the graph button is not before it any more
     expect(bar.slice(0, at('class="only-main">Body'))).not.toContain('id="openGraph"')
     expect(at('id="openGraph"')).toBeGreaterThan(at('class="only-main">Body'))
-    expect(at('id="openGraph"')).toBeGreaterThan(at('id="loadDemo"'))
   })
 
   test('it sits in the right-hand cluster, glued to the left of the profile control', () => {
@@ -142,7 +141,7 @@ describe('read-only: the viewer renders the document and cannot change it', () =
 
 describe('the main flow never requires the graph', () => {
   test('the page builds the ruler and the list at launch, and starts no viewer', () => {
-    const start = page.slice(page.indexOf('const loadDemoBtn ='));
+    const start = page.slice(page.indexOf('document.getElementById("layerNo").onclick'));
     const order = ['buildLegend()', 'buildStateList()', 'buildTimeline()', 'refreshPick()', 'tick()']
     let at = -1
     for (const call of order) {

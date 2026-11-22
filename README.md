@@ -36,10 +36,14 @@ Open it over a local server rather than `file://` — it fetches `models/*.glb` 
 
 ## The demo is not a user
 
-`body/demo/graph.json` is an invented patient (man, 65, twenty years of history). Loading it writes
-nothing into a profile: after the demo runs, the user's own workspace is still empty. That rule has
-its own test (`scripts/demo-user.test.ts`) because the one failure this product cannot survive is
-someone else's labs appearing in your health record.
+`body/demo/graph.json` is an invented patient (man, 65, twenty years of history). The checked-in
+`body/index.html` is the demo page, so it opens with that case already loaded — no button, no
+interaction. A page rendered for a reader's own document carries that document instead and never
+fetches the demo, so its empty start stays empty.
+
+Opening the demo writes nothing into a profile: after it opens, the user's own workspace is still
+empty. That rule has its own test (`scripts/demo-user.test.ts`) because the one failure this product
+cannot survive is someone else's labs appearing in your health record.
 
 ## The graph view
 

@@ -3,12 +3,13 @@ import { readFileSync } from 'node:fs'
 import { validateKg } from './lib/kg-contract'
 
 /**
- * T01 — the demo is an artifact, not part of the page.
+ * T01 — the demo is an artifact, not part of the page. SCRUM-48 — and the demo page opens with it.
  *
  * A reader who opens the viewer must not start with somebody else's lab results. The page used
  * to carry them inline (`SAMPLE_ANALYSES`, and a birth date written into a `const`), so a clean
  * start looked like a patient history. `demo/graph.json` is now the only copy, fetched when the
- * reader asks for it; the page itself starts empty.
+ * reader opens the checked-in demo page; the page itself carries no document, and a page rendered
+ * with the reader's own document starts with that document and nothing else.
  *
  * T21 — the demo case: a man of 65 with twenty years of records.
  *
@@ -156,6 +157,13 @@ describe('demo/graph.json is the case the card names', () => {
     expect(ofKind('encounter').length).toBeGreaterThan(0)
     expect(ofKind('document').length).toBeGreaterThan(0)
     expect(nodes.length).toBe(events.length) // a summary or a prediction would not be an event
+  })
+
+  test('the 47 records the demo page opens on: every dated event that is not provenance', () => {
+    // the left list is `StateList.rows`, which drops documents from the record list: 62 events
+    // minus the 15 papers behind them is the case the SCRUM-48 acceptance names.
+    expect(ofKind('document').length).toBe(15)
+    expect(events.length - ofKind('document').length).toBe(47)
   })
 
   test('twenty years: the first visit in 2006, the last note in 2026', () => {

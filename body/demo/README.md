@@ -1,11 +1,14 @@
 # body/demo/graph.json
 
 The demonstration case (T21), and the only copy of it. The page (`body/index.html`) fetches this
-file when the reader presses **load demo**; a clean start is an empty page and an empty ruler.
+file at launch and opens with it on screen (SCRUM-48): the checked-in page is the demo artifact, and
+a demo that waits for a click is an empty page. A page rendered for a reader's own `kg/1-health`
+document carries that document instead — it never fetches this one — so the demo is never what a
+reader sees in place of their own record.
 
 It is deliberately an artifact and not part of the page: somebody else's lab results must never
-be what a new reader sees first. Nothing here is saved — the page has no write path — so loading
-the demo leaves a clean reader with an empty record of their own. `scripts/demo-user.test.ts`
+be inlined into a file a reader owns. Nothing here is saved — the page has no write path — so
+opening the demo leaves a clean reader with an empty record of their own. `scripts/demo-user.test.ts`
 (T23) runs the page's own `loadDemo` against this file in a clean stub workspace and holds
 that: no key written, no profile taken, nothing to clean up afterwards.
 
