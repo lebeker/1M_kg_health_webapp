@@ -1,5 +1,6 @@
 import Graph from 'graphology'
 import forceAtlas2 from 'graphology-layout-forceatlas2'
+import type { Profile } from './profile'
 
 /**
  * kg/1 is the document format. The skill writes it, this app reads it.
@@ -28,6 +29,14 @@ export type KgMeta = {
   visuals?: KgVisuals
   /** `force` says the coordinates in the file are scratch: lay the graph out from its edges. */
   layout?: string
+  /**
+   * Who the document is about. Health documents carry `{sex, year_of_birth, name?}`; it is the only
+   * place identity lives (docs/DATA-CONTRACT.md), so nothing else in the page holds a birth year.
+   * Read through `readProfile()` in profile.ts, which says in words what is wrong when it is.
+   */
+  profile?: Profile
+  /** IANA name; without it "today" is this machine's today. */
+  timezone?: string
 }
 
 /**
@@ -494,7 +503,9 @@ export function toKg(doc: KgJson): Kg {
     // a graph gained one: a graph is data, and its reader must not impose a schema on it.
     for (const [k, v] of Object.entries(n as Record<string, unknown>)) {
       if (RESERVED_NODE_KEYS.has(k) || v === undefined || v === null) continue
-      if (typeof v === 'object' && !Array.isArray(v)) continue
+      // A nested object is a value like any other. Skipping it here is how an interval date —
+      // `when: {from, to}` — vanished before the page ever saw it, leaving a condition with no
+      // date at all. The panel prints it (see `renderValue` in App); nothing here needs its shape.
       attrs[k] = v
     }
     graph.addNode(n.id, attrs)
@@ -542,7 +553,8 @@ export function toKg(doc: KgJson): Kg {
     // this file did not know about it. `weight` on a co-citation edge is the common case.
     for (const [k, v] of Object.entries(e as Record<string, unknown>)) {
       if (RESERVED_EDGE_KEYS.has(k) || v === undefined || v === null) continue
-      if (typeof v === 'object' && !Array.isArray(v)) continue
+      // Same as on a node: a nested object is a value. An edge's validity window and a relation's
+      // measurement are carried through, not dropped for having a shape.
       attrs[k] = v
     }
     try {

@@ -1,0 +1,15 @@
+{
+  "note": "Lee 2006, twelve items: a 68-year-old man, BMI 23.5, diabetes, current smoker, none of the four functional difficulties. 2 age + 2 male + 1 diabetes + 2 smoking + 1 BMI = 8 points, the paper's 6–9 band (15% 4-year mortality). The earlier of the two dates in this card's example.",
+  "age": 68,
+  "sex": "male",
+  "bmi": 23.5,
+  "diabetes": true,
+  "cancer": false,
+  "lung_disease": false,
+  "heart_failure": false,
+  "current_smoker": true,
+  "difficulty_bathing": false,
+  "difficulty_walking_several_blocks": false,
+  "difficulty_managing_money": false,
+  "difficulty_pushing_large_objects": false
+}

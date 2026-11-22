@@ -1,0 +1,77 @@
+{
+  "meta": {
+    "title": "The six event kinds",
+    "schema": "kg/1",
+    "app": "health-viewer",
+    "requires": { "skills": ["kg"], "plugins": [], "tools": [] },
+    "colors": { "condition": "#c0504d", "observation": "#4f81bd", "procedure": "#8e7cc3" },
+    "profile": { "sex": "female", "year_of_birth": 1972, "name": "Nadia" },
+    "timezone": "Europe/Berlin"
+  },
+  "nodes": [
+    {
+      "id": "doc-discharge-2024",
+      "label": "Discharge summary, 2024-02-03",
+      "kind": "document",
+      "when": "2024-02-03",
+      "confirmed": true,
+      "link": "sources/discharge-2024-02-03.pdf"
+    },
+    {
+      "id": "enc-admission-2024-01-29",
+      "label": "Admitted, 2024-01-29",
+      "kind": "encounter",
+      "when": "2024-01-29",
+      "confirmed": true,
+      "source": "doc-discharge-2024"
+    },
+    {
+      "id": "proc-cholecystectomy-2024-01-30",
+      "label": "Laparoscopic cholecystectomy",
+      "kind": "procedure",
+      "when": "2024-01-30",
+      "code": "38180",
+      "confirmed": true,
+      "source": "doc-discharge-2024"
+    },
+    {
+      "id": "cond-gallstones-2024-01-29",
+      "label": "Symptomatic cholelithiasis",
+      "kind": "condition",
+      "status": "resolved",
+      "when": { "from": "2024-01-29", "to": "2024-02-03" },
+      "code": "K80.2",
+      "confirmed": true,
+      "source": "doc-discharge-2024"
+    },
+    {
+      "id": "med-ibuprofen-2024-01-29",
+      "label": "Ibuprofen 400 mg",
+      "kind": "medication",
+      "status": "stopped",
+      "when": { "from": "2024-01-29", "to": "2024-02-03" },
+      "confirmed": true,
+      "source": "doc-discharge-2024"
+    },
+    {
+      "id": "obs-crp-2024-01-29",
+      "label": "C-reactive protein",
+      "kind": "observation",
+      "when": "2024-01-29",
+      "value": 42,
+      "unit": "mg/L",
+      "ref_high": 5,
+      "flag": "high",
+      "code": "1988-5",
+      "confirmed": true,
+      "source": "doc-discharge-2024"
+    }
+  ],
+  "edges": [
+    { "from": "proc-cholecystectomy-2024-01-30", "to": "cond-gallstones-2024-01-29", "label": "preceded_by" },
+    { "from": "cond-gallstones-2024-01-29", "to": "med-ibuprofen-2024-01-29", "label": "treated_by", "valid_from": "2024-01-29", "valid_to": "2024-02-03" },
+    { "from": "enc-admission-2024-01-29", "to": "med-ibuprofen-2024-01-29", "label": "advised" },
+    { "from": "obs-crp-2024-01-29", "to": "doc-discharge-2024", "label": "derived_from" },
+    { "from": "proc-cholecystectomy-2024-01-30", "to": "doc-discharge-2024", "label": "derived_from" }
+  ]
+}

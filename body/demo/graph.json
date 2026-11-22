@@ -110,7 +110,216 @@
         { "organ": "pancreas", "how": "beta cells are meeting demand — no sign of strain" },
         { "organ": "cardio-vascular", "how": "normal fasting glucose keeps the metabolic CV risk low" }
       ]
+    },
+    {
+      "id": "doc-lipid-2026-11",
+      "kind": "document",
+      "label": "Lipid panel — City Lab, 12 Nov 2026",
+      "date": "2026-11-12",
+      "confirmed": true,
+      "lab": "City Lab",
+      "address": "12 Shevchenka St, Kyiv",
+      "link": "sources/lipid-2026-11-12.pdf"
+    },
+    {
+      "id": "lab-lipid-2026-11",
+      "kind": "analysis",
+      "label": "Lipid panel",
+      "date": "2026-11-12",
+      "organ": "cardio-vascular",
+      "panel": "lipid",
+      "track": "lipids",
+      "evidence": 40,
+      "confidence": 80,
+      "delta": -1.1,
+      "source": "doc-lipid-2026-11",
+      "confirmed": true,
+      "values": [
+        { "name": "Total cholesterol", "value": 6.1, "unit": "mmol/l", "ref": [0, 5.0], "flag": "high", "code": "2093-3" },
+        { "name": "LDL cholesterol", "value": 4.2, "unit": "mmol/l", "ref": [0, 3.0], "flag": "high", "code": "2089-1" },
+        { "name": "HDL cholesterol", "value": 1.1, "unit": "mmol/l", "ref": [1.0, 1.5], "code": "2085-9" },
+        { "name": "Triglycerides", "value": 2.4, "unit": "mmol/l", "ref": [0.4, 1.7], "code": "2571-8" }
+      ],
+      "summary": "Four markers from one draw. LDL is 4.2 mmol/l — 1.4× the upper limit and the number that builds plaque; triglycerides are up too, which usually means the liver is making more fat than it burns. HDL is the one still doing its job. This is not tomorrow, but the clock is running.",
+      "affects": [
+        { "organ": "heart", "how": "LDL deposits in the arterial wall; the total burden over decades is what counts" },
+        { "organ": "liver", "how": "raised triglycerides travel with fat in the liver" },
+        { "organ": "pancreas", "how": "very high triglycerides can inflame the pancreas; 2.4 is far from that" }
+      ]
+    },
+    {
+      "id": "doc-dx-2026-11-19",
+      "kind": "document",
+      "label": "Cardiology note — City Clinic, 19 Nov 2026",
+      "date": "2026-11-19",
+      "confirmed": true,
+      "link": "sources/dx-2026-11-19.pdf"
+    },
+    {
+      "id": "dx-2026-hyperlipidaemia",
+      "kind": "condition",
+      "label": "hyperlipidaemia",
+      "date": "2026-11-19",
+      "organ": "cardio-vascular",
+      "status": "active",
+      "origin": "doctor",
+      "confirmed": true,
+      "source": "doc-dx-2026-11-19",
+      "doctor": { "name": "Dr Anya Kovalenko", "specialty": "cardiologist" },
+      "clinic": { "name": "City Clinic", "address": "12 Shevchenka St, Kyiv" },
+      "link": "sources/dx-2026-11-19.pdf",
+      "text": "Mixed hyperlipidaemia. LDL 4.2 mmol/l with triglycerides at 2.4. With the blood pressure at 150/110 last month this is not a number to watch for a year: the ten-year risk puts this patient over the threshold where a statin is worth it. Start atorvastatin 20 mg in the evening, repeat the panel in three months, and bring the home blood-pressure diary to the next visit. Alcohol down to two units a week. Walk thirty minutes, five days a week.",
+      "summary": "A cardiologist read the November panel together with the October blood pressure and put this patient over the risk threshold: a statin, a repeat panel in three months, and the non-drug half of the plan."
+    },
+    {
+      "id": "dx-2026-anaemia",
+      "kind": "condition",
+      "label": "possible iron deficiency",
+      "date": "2026-11-10",
+      "organ": "blood",
+      "status": "suspected",
+      "origin": "generated",
+      "confirmed": false,
+      "source": "doc-lipid-2026-11",
+      "text": "Generated from the November panel. Haemoglobin at the bottom of the range with a low-ish MCV — a pattern that fits iron deficiency, and also fits thalassaemia trait. Ferritin separates them; it is not in this document.",
+      "summary": "Haemoglobin is at the bottom of the range and the MCV is low-ish. That pattern is where iron deficiency usually starts, but a low-ish MCV also happens with thalassaemia trait. Ferritin is the test that separates them, and this document does not have one."
+    },
+    {
+      "id": "dec-2026-statin",
+      "kind": "decision",
+      "label": "atorvastatin 20 mg in the evening",
+      "date": "2026-11-19",
+      "decided_in": "dx-2026-hyperlipidaemia",
+      "assignment": "drug",
+      "trust": "low",
+      "no_alternative": true,
+      "confirmed": true,
+      "text": "Start it after the evening meal. The note also asks for the home blood-pressure diary at the next visit."
+    },
+    {
+      "id": "dec-2026-repeat-lipid",
+      "kind": "decision",
+      "label": "repeat the lipid panel in three months",
+      "date": "2027-02-19",
+      "decided_in": "dx-2026-hyperlipidaemia",
+      "assignment": "test",
+      "trust": "verified",
+      "confirmed": true,
+      "text": "A repeat panel after twelve weeks of treatment, to see whether the statin moved LDL."
+    },
+    {
+      "id": "dec-2026-diet",
+      "kind": "decision",
+      "label": "cut saturated fat, two units of alcohol a week",
+      "date": "2026-11-19",
+      "decided_in": "dx-2026-hyperlipidaemia",
+      "assignment": "diet",
+      "confirmed": true,
+      "text": "Saturated fat down. The note sets alcohol at two units a week."
+    },
+    {
+      "id": "dec-2026-walk",
+      "kind": "decision",
+      "label": "walk thirty minutes, five days a week",
+      "date": "2026-11-19",
+      "decided_in": "dx-2026-hyperlipidaemia",
+      "assignment": "activity",
+      "trust": "low",
+      "confirmed": false,
+      "text": "Thirty minutes, five days a week. The note does not name a pace or a heart-rate target."
+    },
+    {
+      "id": "dec-2026-alcohol",
+      "kind": "decision",
+      "label": "no more than two units a week",
+      "date": "2026-11-19",
+      "decided_in": "dx-2026-hyperlipidaemia",
+      "assignment": "restriction",
+      "trust": "unverified",
+      "confirmed": false,
+      "text": "The note sets the weekly limit but does not say what counts as a unit."
+    },
+    {
+      "id": "dec-2026-supplement",
+      "kind": "decision",
+      "label": "red yeast rice, twice a day",
+      "date": "2026-11-20",
+      "decided_in": "dx-2026-hyperlipidaemia",
+      "assignment": "drug",
+      "trust": "low",
+      "side_effect": true,
+      "confirmed": false,
+      "text": "Red yeast rice carries the same active compound as a statin, without the dose control of a prescribed one."
+    },
+    {
+      "id": "dx-2024-hypertension",
+      "kind": "condition",
+      "label": "hypertension, stage 1",
+      "date": "2024-10-22",
+      "organ": "cardio-vascular",
+      "status": "active",
+      "origin": "doctor",
+      "confirmed": true,
+      "source": "bp-2024-10",
+      "doctor": { "name": "Dr Petro Melnyk", "specialty": "family medicine" },
+      "clinic": { "name": "Family Practice", "address": "3 Lypska St, Kyiv" },
+      "summary": "A doctor's note after the October home readings: stage 1 hypertension. It is a diagnosis, not a measurement — the note holds what was decided next, and the later 150/110 shows this one did not hold."
+    },
+    {
+      "id": "decision-2024-bp-diary",
+      "kind": "decision",
+      "label": "home blood-pressure diary",
+      "date": "2024-10-25",
+      "decided_in": "dx-2024-hypertension",
+      "assignment": "test",
+      "confirmed": true,
+      "source": "dx-2024-hypertension",
+      "summary": "Two weeks of twice-daily home readings before any drug, so the number that gets treated is the average and not one nervous morning in a clinic."
+    },
+    {
+      "id": "doc-summary-2025",
+      "kind": "document",
+      "label": "2025 in one page",
+      "date": "2026-01-01",
+      "confirmed": false
+    },
+    {
+      "id": "summ-2025",
+      "kind": "summary",
+      "label": "2025 in one page",
+      "date": "2026-01-01",
+      "period": "2025-01-01 – 2025-12-31",
+      "origin": "generated",
+      "confirmed": false,
+      "source": "doc-summary-2025",
+      "plan": [
+        "a lipid panel once in the year",
+        "the home blood-pressure diary kept twice a day"
+      ],
+      "fact": [
+        "no lipid panel was done in 2025",
+        "two blood-pressure averages were brought to the clinic, four months apart"
+      ],
+      "held": ["the diary was kept through the spring"],
+      "dropped": ["the annual lipid panel never happened — which is why the November 2026 panel reads as a step change"]
+    },
+    {
+      "id": "plan-2026-bp-check",
+      "kind": "prediction",
+      "label": "repeat blood pressure check",
+      "date": "2026-12-01",
+      "organ": "heart",
+      "confirmed": false,
+      "source": "bp-2026-10",
+      "summary": "Planned check after the stage 2 reading: a repeat average and a decision on treatment. Planned is not done — until it happens this row is a plan, not a record."
     }
   ],
-  "edges": []
+  "edges": [
+    { "from": "lab-lipid-2026-11", "to": "doc-lipid-2026-11", "label": "derived_from" },
+    { "from": "lab-lipid-2026-11", "to": "dx-2026-hyperlipidaemia", "label": "tracks" },
+    { "from": "dx-2026-hyperlipidaemia", "to": "doc-dx-2026-11-19", "label": "derived_from" },
+    { "from": "dx-2026-hyperlipidaemia", "to": "dx-2024-hypertension", "label": "preceded_by" },
+    { "from": "bp-2026-10", "to": "dx-2024-hypertension", "label": "contradicts" },
+    { "from": "summ-2025", "to": "doc-summary-2025", "label": "derived_from" }
+  ]
 }

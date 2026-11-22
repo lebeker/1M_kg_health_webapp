@@ -8,6 +8,7 @@ comment), so nobody updates Jira by hand and Jira never drifts from what actuall
     python3 scripts/jira-sync.py --dry-run     # show the plan, write nothing
     python3 scripts/jira-sync.py --apply       # do it (cron-safe, idempotent)
     python3 scripts/jira-sync.py --apply --strict   # a missing assignee mapping is fatal
+    python3 scripts/jira-sync.py --dry-run --card t_92632684   # one card only (gate checks, repair)
 
 Card -> issue is found by the ticket the card names: a `Task: SCRUM-<n>` line in the body first, then
 any single `SCRUM-<n>` in the body, and the comments only when the body names none. So the link lives
@@ -24,9 +25,29 @@ State mapping (three-column workflow: To Do / In Progress / Done):
     review                  -> In Progress    + comment: ready for review, with the card summary
     blocked                 -> unchanged      + comment: why, with the block reason
     changes_requested       -> unchanged      + comment: what the reviewer wants
-    done                    -> Done           + comment: closing summary
+    done                    -> Done           + comment: closing summary — *gated*, see below
 
 `blocked` and `changes_requested` leave the status alone *on purpose*, so they are not warnings.
+
+**Done is the one gated state.** Jira is the ledger a human reads, and a Done there says "this reached
+main". A card's status alone does not say that — a card can be closed while its PR is still open — and
+there is no supported transition back out of Done, so a wrong write cannot be undone. The sync
+therefore resolves the card's pull request (its branch, else any PR whose body *opens* with
+`Task: <card-id>`) and writes Done only on evidence the work is on `origin/main`:
+
+    MERGED PR whose merge commit is reachable from origin/main        -> Done
+    `no-change-needed: <commit>` in a card comment, commit on origin/main -> Done
+    OPEN PR, or a PR closed without merging                           -> no transition; `pending-merge`
+    anything else: no PR, unreachable commit, gh unavailable          -> no transition; `no-merge-evidence`
+
+A refusal posts a comment saying why and leaves the status as it was. It is logged on its own line, so
+`grep pending-merge` over a run log lists every card the ledger is waiting on.
+
+**A status never moves backwards.** `running -> review -> running` is the normal rework path, and
+`ready` after a reviewer's changes is normal too: a card that maps to *To Do* while its issue is *In
+Progress* holds, and so does a card that maps to *In Progress* while its issue is *Done*. Otherwise one
+rework cycle would drag the ledger back and forth, and a Done issue dragged back would be a lie about a
+merge that happened. Holds are logged as `status-not-moved-backwards` and commented once.
 
 Three things this does that the old version did not:
 
@@ -55,6 +76,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(HERE)
 BOARD = os.environ.get("KANBAN_BOARD", "health")
 MCP_CLI = os.environ.get("MCP_PROXY_CLI", "/Users/denistatarenko/Work/other/MCP/query-mcp.js")
 MCP_USER = os.environ.get("MCP_USER", "mex")
@@ -77,6 +99,11 @@ TARGET_STATUS = {
 # `blocked` is a card-level state on an issue that is still in progress, and a review that came back
 # with changes is still being worked. Anything else without a mapping (a typo, a new column) warns.
 STATUS_HELD = ("blocked", "changes_requested")
+
+# The three-column workflow, ordered. A transition that would move down this scale is refused: the
+# ledger records progress, and a board flap (running -> review -> running, done -> ready after an
+# unblock) must not drag it backwards. See `backwards_reason`.
+STATUS_RANK = {"To Do": 0, "In Progress": 1, "Done": 2}
 
 # States that say something a human needs to read, even when the status column does not move.
 COMMENT_STATES = ("running", "review", "blocked", "changes_requested", "done")
@@ -110,6 +137,10 @@ class Plan:
     key: str
     steps: list[Step] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    # Why a status write was refused (`pending-merge: …`, `no-merge-evidence: …`,
+    # `unverifiable: …`, `status-not-moved-backwards: …`). Logged on its own line by `run`, so a run
+    # log names every card the ledger is waiting on rather than only the ones it moved.
+    holds: list[str] = field(default_factory=list)
 
     @property
     def actionable(self) -> bool:
@@ -123,11 +154,12 @@ def marker_for(state: str, body: str) -> str:
     return f"sync:{state}:{digest}"
 
 
-def summarise(detail: dict, state: str) -> str:
+def summarise(detail: dict, state: str, extra: str = "") -> str:
     """The prose half of a state comment: plain text, no markup to lose.
 
     The run summary is only used when it belongs to *this* state — the latest run's summary of a card
-    that was blocked yesterday is not the reason it is running today.
+    that was blocked yesterday is not the reason it is running today. `extra` is a line the caller
+    insists on, and `done` uses it to name the evidence that allowed the Done write.
     """
     task = detail.get("task") or {}
     run = detail.get("run") or {}
@@ -152,17 +184,35 @@ def summarise(detail: dict, state: str) -> str:
         return f"{text}\n\n{run_summary[:1200]}" if run_summary else text
     if state == "done":
         text = f"Done: card {card}, worker {who}."
-        return f"{text}\n\n{run_summary[:1200]}" if run_summary else text
+        body = f"{text}\n\n{run_summary[:1200]}" if run_summary else text
+        return f"{body}\n\n{extra}" if extra else body
     if state == "running":
         return f"In progress: worker {who} claimed card {card}."
     return f"Card {card} moved to {state}."
 
 
-def comment_for(detail: dict, state: str) -> tuple[str, str]:
+def comment_for(detail: dict, state: str, extra: str = "") -> tuple[str, str]:
     """(marker, full comment body). The marker covers the prose, so an identical comment is skipped
     and a changed one (a new block reason, a new review summary) posts again."""
-    body = summarise(detail, state)
+    body = summarise(detail, state, extra)
     marker = marker_for(state, body)
+    return marker, f"{marker}\n\n{body}"
+
+
+def held_comment(detail: dict, state: str, reason: str) -> tuple[str, str]:
+    """The comment that stands in for a write the sync refused.
+
+    A hold is not a state: the card is where it is, and this says which write was not made and why, on
+    the issue a human reads. Deduped like every other comment, so a card that sits held all night gets
+    one comment per distinct reason rather than one per run.
+    """
+    task = detail.get("task") or {}
+    card = f"`{task.get('id')}`"
+    body = (
+        f"Held: card {card} is {state}; the Jira status was left alone.\n\n{reason}\n\n"
+        "This is the sync refusing to write a status the board does not support, not a failure."
+    )
+    marker = marker_for("held", body)
     return marker, f"{marker}\n\n{body}"
 
 
@@ -248,6 +298,249 @@ def resolve_key(detail: dict) -> KeyResolution:
     return KeyResolution()
 
 
+# ---------------------------------------------------------------------------------------------
+# The Done gate.
+#
+# Jira Done is a claim about `main`. The board's `done` is a claim about a worker having finished, and
+# the two are not the same thing: on 2026-11-22 card `t_5c1a18ff` was closed done at 00:15 while PR #8
+# was still OPEN with zero reviews, and the sync would have written SCRUM-12 Done for code that was not
+# on main. There is no transition back out of Done, so the write cannot be corrected afterwards — the
+# gate has to refuse rather than guess.
+#
+# Everything here is pure; the live half (`MergeResolver`) only fetches the inputs: `gh pr list` and
+# `git merge-base --is-ancestor <sha> origin/main`.
+# ---------------------------------------------------------------------------------------------
+
+# A card names its branch in its body (`Required branch: fix/SCRUM-43_sync-merged-gate`) and the board
+# records it in `tasks.branch_name`. Either is enough to ask GitHub about that branch — but a branch
+# that was renamed before its first push (every `wt/` name is) does not exist on GitHub, which is why
+# the card body and the PR-body fallbacks exist and why a missing branch is not an error.
+BRANCH_RE = re.compile(r"\b((?:fix|feat|chore)/[A-Z][A-Z0-9]+-\d+_[A-Za-z0-9._-]+)")
+
+# `Required branch: <name>` is the card's own declaration of the branch it was worked on. It is read
+# ahead of any other branch this body happens to mention, so prose about a sibling card's branch can
+# never become this card's evidence.
+REQUIRED_BRANCH_RE = re.compile(r"(?im)^[ \t]*required branch[ \t]*:[ \t]*`?([^`\s]+)`?[ \t]*$")
+
+# The seed every worktree branch starts as. The branch-name check rejects the prefix and every worker
+# renames before its first push, so a `wt/` name can never exist on GitHub: nothing there can match it.
+WT_SEED_RE = re.compile(r"^wt/")
+
+# The one way a card says "no diff was needed": a line of its own naming the commit that already
+# satisfies the acceptance. A commit hash mentioned in prose is *not* a declaration — the whole point
+# of the third allowed case is that it is deliberate and auditable.
+NO_CHANGE_RE = re.compile(r"(?im)^[ \t]*no[- ]change[- ]needed[ \t]*:[ \t]*`?([0-9a-fA-F]{7,40})`?[ \t]*$")
+
+
+@dataclass(frozen=True)
+class PullRequest:
+    """The fields of a PR this gate reads. Deliberately small: a state and a commit, nothing to judge."""
+
+    number: int
+    state: str               # OPEN | CLOSED | MERGED, upper-cased
+    merge_commit: str = ""   # the commit on main; empty until merged
+    branch: str = ""
+    body: str = ""
+
+
+@dataclass(frozen=True)
+class MergeEvidence:
+    """Whether a Done write is allowed, and the one line that says why.
+
+    `kind` is set only on success (`merged-pr`, `no-change-needed`). A refusal carries a token so a run
+    log greps cleanly: `pending-merge` for a PR that exists and is not merged, `no-merge-evidence` for a
+    card with no evidence at all, `unverifiable` for evidence that cannot be checked against
+    origin/main.
+    """
+
+    kind: str = ""
+    reason: str = ""
+    token: str = ""
+    pr_number: int | None = None
+    commit: str = ""
+
+    @property
+    def ok(self) -> bool:
+        return bool(self.kind)
+
+    def log_line(self) -> str:
+        # `token` is set on a refusal and `kind` on a success; the fallback is for a caller that builds
+        # neither. A successful verdict must not read as a refusal in the run log.
+        return f"{self.token or self.kind or 'no-merge-evidence'}: {self.reason}"
+
+
+def branches_of(detail: dict, card: dict | None = None) -> list[str]:
+    """The branches this card could have been pushed as, in order — `[]` when there is nothing to ask.
+
+    The board's `branch_name` wins when it is a real branch. When it is a `wt/` seed it is *skipped*,
+    not returned: a `wt/` name is rejected by the branch-name check and is renamed before the first
+    push, and the board is never told. 15 of 18 live cards still carry the seed, so treating it as
+    authoritative is how a card whose PR is merged reads as having no PR at all — the wedge.
+
+    Falling through gives the card body's own `Required branch:` declaration, then any branch the body
+    names, then `resolve_pull_requests`' PR-body fallback.
+    """
+    task = detail.get("task") or {}
+    card = card or {}
+    recorded = str(task.get("branch_name") or card.get("branch_name") or "").strip()
+    if recorded and not WT_SEED_RE.match(recorded):
+        return [recorded]
+    body = str(task.get("body") or card.get("body") or "")
+    declared = [match.group(1) for match in REQUIRED_BRANCH_RE.finditer(body)]
+    named = [match.group(1) for match in BRANCH_RE.finditer(body)]
+    found: list[str] = []
+    for branch in (declared or named):
+        if branch not in found:
+            found.append(branch)
+    return found
+
+
+def declares_card(pr: PullRequest, card_id: str, key: str = "") -> bool:
+    """A PR claims a card by *opening* with `Task: <card-id>` or `Task: <jira-key>`.
+
+    Both forms are live: the two PRs that predate the convention open with the card id
+    (`Task: t_29c8c8f2`) and every PR since opens with the key (`Task: SCRUM-27`), because the delivery
+    rules say to. Matching only the card id made this fallback dead for all 16 real PRs. A mention
+    further down does not count — the opener is the declaration.
+    """
+    lines = (pr.body or "").strip().splitlines()
+    if not lines:
+        return False
+    opener = lines[0].strip()
+    return opener == f"Task: {card_id}" or (bool(key) and opener == f"Task: {key}")
+
+
+def resolve_pull_requests(card_id: str, branches: Iterable[str], prs: Iterable[PullRequest],
+                          key: str = "") -> list[PullRequest]:
+    """Every PR that could be this card's, newest first: branch matches ahead of body matches.
+
+    More than one is normal — a card whose first PR was closed and re-opened has several — so the gate
+    reads them all and prefers merged evidence instead of picking one and hoping.
+    """
+    wanted = {branch for branch in branches if branch}
+    pool = list(prs)
+    by_branch = sorted((pr for pr in pool if pr.branch and pr.branch in wanted),
+                       key=lambda p: p.number, reverse=True)
+    by_body = sorted((pr for pr in pool if declares_card(pr, card_id, key)), key=lambda p: p.number, reverse=True)
+    ordered: list[PullRequest] = []
+    for pr in by_branch + by_body:
+        if all(seen.number != pr.number for seen in ordered):
+            ordered.append(pr)
+    return ordered
+
+
+def declared_no_change(detail: dict) -> tuple[str, str]:
+    """(commit, problem) from the card's comments: the commit a card declares already satisfies it.
+
+    Two different declarations are a contradiction, not a choice: the same rule as `resolve_key` — an
+    ambiguous claim that silently writes is worse than no write.
+    """
+    found: list[str] = []
+    for comment in detail.get("comments") or []:
+        for match in NO_CHANGE_RE.finditer(str(comment.get("body") or "")):
+            sha = match.group(1).lower()
+            if sha not in found:
+                found.append(sha)
+    if len(found) == 1:
+        return found[0], ""
+    if len(found) > 1:
+        return "", (
+            f"the card declares {len(found)} different no-change-needed commits "
+            f"({', '.join(found)}); which one it means is undecidable, so nothing is written"
+        )
+    return "", ""
+
+
+def evaluate_merge_gate(card_id: str, detail: dict, prs: Iterable[PullRequest],
+                        on_main: Callable[[str], bool], branch: str | Iterable[str] = "",
+                        key: str = "") -> MergeEvidence:
+    """May this done card be written as Done? Pure — `on_main` is injected, so the test is offline.
+
+    `branch` takes the branches this card may have been pushed as (`branches_of`); a single string is
+    accepted for callers that already know the one branch. `key` is the card's Jira key, the identifier
+    a PR actually opens with today.
+    """
+    branches = [branch] if isinstance(branch, str) else list(branch)
+    candidates = resolve_pull_requests(card_id, branches, prs, key=key)
+
+    merged = [pr for pr in candidates if pr.state == "MERGED" and pr.merge_commit]
+    for pr in merged:
+        if on_main(pr.merge_commit):
+            return MergeEvidence(
+                kind="merged-pr",
+                pr_number=pr.number,
+                commit=pr.merge_commit,
+                reason=f"PR #{pr.number} is MERGED at {pr.merge_commit[:9]}, reachable from origin/main",
+            )
+    if merged:
+        pr = merged[0]
+        return MergeEvidence(
+            token="unverifiable",
+            pr_number=pr.number,
+            commit=pr.merge_commit,
+            reason=(f"PR #{pr.number} is MERGED at {pr.merge_commit[:9]}, but that commit is not reachable "
+                    "from origin/main; fetch it and re-run"),
+        )
+
+    open_prs = [pr for pr in candidates if pr.state == "OPEN"]
+    if open_prs:
+        pr = open_prs[0]
+        return MergeEvidence(
+            token="pending-merge", pr_number=pr.number,
+            reason=f"PR #{pr.number} is still OPEN, so there is no merge to record",
+        )
+
+    closed = [pr for pr in candidates if pr.state == "CLOSED"]
+    if closed:
+        pr = closed[0]
+        return MergeEvidence(
+            token="pending-merge", pr_number=pr.number,
+            reason=f"PR #{pr.number} was CLOSED without being merged, so there is no merge to record",
+        )
+
+    commit, problem = declared_no_change(detail)
+    if problem:
+        return MergeEvidence(token="no-merge-evidence", reason=problem)
+    if commit:
+        if on_main(commit):
+            return MergeEvidence(
+                kind="no-change-needed", commit=commit,
+                reason=f"no-change-needed: the acceptance was already satisfied by {commit[:9]} on origin/main",
+            )
+        return MergeEvidence(
+            token="unverifiable", commit=commit,
+            reason=(f"the card declares no-change-needed: {commit[:9]}, but that commit is not reachable "
+                    "from origin/main"),
+        )
+
+    named = [f"'{branch}'" for branch in branches if branch]
+    where = f"branch {', '.join(named)}" if named else "no branch recorded"
+    openers = [f"'Task: {card_id}'"] + ([f"'Task: {key}'"] if key else [])
+    return MergeEvidence(
+        token="no-merge-evidence",
+        reason=(f"no pull request resolves to this card ({where}, or a body opening {', '.join(openers)}) and "
+                "no 'no-change-needed: <commit>' line in its comments"),
+    )
+
+
+def backwards_reason(current: str | None, target: str) -> str:
+    """Why this transition must not be written, or '' when it may.
+
+    `running -> review -> running` is the normal rework path, and a `ready` card whose issue is still
+    *In Progress* is what that looks like from the ledger's side. Moving it back to *To Do* makes Jira
+    claim work was not started after it was started; moving a *Done* issue back is a lie about a merge
+    that happened, and there is no way to undo either.
+    """
+    if not current:
+        return ""
+    now = STATUS_RANK.get(current)
+    want = STATUS_RANK.get(target)
+    if now is None or want is None or want >= now:
+        return ""
+    return (f"status-not-moved-backwards: Jira says {current} and the card maps to {target}; "
+            "the status is left where it is")
+
+
 def load_identity_map(path: str = IDENTITY_MAP_PATH) -> dict[str, str | None]:
     """profile -> Jira account id. A null value means "known to exist, id not yet recorded"."""
     try:
@@ -267,8 +560,13 @@ class JiraState:
 
 
 def build_plan(card: dict, detail: dict, state: JiraState, identities: dict[str, str | None],
-               key: str) -> Plan:
-    """What this card needs, decided without touching Jira. Pure: no network, no clock."""
+               key: str, evidence: MergeEvidence | None = None) -> Plan:
+    """What this card needs, decided without touching Jira. Pure: no network, no clock.
+
+    `evidence` is the Done gate's verdict for a *done* card and is ignored for every other state. It is
+    required in practice: `None` is read as "nothing proves the work reached main", so a caller that
+    forgets to resolve it gets a refusal instead of an unearned Done.
+    """
     plan = Plan(card_id=str(card.get("id")), card_state=str(card.get("status")), key=key)
     task = detail.get("task") or {}
     card_state = plan.card_state
@@ -286,14 +584,31 @@ def build_plan(card: dict, detail: dict, state: JiraState, identities: dict[str,
             )
 
     target = TARGET_STATUS.get(card_state)
+    held = ""
     if target is None:
         if card_state not in STATUS_HELD:
             plan.warnings.append(f"card state '{card_state}' has no Jira mapping; status left alone")
     elif state.status != target:
-        plan.steps.append(Step(STEP_TRANSITION, target, note=f"{state.status or '?'} -> {target}"))
+        if card_state == "done":
+            verdict = evidence or MergeEvidence(
+                token="no-merge-evidence",
+                reason="no merge evidence was resolved for this card, and a Done write needs it",
+            )
+            if not verdict.ok:
+                held = verdict.log_line()
+        if not held:
+            held = backwards_reason(state.status, target)
+        if not held:
+            plan.steps.append(Step(STEP_TRANSITION, target, note=f"{state.status or '?'} -> {target}"))
 
-    if card_state in COMMENT_STATES:
-        marker, body = comment_for(detail, card_state)
+    if held:
+        plan.holds.append(held)
+        marker, body = held_comment(detail, card_state, held)
+        if marker not in state.comments:
+            plan.steps.append(Step(STEP_COMMENT, body, note=marker))
+    elif card_state in COMMENT_STATES:
+        extra = evidence.reason if (card_state == "done" and evidence and evidence.ok) else ""
+        marker, body = comment_for(detail, card_state, extra)
         if marker not in state.comments:
             plan.steps.append(Step(STEP_COMMENT, body, note=marker))
 
@@ -385,6 +700,95 @@ def apply_plan(client: JiraClient, plan: Plan, log: Callable[[str], None] = prin
     return ok
 
 
+def gh_pull_requests(repo: str = REPO_ROOT) -> list[PullRequest]:
+    """Every PR in the repo, in one call — the gate needs all of them to find a card's branch."""
+    proc = subprocess.run(
+        ["gh", "pr", "list", "--state", "all", "--limit", "400",
+         "--json", "number,state,mergeCommit,headRefName,body"],
+        cwd=repo, capture_output=True, text=True, timeout=180,
+    )
+    if proc.returncode != 0:
+        raise StepFailed(f"gh pr list failed: {(proc.stderr or proc.stdout).strip()[:300]}")
+    try:
+        raw = json.loads(proc.stdout or "[]")
+    except json.JSONDecodeError as exc:
+        raise StepFailed(f"gh pr list returned unparsable JSON: {exc}") from exc
+    prs: list[PullRequest] = []
+    for item in raw:
+        merge = item.get("mergeCommit") or {}
+        prs.append(PullRequest(
+            number=int(item.get("number") or 0),
+            state=str(item.get("state") or "").upper(),
+            merge_commit=str(merge.get("oid") or ""),
+            branch=str(item.get("headRefName") or ""),
+            body=str(item.get("body") or ""),
+        ))
+    return prs
+
+
+def fetch_origin_main(repo: str = REPO_ROOT) -> None:
+    """A merge commit can only be checked against a ref that has been fetched.
+
+    Squash-merged PRs are the usual case here, and their `mergeCommit` is the squash commit on main;
+    a stale local `origin/main` would read a real merge as unreachable and refuse a Done it should
+    write. One fetch per run, and a failure is a warning rather than fatal: the gate then refuses,
+    which is the safe direction.
+    """
+    proc = subprocess.run(["git", "-C", repo, "fetch", "--quiet", "origin", "main"],
+                          capture_output=True, text=True, timeout=180)
+    if proc.returncode != 0:
+        raise StepFailed(f"git fetch origin main failed: {(proc.stderr or proc.stdout).strip()[:300]}")
+
+
+def on_origin_main(sha: str, repo: str = REPO_ROOT) -> bool:
+    """Is this commit an ancestor of origin/main? No ref, no commit, no evidence."""
+    if not sha:
+        return False
+    proc = subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor", sha, "origin/main"],
+                          capture_output=True, text=True, timeout=60)
+    return proc.returncode == 0
+
+
+class MergeResolver:
+    """The live half of the Done gate: fetch the inputs once, then answer per card.
+
+    Every decision is `evaluate_merge_gate`; this class only runs `gh`, `git fetch` and
+    `git merge-base`, all of which are injected in the tests and never run there.
+    """
+
+    def __init__(self, repo: str = REPO_ROOT, log: Callable[[str], None] = print,
+                 prs: list[PullRequest] | None = None, on_main: Callable[[str], bool] | None = None,
+                 key_of: Callable[[dict], str] | None = None):
+        self.repo = repo
+        self.log = log
+        self._prs = prs
+        self._on_main = on_main or (lambda sha: on_origin_main(sha, repo))
+        self._key_of = key_of or (lambda detail: resolve_key(detail).key or "")
+        self._fetched = False
+
+    def pull_requests(self) -> list[PullRequest]:
+        if self._prs is None:
+            self._prs = gh_pull_requests(self.repo)
+        return self._prs
+
+    def _refresh(self) -> None:
+        if self._fetched:
+            return
+        self._fetched = True
+        try:
+            fetch_origin_main(self.repo)
+        except (StepFailed, subprocess.TimeoutExpired) as exc:
+            self.log(f"  WARNING {exc} — merges may read as unreachable, and a Done write will be refused")
+
+    def __call__(self, card: dict, detail: dict) -> MergeEvidence:
+        self._refresh()
+        card_id = str(card.get("id"))
+        return evaluate_merge_gate(
+            card_id, detail, self.pull_requests(), self._on_main,
+            branch=branches_of(detail, card), key=self._key_of(detail),
+        )
+
+
 def kanban(board: str, *args: str) -> str:
     proc = subprocess.run(["hermes", "kanban", "--board", board, *args], capture_output=True, text=True)
     if proc.returncode != 0:
@@ -423,17 +827,19 @@ def _connect(board: str):
 def list_cards(board: str) -> list[dict]:
     conn = _connect(board)
     try:
-        rows = conn.execute("SELECT id, status, assignee FROM tasks ORDER BY id").fetchall()
+        rows = conn.execute("SELECT id, status, assignee, branch_name FROM tasks ORDER BY id").fetchall()
     finally:
         conn.close()
-    return [{"id": row["id"], "status": row["status"], "assignee": row["assignee"]} for row in rows]
+    return [{"id": row["id"], "status": row["status"], "assignee": row["assignee"],
+             "branch_name": row["branch_name"]} for row in rows]
 
 
 def card_detail(board: str, card_id: str) -> dict:
     conn = _connect(board)
     try:
         row = conn.execute(
-            "SELECT id, status, assignee, body, last_failure_error FROM tasks WHERE id = ?", (card_id,)
+            "SELECT id, status, assignee, body, branch_name, last_failure_error FROM tasks WHERE id = ?",
+            (card_id,),
         ).fetchone()
         if row is None:
             raise StepFailed(f"card {card_id} is not on board '{board}'")
@@ -463,6 +869,7 @@ def card_detail(board: str, card_id: str) -> dict:
             "status": row["status"],
             "assignee": row["assignee"],
             "body": row["body"],
+            "branch_name": row["branch_name"],
             "last_failure_error": row["last_failure_error"],
             "block_reason": block_reason,
         },
@@ -505,14 +912,37 @@ def mcp_call(tool: str, args: dict[str, Any]) -> Any:
     return structured
 
 
+def evidence_for(card_id: str, card_state: str, card: dict, detail: dict,
+                 evidence_of: Callable[[dict, dict], MergeEvidence] | None) -> MergeEvidence | None:
+    """The Done gate's verdict, for a done card only — nothing else maps to a status that needs proof."""
+    if card_state != "done":
+        return None
+    if evidence_of is None:
+        return MergeEvidence(
+            token="no-merge-evidence",
+            reason="the sync has no merge resolver in this invocation, so nothing proves the work reached main",
+        )
+    try:
+        return evidence_of(card, detail)
+    except (StepFailed, subprocess.TimeoutExpired) as exc:
+        # A slow `gh` or `git fetch` must hold this one card, not kill the run: the whole board would
+        # otherwise stop syncing because one issue's evidence timed out. Holds are the safe direction.
+        return MergeEvidence(token="no-merge-evidence", reason=f"cannot resolve merge evidence: {exc}")
+
+
 def run(apply: bool, strict: bool, cards: Iterable[dict], detail_of: Callable[[str], dict],
-        client: JiraClient, identities: dict[str, str | None], log: Callable[[str], None] = print) -> int:
+        client: JiraClient, identities: dict[str, str | None], log: Callable[[str], None] = print,
+        evidence_of: Callable[[dict, dict], MergeEvidence] | None = None) -> int:
     """Sync every card and return the process exit code.
 
     Keys are resolved for the whole board before anything is written, because ambiguity is a
     *board-level* property: one card's body and another card's comment can point at the same issue,
     and neither of them should get to move it. A card that resolves to an issue another card already
     claims is skipped with a warning; the fix is a card body that names its own ticket.
+
+    `evidence_of` resolves the Done gate for a done card. With none supplied, a done card cannot write
+    Done at all: the gate fails closed, because the alternative is an unearned Done that cannot be
+    undone.
     """
     actions = 0
     failures = 0
@@ -572,7 +1002,9 @@ def run(apply: bool, strict: bool, cards: Iterable[dict], detail_of: Callable[[s
             failures += 1
             continue
 
-        plan = build_plan(card, detail, state, identities, key)
+        plan = build_plan(card, detail, state, identities, key, evidence=evidence_for(card_id, card_state, card, detail, evidence_of))
+        for hold in plan.holds:
+            log(f"  {card_id} {card_state:<9} {key} — {hold}")
         for warning in plan.warnings:
             log(f"  {card_id} {card_state:<9} {key} — WARNING {warning}")
             warnings += 1
@@ -608,6 +1040,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true", help="print the plan and write nothing")
     parser.add_argument("--strict", action="store_true", help="exit non-zero on warnings too")
     parser.add_argument("--board", default=BOARD, help="Kanban board slug (default: health)")
+    parser.add_argument(
+        "--card", action="append", default=[], metavar="CARD_ID",
+        help="sync only this card (repeatable). Use it to verify the gate or repair one card without "
+             "touching the Jira mapping of every other card on the board",
+    )
     args = parser.parse_args(argv)
 
     apply = args.apply and not args.dry_run
@@ -624,6 +1061,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 2
 
+    if args.card:
+        wanted = {card_id.strip() for entry in args.card for card_id in entry.split(",") if card_id.strip()}
+        missing = wanted - {str(c.get("id")) for c in cards}
+        if missing:
+            print(f"FAIL: not on board '{board}': {', '.join(sorted(missing))}", file=sys.stderr)
+            return 2
+        cards = [c for c in cards if str(c.get("id")) in wanted]
+
+    evidence_of = MergeResolver(log=print) if any(str(c.get("status")) == "done" for c in cards) else None
+
     return run(
         apply=apply,
         strict=args.strict,
@@ -631,6 +1078,7 @@ def main(argv: list[str] | None = None) -> int:
         detail_of=lambda card_id: card_detail(board, card_id),
         client=client,
         identities=identities,
+        evidence_of=evidence_of,
     )
 
 

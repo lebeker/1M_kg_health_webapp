@@ -84,14 +84,20 @@
     {
       "kind": "encounter",
       "color": "#9aa0a6",
-      "meaning": "a visit, a hospital stay, a procedure — anything a person attended",
-      "keywords": "visit, appointment, admission, procedure, surgery"
+      "meaning": "a visit, an appointment, a hospital stay — anything a person attended",
+      "keywords": "visit, appointment, admission, stay"
     },
     {
       "kind": "medication",
       "color": "#f5a623",
       "meaning": "a drug and a regimen, with a start and, when it ended, a stop",
       "keywords": "drug, pill, prescription, dose, statin"
+    },
+    {
+      "kind": "procedure",
+      "color": "#8e7cc3",
+      "meaning": "something done to the person: surgery, an endoscopy, a dressing. Carries the date it was performed and the document it was recorded in",
+      "keywords": "procedure, surgery, operation, endoscopy, intervention, SNOMED, ICD-10-PCS"
     },
     {
       "kind": "summary",
@@ -106,15 +112,16 @@
       "keywords": "forecast, projection, risk, prognosis, simulation"
     },
     {
-      "kind": "source",
+      "kind": "document",
       "color": "#b0b0b0",
-      "meaning": "the document a fact came from: a discharge note, a scan, a printout",
+      "meaning": "the document a fact came from: a discharge note, a scan, a printout. Carries the date printed on it and is the provenance, so it points at no source of its own",
       "keywords": "document, PDF, scan, note, record"
     }
   ],
   "kind_notes": {
     "one word per thing": "`observation` covers a single marker and a whole panel — a panel is several observations with `part_of` edges, not a new kind. A kind is what a node IS; the everyday words are keywords.",
-    "no free-form kinds": "the template has a layout for each of the seven kinds and nothing for the rest. A kind that is not on this list is a modelling error, and `validate` refuses it."
+    "six of the eight are events": "an event is a fact in the record with a date in `when` and, unless it is the document itself, a `source` naming the document it came from: condition, observation, encounter, medication, procedure, document. A summary is a virtual marker and a prediction is a simulation — visible, dated where they need to be, and never events.",
+    "no free-form kinds": "the template has a layout for each of the eight kinds and nothing for the rest. A kind that is not on this list is a modelling error, and `validate` refuses it."
   },
   "edges": [
     {
@@ -159,7 +166,7 @@
       "color": "#c0504d"
     },
     {
-      "pattern": "* → source",
+      "pattern": "* → document",
       "label": "derived from",
       "meaning": "provenance: this fact came from that document. Required for every fact that came from a document",
       "name": "derived_from",
@@ -218,7 +225,7 @@
     "node weight": "`weight` on a node is what it is worth on this map, and how it was measured is stated once for the whole graph in `meta.weight.metric`. Every panel says which of the two a node's number came from: the document, or the graph's own connections.",
     "node style": "`solid` = confirmed fact, `hollow` = generated or unconfirmed, `skull` = contradicted or dangerous. The style is the honesty flag, not decoration.",
     "direction": "`dir: in` puts an arrowhead at the `to` end, so a measurement points at the condition it watches and a prediction points at what it projects.",
-    "level": "a node's position on the third axis. Sources at the bottom, then what was measured and attended, then what it means, then what we expect. The 3D view is the only place it moves anything."
+    "level": "a node's position on the third axis. Documents at the bottom, then what was measured and attended, then what it means, then what we expect. The 3D view is the only place it moves anything."
   },
   "notes": {
     "what they are": "the long form of a node's description, one markdown file per node in a `docs/` folder beside the graph document: what a test measures, what a diagnosis means in plain words, where the claim comes from.",
@@ -230,15 +237,16 @@
     "what happens past it": "the viewer collapses the smallest, weakest clusters and says how many nodes it hid, with a button to expand anyway."
   },
   "levels": {
-    "source": 0,
+    "document": 0,
     "observation": 1,
     "encounter": 1,
+    "procedure": 1,
     "medication": 2,
     "condition": 2,
     "prediction": 3,
     "summary": 3
   },
-  "level_note": "where a kind sits on the fold axis when a node of that kind carries no `level` of its own. Sources at the bottom, then what was measured and attended, then what it means, then what we expect. The document always wins.",
+  "level_note": "where a kind sits on the fold axis when a node of that kind carries no `level` of its own. Documents at the bottom, then what was measured and attended, then what it means, then what we expect. The document always wins.",
   "notes_for_agents": "This app is a document reader, not a medical device. It never diagnoses and never prescribes. Every number carries a source or it is not drawn; generated content carries `not confirmed` until a human confirms it. Data lives in kg.json and sources/ — never in the template.",
   "status": "template not shipped yet: app.json is final, the HTML build is tasks T11 and T26 in docs/PLAN-health-2026-11-12.md"
 }

@@ -201,6 +201,145 @@ button {
   border-color: var(--hover-line);
 }
 
+/* Widget 2, the person. Far right, because identity frames the whole page; the chip is the
+   document's profile read aloud, never a default, and "no profile" is a state, not an error. */
+.profile {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+  padding: 4px 9px;
+  font-size: 12px;
+}
+.profile .nm {
+  font-weight: 600;
+  max-width: 132px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.profile .sex,
+.profile .born {
+  color: var(--muted);
+}
+.profile .born::before {
+  /* 1961 reads as a year, not as another count in the bar */
+  content: 'born ';
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+.profile .age {
+  color: var(--fg);
+  padding-left: 6px;
+  border-left: 1px solid var(--line);
+}
+.profile .none {
+  color: var(--muted);
+  font-style: italic;
+}
+.profile[aria-expanded='true'] {
+  background: var(--surface-2);
+  border-color: var(--hover-line);
+  color: var(--accent);
+}
+
+/* The controls. Anchored under the bar, because a panel that can be opened must be closable and
+   the bar is the only thing on the page that never moves. */
+.profile-pop {
+  position: absolute;
+  top: calc(var(--bar-h) + 4px);
+  right: 12px;
+  z-index: 6;
+  width: 312px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 11px 12px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.34);
+}
+.profile-pop .pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
+}
+.profile-pop .pop-head button.x {
+  padding: 0 6px;
+  font-size: 15px;
+  line-height: 1.1;
+  color: var(--muted);
+}
+.profile-pop label.row {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.profile-pop label.row > span {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+}
+.profile-pop input,
+.profile-pop select,
+.profile-pop textarea {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--fg);
+  border-radius: 6px;
+  padding: 4px 7px;
+  font: inherit;
+  font-size: 12px;
+  min-width: 0;
+}
+.profile-pop input.year {
+  max-width: 84px;
+}
+.profile-pop textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  resize: vertical;
+}
+/* What the profile actually moves: the age, and the ages the record spans. Derived, so a changed
+   year shows here at once — there is nothing stored to recompute. */
+.profile-pop .derived {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 9px;
+  background: var(--surface-2);
+  border-radius: 7px;
+}
+.profile-pop .derived .h {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.profile-pop .derived .v {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.profile-pop ul.issues {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 11.5px;
+  color: var(--danger);
+}
+.profile-pop .acts {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.profile-pop .note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
 /* the renderers fill whatever is left; the panel and legend float above them */
 .view {
   position: absolute;

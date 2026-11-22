@@ -1,0 +1,9 @@
+{
+  "note": "The same man ten years later: 60 (the age term alone moves), he stopped smoking, his systolic pressure is 130 mmHg, total cholesterol 5.6 mmol/L and HDL 1.3 mmol/L. Four inputs changed and one did not; every row of the explanation is a changed input or the age interaction it carries.",
+  "age": 60,
+  "sex": "male",
+  "current_smoker": false,
+  "systolic_bp": 130,
+  "total_cholesterol": 5.6,
+  "hdl_cholesterol": 1.3
+}

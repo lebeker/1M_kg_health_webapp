@@ -1,0 +1,15 @@
+{
+  "note": "Refused: `\"yes\"` is not a boolean. The engine would call that a type mismatch and skip the rule, which scores the condition as absent — the quiet failure the index refuses.",
+  "age": 72,
+  "sex": "female",
+  "bmi": 22,
+  "diabetes": "yes",
+  "cancer": false,
+  "lung_disease": false,
+  "heart_failure": false,
+  "current_smoker": false,
+  "difficulty_bathing": false,
+  "difficulty_walking_several_blocks": false,
+  "difficulty_managing_money": false,
+  "difficulty_pushing_large_objects": false
+}

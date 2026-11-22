@@ -1,0 +1,15 @@
+{
+  "note": "Lee 2006, twelve items: an 80-year-old man, BMI 23.5, diabetes, cancer, current smoker, difficulty bathing and walking several blocks. 5 age + 2 male + 1 diabetes + 2 cancer + 2 smoking + 1 BMI + 2 bathing + 2 walking = 17 points, the paper's top band (14 or more, 64% over four years).",
+  "age": 80,
+  "sex": "male",
+  "bmi": 23.5,
+  "diabetes": true,
+  "cancer": true,
+  "lung_disease": false,
+  "heart_failure": false,
+  "current_smoker": true,
+  "difficulty_bathing": true,
+  "difficulty_walking_several_blocks": true,
+  "difficulty_managing_money": false,
+  "difficulty_pushing_large_objects": false
+}
