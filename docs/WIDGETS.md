@@ -21,7 +21,7 @@ All three share the same header, timeline and left column. Only column 2 changes
 
 | # | Widget | Zone | Present in | Behaviour |
 |---|---|---|---|---|
-| 1 | Graph button | header, glued to the left of the profile | v11, v11b, v11c | square icon, hexagon with nodes; opens the graph in a separate view. Never part of the main flow |
+| 1 | Graph button | header, glued to the left of the profile | v11, v11b, v11c | square icon, hexagon with nodes; opens the graph in a separate view. Never part of the main flow. See `docs/GRAPH-VIEW.md` |
 | 2 | Profile | header, far right | v11, v11b, v11c | sex, birth year, age; data comes from `kg.json`, not from JS. Opens profile controls |
 | 3 | Timeline | top strip, full width | v11, v11b, v11c | one row from birth to +40 years; year ticks; labels every 10; navigator, not decoration |
 | 4 | Event marks | on the timeline | v11, v11b, v11c | one tick and one dot per event; click selects the event; click on empty space between two marks opens the period summary |

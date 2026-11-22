@@ -312,6 +312,9 @@ async function main() {
   await ensureServer();
   const page = await loadPage();
   const sandbox = bootApp(page);
+  /* T27: the 3D viewer is behind the "open graph" button, so the regression opens the graph view
+     first and then waits for the models — the same path a reader takes. */
+  evaluate(sandbox, "__openGraph()");
   await until(sandbox, "__ready()", loadTimeout, "the page to finish loading its models");
   const loadErrors = evaluate(sandbox, "__loadErrors()");
   if (loadErrors.length) throw new Error(`page could not load: ${loadErrors.join(", ")}`);

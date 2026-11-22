@@ -107,9 +107,11 @@
     font-size:11px; color:#dbe6f2; background:#161d26; border:1px solid #2a3644; border-radius:5px;
     white-space:nowrap; }
   .foot { position:fixed; left:248px; bottom:10px; color:#5f7183; }
-  /* the models are 35 MB: the page has to say what it is doing while they arrive */
-  #boot { position:fixed; inset:0; z-index:20; display:grid; place-items:center;
+  /* the models are 35 MB: the page has to say what it is doing while they arrive. The overlay sits
+     under the bar, so the graph view's back button stays reachable while the models load. */
+  #boot { position:fixed; inset:44px 0 0 0; z-index:20; display:grid; place-items:center;
     background:#0c0f13; transition:opacity .5s ease; }
+  #boot[hidden] { display:none; }
   #boot.done { opacity:0; pointer-events:none; }
   .bootbox { width:min(420px, 72vw); }
   .bootttl { font-size:15px; letter-spacing:.02em; margin-bottom:12px; }
@@ -231,6 +233,23 @@
   #main .mlink-list .row-link:hover { background:#18202b; }
   #main .mlink-list .nolink { color:#8b98a6; font-style:italic; }
   .srow.hl { background:#1b2532; }
+
+  /* widget 1, T27: the graph is a view of its own, behind one button. Open: the body, its nodes and
+     their panel; closed: the product's columns. The main flow never shows the scene, and the scene
+     is never the only way to reach a record. */
+  #openGraph { padding:5px 7px; }
+  #openGraph svg { display:block; }
+  .only-graph { display:none; }
+  body.graph-open .only-main { display:none !important; }
+  body.graph-open .only-graph { display:inline-flex; align-items:center; gap:8px; }
+  body.graph-open #state { display:none; }       /* the records list is the product's, not the graph's */
+  body.graph-open #main { display:none !important; }
+  body:not(.graph-open) #stage,
+  body:not(.graph-open) #boot,
+  body:not(.graph-open) #node,
+  body:not(.graph-open) .legend,
+  body:not(.graph-open) .hint { display:none; }
+  .gnote { color:var(--mut); font-size:11.5px; letter-spacing:.02em; }
 </style>
 </head>
 <body>
@@ -247,7 +266,7 @@
   </div>
 </aside>
 
-<div id="boot">
+<div id="boot" hidden>
   <div class="bootbox">
     <div class="bootttl">Body</div>
     <div class="bootstage" id="bootStage">starting…</div>
@@ -257,17 +276,32 @@
 </div>
 
 <div class="bar">
-  <b>Body</b>
-  <button id="loadDemo" title="load demo/graph.json — invented records, nothing saved">load demo</button>
+  <!-- widget 1: one button, the graph in a view of its own. It is never part of the main flow. -->
+  <button id="openGraph" class="only-main" title="open graph — the body and its nodes, read-only"
+          aria-label="open graph" aria-pressed="false"><svg viewBox="0 0 16 16" width="14" height="14"
+          fill="none" stroke="currentColor" stroke-width="1.1" aria-hidden="true">
+      <path d="M8 1.7 13.4 4.85v6.3L8 14.3 2.6 11.15v-6.3Z"/>
+      <circle cx="8" cy="8" r="1.35" fill="currentColor" stroke="none"/>
+      <circle cx="8" cy="3.2" r=".95" fill="currentColor" stroke="none"/>
+      <circle cx="12.1" cy="10.5" r=".95" fill="currentColor" stroke="none"/>
+      <circle cx="3.9" cy="10.5" r=".95" fill="currentColor" stroke="none"/>
+    </svg></button>
+  <b class="only-main">Body</b>
+  <button id="loadDemo" class="only-main" title="load demo/graph.json — invented records, nothing saved">load demo</button>
+
+  <!-- the graph view's own chrome: back to the product, and what the view does and does not do -->
+  <button id="graphBack" class="only-graph" title="back — returns to the selected date">← back</button>
+  <b class="only-graph">graph</b>
+  <span class="gnote only-graph">read-only · this view draws kg.json and never writes it</span>
 
   <span class="spacer"></span>
-  <div class="player" id="tlPlayer" role="group" aria-label="timeline player">
+  <div class="player only-main" id="tlPlayer" role="group" aria-label="timeline player">
     <button data-step="start" title="start — first event" aria-label="start"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><rect x="1" y="2" width="1.7" height="8" fill="currentColor"/><path d="M10.5 2.4 L4.2 6 L10.5 9.6 Z" fill="currentColor"/></svg></button>
     <button data-step="prev" title="previous event" aria-label="previous event"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M9 2.4 L2.7 6 L9 9.6 Z" fill="currentColor"/></svg></button>
     <button data-step="next" title="next event" aria-label="next event"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M3 2.4 L9.3 6 L3 9.6 Z" fill="currentColor"/></svg></button>
     <button data-step="end" title="end — last event" aria-label="end"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M1.5 2.4 L7.8 6 L1.5 9.6 Z" fill="currentColor"/><rect x="9.3" y="2" width="1.7" height="8" fill="currentColor"/></svg></button>
   </div>
-  <span class="tl-date" id="tlDate" title="the date the timeline points at"></span>
+  <span class="tl-date only-main" id="tlDate" title="the date the timeline points at"></span>
   <div class="seg" id="sex">
     <button data-sex="female" title="female" aria-label="female">&#9792;</button>
     <button data-sex="male" class="on" title="male" aria-label="male">&#9794;</button>
@@ -340,7 +374,8 @@ const state = {
   edgeOff:new Set(),         // edge types the user has hidden
   date:null,                // the day the timeline is pointing at: analyses fade with distance
   event:null,               // the record the reader picked in the left list, if any
-  mainHidden:false          // ✕ on the main view: closing it is not a deselection
+  mainHidden:false,         // ✕ on the main view: closing it is not a deselection
+  graph:false               // the graph view (widget 1): a view of its own, never the main flow
 };
 const EYE_OUT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
 const SHELL_OPACITY = 0.45;
@@ -3408,13 +3443,49 @@ function tick() {
   controls.update();
   renderer.render(scene, camera);
 }
+/* ============================================================== the graph view (widget 1, T27)
+   The graph is a tool, not the product. It is one view, behind one button, drawn by this page's own
+   viewer: the body, its nodes, the documents as marks. It renders the document and has no write
+   path — nothing in it can add, connect or delete a node — and the main flow never opens it, never
+   needs it, and never waits for its 35 MB of models. Closing it changes nothing: the document, the
+   selected date and the record the reader stood on are exactly where they were. */
+let viewerStarted = false;
+
+function startViewer() {
+  // the models load the first time the reader asks for the graph, not at launch
+  if (viewerStarted) return;
+  viewerStarted = true;
+  const bootEl = document.getElementById("boot");
+  if (bootEl) bootEl.hidden = false;
+  boot();
+}
+
+function setGraphView(open) {
+  state.graph = !!open;
+  document.body.classList.toggle("graph-open", state.graph);
+  const btn = document.getElementById("openGraph");
+  if (btn) btn.setAttribute("aria-pressed", state.graph ? "true" : "false");
+  if (state.graph) {
+    startViewer();
+    if (state.sel && bodyBox) layout();   // a selection made last time still frames its node
+  } else {
+    // back returns to the selected date: the ruler's marker, the marked row and the centre view are
+    // rebuilt from state.date, which the graph view never touches
+    refreshPick();
+  }
+}
+
+document.getElementById("openGraph").onclick = () => setGraphView(true);
+document.getElementById("graphBack").onclick = () => setGraphView(false);
+
 const loadDemoBtn = document.getElementById("loadDemo");
 if (loadDemoBtn) loadDemoBtn.onclick = loadDemo;
 
 buildLegend();
 buildStateList();       // today's summary is made here, at launch, and never stored
+buildTimeline();        // the ruler is the product's: it no longer waits for the graph's models
+refreshPick();          // ends in markStateRow + renderMain — the main flow stands on its own
 tick();
-boot();
 
 window.addEventListener("resize", () => { if (bodyBox) { buildTimeline(); refreshPick(); } });
 window.__ready = () => pending === 0 && !!bodyBox && failedFiles.length === 0;
@@ -3433,6 +3504,12 @@ window.__nodeCount = () => organNodes.length;
 window.__setSkin = () => layout();   // kept for the test scripts; the shell is always on now
 window.__collapse = () => document.getElementById("collapse").click();
 window.__demoState = () => demoState;          // absent | loading | loaded
+/* T27: the graph view as data, for the acceptance run. Opening it must not move the date or the
+   record, and nothing inside it may write the document. */
+window.__graph = () => ({ open: state.graph, started: viewerStarted, date: state.date, event: state.event,
+                          sel: state.sel, models: loadTotal });
+window.__openGraph = () => { setGraphView(true); return state.graph; };
+window.__closeGraph = () => { setGraphView(false); return state.graph; };
 window.__analyses = () => ANALYSES.map(a => a.id);
 window.__tl = () => ({ date: state.date, endYear: TL.endYear,
                        winFrom: TL.winFrom ? iso(TL.winFrom) : null,
