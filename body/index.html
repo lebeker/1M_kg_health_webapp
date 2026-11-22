@@ -291,8 +291,12 @@
 
   /* widget 1, T27: the graph is a view of its own, behind one button. Open: the body, its nodes and
      their panel; closed: the product's columns. The main flow never shows the scene, and the scene
-     is never the only way to reach a record. */
-  #openGraph { padding:5px 7px; }
+     is never the only way to reach a record.
+     SCRUM-49: the button is one control in the header's right-hand cluster, glued to the left of the
+     profile control. Same box as the player and the seg (28px, 1px var(--line), radius 7), same
+     muted ink, so it reads as a neighbour and not as a badge of its own. */
+  #openGraph { height:28px; padding:0 9px; border-radius:7px; color:#9fb3c6; }
+  #openGraph:hover { background:#1b2532; color:#fff; }
   #openGraph svg { display:block; }
   .only-graph { display:none; }
   body.graph-open .only-main { display:none !important; }
@@ -357,16 +361,6 @@
 </div>
 
 <div class="bar">
-  <!-- widget 1: one button, the graph in a view of its own. It is never part of the main flow. -->
-  <button id="openGraph" class="only-main" title="open graph — the body and its nodes, read-only"
-          aria-label="open graph" aria-pressed="false"><svg viewBox="0 0 16 16" width="14" height="14"
-          fill="none" stroke="currentColor" stroke-width="1.1" aria-hidden="true">
-      <path d="M8 1.7 13.4 4.85v6.3L8 14.3 2.6 11.15v-6.3Z"/>
-      <circle cx="8" cy="8" r="1.35" fill="currentColor" stroke="none"/>
-      <circle cx="8" cy="3.2" r=".95" fill="currentColor" stroke="none"/>
-      <circle cx="12.1" cy="10.5" r=".95" fill="currentColor" stroke="none"/>
-      <circle cx="3.9" cy="10.5" r=".95" fill="currentColor" stroke="none"/>
-    </svg></button>
   <b class="only-main">Body</b>
   <button id="loadDemo" class="only-main" title="load demo/graph.json — invented records, nothing saved">load demo</button>
 
@@ -387,6 +381,18 @@
     <button data-step="end" title="end — last event" aria-label="end"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M1.5 2.4 L7.8 6 L1.5 9.6 Z" fill="currentColor"/><rect x="9.3" y="2" width="1.7" height="8" fill="currentColor"/></svg></button>
   </div>
   <span class="tl-date only-main" id="tlDate" title="the date the timeline points at"></span>
+  <!-- widget 1: one button, the graph in a view of its own. It is never part of the main flow, and
+       it sits where the graph belongs in the header: in the right-hand cluster, glued to the left of
+       the profile control, one control among its neighbours. -->
+  <button id="openGraph" class="only-main" title="open graph — the body and its nodes, read-only"
+          aria-label="open graph" aria-pressed="false"><svg viewBox="0 0 16 16" width="15" height="15"
+          fill="none" stroke="currentColor" stroke-width="1.1" aria-hidden="true">
+      <path d="M8 1.7 13.4 4.85v6.3L8 14.3 2.6 11.15v-6.3Z"/>
+      <circle cx="8" cy="8" r="1.35" fill="currentColor" stroke="none"/>
+      <circle cx="8" cy="3.2" r=".95" fill="currentColor" stroke="none"/>
+      <circle cx="12.1" cy="10.5" r=".95" fill="currentColor" stroke="none"/>
+      <circle cx="3.9" cy="10.5" r=".95" fill="currentColor" stroke="none"/>
+    </svg></button>
   <div class="seg" id="sex">
     <button data-sex="female" title="female" aria-label="female">&#9792;</button>
     <button data-sex="male" class="on" title="male" aria-label="male">&#9794;</button>

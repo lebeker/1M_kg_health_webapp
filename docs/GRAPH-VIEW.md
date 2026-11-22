@@ -1,8 +1,9 @@
 # Graph view — behind one button (T27)
 
-The graph is a tool, not the product. It is one view, opened by the hexagon button at the top left
-(widget 1, `docs/WIDGETS.md`), drawn by this app's own viewer in `body/index.html`: the body, its
-layers, the organ nodes and the documents as marks on the map.
+The graph is a tool, not the product. It is one view, opened by the hexagon button in the header's
+right-hand cluster, glued to the left of the profile control (widget 1, `docs/WIDGETS.md`), drawn by
+this app's own viewer in `body/index.html`: the body, its layers, the organ nodes and the documents
+as marks on the map.
 
 The card answered "same viewer or a reduced read-only one?" with **the same viewer, read-only**: a
 template app has no write path, so there is nothing to reduce.
