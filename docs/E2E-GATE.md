@@ -23,19 +23,26 @@ worker about to push, and it answers it the same way CI does.
 
 ## What counts as app surface
 
-`appSurface()` in `scripts/e2e/gate.ts`, one list used by the card template, the harness and CI:
+`appSurface()` in `scripts/e2e/gate.ts`, one list used by the card template, the harness and CI.
+It names directories, not files: a file list is a list somebody has to remember to extend, and the
+first three things a file list quietly exempted were the models the page renders, the graph page's
+own entry document, and the builder that writes the demo artifact.
 
 | path | surface |
 |---|---|
-| `body/index.html` | the page: header, timeline, columns, centre, right panel |
-| `body/lib/` | the page: timeline and player behaviour |
-| `body/demo/`, `body/tools/`, `app.json` | the demo build |
+| `body/` | the page: header, timeline, columns, centre, right panel, the anatomy models it loads, the demo build and its artifact |
 | `src/` | the graph view and the node panel |
+| `index.html` | the graph page's entry document, which the viewer mounts into |
+| `scripts/build-demo.ts` | the demo build: the builder that writes `body/demo.html` |
+| `app.json` | the demo build: the app manifest |
 | `package.json`, the lockfile, `vite.config.*`, `tsconfig.json` | the build itself |
 
-Everything else — `docs/`, `scripts/`, `.github/`, tests, screenshots — is not, so a tooling or
-documentation branch is exempt without anybody remembering to exempt it. The list is paths because
-a pull request is a diff; the old list was prose, and prose is what let the gate become optional.
+`NOT_PRODUCT` is the whole allowlist inside those directories — `body/shots/`, `body/*.md`, and
+`src/*.test.ts(x)`, things that cannot move the product on their own. Everything else under `body/`
+or `src/` is surface, so a new file there is gated until somebody says otherwise in a diff anyone
+can read. Everything outside the list — `docs/`, the rest of `scripts/`, `.github/`, tests,
+screenshots — is not, so a tooling or documentation branch is exempt without anybody remembering
+to exempt it.
 
 ## What a run has to be
 

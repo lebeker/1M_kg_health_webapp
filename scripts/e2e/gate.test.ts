@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { decide, latestE2eStatus } from './ci-gate'
-import { APP_SURFACE, appSurface, gateFor, needsE2e, readRun, REQUIRED_CHECKS, runs } from './gate'
+import { APP_SURFACE, appSurface, type GateIo, gateFor, main, needsE2e, NOT_PRODUCT, readRun, REQUIRED_CHECKS, runDirs, runs } from './gate'
 
 const SHA = 'a'.repeat(40)
 const OTHER = 'b'.repeat(40)
@@ -12,7 +12,7 @@ const OTHER = 'b'.repeat(40)
 function makeRun(
   outDir: string,
   name: string,
-  over: Partial<{ commit: string; passed: boolean; dirty: boolean; checks: Array<{ name: string; ok: boolean; detail: string }> }> = {},
+  over: Partial<{ commit: string; passed: boolean; dirty: boolean; finishedAt: string; checks: Array<{ name: string; ok: boolean; detail: string }> }> = {},
 ): string {
   const dir = join(outDir, name)
   mkdirSync(dir, { recursive: true })
@@ -24,7 +24,7 @@ function makeRun(
     dirty: over.dirty ?? false,
     checks,
     passed: over.passed ?? true,
-    finished_at: '2026-11-22T10:00:00.000Z',
+    finished_at: over.finishedAt ?? '2026-11-22T10:00:00.000Z',
   }
   writeFileSync(join(dir, 'report.json'), `${JSON.stringify(report, null, 2)}\n`)
   return dir
@@ -32,6 +32,15 @@ function makeRun(
 
 function emptyOut(): string {
   return mkdtempSync(join(tmpdir(), 'e2e-gate-test-'))
+}
+
+/** Run the CLI with the output captured, so a test can assert on what a person would read. */
+function cli(argv: string[], out: string = emptyOut()): { code: number; stdout: string[]; stderr: string[] } {
+  const stdout: string[] = []
+  const stderr: string[] = []
+  const io: GateIo = { out: (line) => stdout.push(line), err: (line) => stderr.push(line) }
+  const code = main([...argv, '--out', out], io)
+  return { code, stdout, stderr }
 }
 
 describe('a run is evidence of one commit, not of the branch', () => {
@@ -126,11 +135,39 @@ describe('a run is evidence of one commit, not of the branch', () => {
 
   test('the newest run wins when two are for the same commit', () => {
     const out = emptyOut()
-    makeRun(out, 'card-2026-11-22T09-00-00-000Z', { passed: false, checks: [{ name: 'agent.exit', ok: false, detail: 'killed' }] })
-    makeRun(out, 'card-2026-11-22T10-00-00-000Z')
+    makeRun(out, 'card-2026-11-22T09-00-00-000Z', {
+      passed: false,
+      finishedAt: '2026-11-22T09:00:00.000Z',
+      checks: [{ name: 'agent.exit', ok: false, detail: 'killed' }],
+    })
+    makeRun(out, 'card-2026-11-22T10-00-00-000Z', { finishedAt: '2026-11-22T10:00:00.000Z' })
     const result = gateFor(SHA, out)
     expect(result.ok).toBe(true)
     expect(result.run?.dir).toContain('10-00-00')
+  })
+
+  test('run directories are ordered by when they finished, not by their name prefix', () => {
+    const out = emptyOut()
+    // Alphabetically `smoke-` sorts after `backfill-`, so a name sort calls yesterday's smoke run
+    // the latest thing that happened. The report's `finished_at` says otherwise.
+    makeRun(out, 'smoke-smoke-card-2026-11-21T21-39-12-801Z', { commit: OTHER, finishedAt: '2026-11-21T21:39:12.801Z' })
+    makeRun(out, 'backfill-main-main-backfill-2026-11-22T12-59-20-255Z', { finishedAt: '2026-11-22T12:59:20.255Z' })
+    expect(runDirs(out).map((dir) => dir.split('/').pop())).toEqual([
+      'smoke-smoke-card-2026-11-21T21-39-12-801Z',
+      'backfill-main-main-backfill-2026-11-22T12-59-20-255Z',
+    ])
+    expect(runs(out)[0].finishedAt).toBe('2026-11-22T12:59:20.255Z')
+    // The refusal names the run that actually finished last, not the one whose name sorts last.
+    const refusal = gateFor('c'.repeat(40), out).reason
+    expect(refusal).toContain('backfill-main-main-backfill')
+    expect(refusal).not.toContain('smoke-smoke-card')
+  })
+
+  test('a run whose report has no finished_at sorts as the oldest rather than jumping the queue', () => {
+    const out = emptyOut()
+    makeRun(out, 'a-2026-11-22T10-00-00-000Z', { commit: OTHER, finishedAt: '' })
+    makeRun(out, 'z-2026-11-21T10-00-00-000Z', { finishedAt: '2026-11-21T10:00:00.000Z' })
+    expect(runs(out)[0].commit).toBe(SHA)
   })
 
   test('a partial sha is refused instead of matched loosely', () => {
@@ -145,6 +182,31 @@ describe('the diff decides which branches need a run', () => {
     for (const path of ['body/index.html', 'body/lib/x.js', 'body/demo/graph.json', 'src/App.tsx', 'app.json', 'body/tools/bundle.mjs']) {
       expect(needsE2e([path])).toBe(true)
     }
+  })
+
+  test('the models the page renders, the graph page entry and the demo builder are surface too', () => {
+    // Each of these was exempt before the first review round: the anatomy the centre and the
+    // right panel are made of, the document the viewer mounts into, and the builder that emits
+    // the demo the page opens with. A pull request touching only one of them moved the product.
+    for (const path of ['body/models/heart.glb', 'body/models/bones.glb', 'index.html', 'scripts/build-demo.ts', 'body/demo.html']) {
+      expect(needsE2e([path])).toBe(true)
+    }
+    expect(appSurface(['body/models/heart.glb'])[0].area).toContain('centre')
+    expect(appSurface(['index.html'])[0].area).toContain('entry document')
+  })
+
+  test('the allowlist is exactly the things that cannot move the product on their own', () => {
+    for (const path of ['body/shots/header.png', 'body/README.md', 'body/MODEL_REPAIR.md', 'src/rules.test.ts', 'src/App.test.tsx']) {
+      expect(needsE2e([path])).toBe(false)
+    }
+    for (const [pattern] of NOT_PRODUCT) expect(pattern.source.startsWith('^')).toBe(true)
+    // A new file under body/ or src/ is surface until somebody says otherwise, which is the
+    // direction the list has to fail in.
+    for (const path of ['body/new-thing.js', 'body/models/new.glb', 'src/new.ts', 'body/demo.html']) {
+      expect(needsE2e([path])).toBe(true)
+    }
+    // `body/shots/` is a directory allowlist, not a prefix free-for-all on the page's notes.
+    expect(needsE2e(['body/MODEL_REPAIR.md.bak'])).toBe(true)
   })
 
   test('tooling, docs, tests and the harness itself are not', () => {
@@ -165,6 +227,58 @@ describe('the diff decides which branches need a run', () => {
       expect(pattern.source.startsWith('^')).toBe(true)
     }
     expect(needsE2e(['docs/src/notes.md', 'vendor/body/index.html.bak'])).toBe(false)
+  })
+})
+
+describe('the command line answers the question it advertises', () => {
+  test('--files <path> with a surface path is a run, not a crash', () => {
+    const result = cli(['--files', 'body/lib/right-panel.js'])
+    expect(result.code).toBe(0)
+    expect(result.stderr).toEqual([])
+    expect(result.stdout.join('\n')).toContain('e2e needed')
+    expect(result.stdout.join('\n')).toContain('body/lib/right-panel.js')
+  })
+
+  test('--files takes several paths, and one of them is enough', () => {
+    const result = cli(['--files', 'docs/PLAN.md', 'body/models/heart.glb', 'src/App.tsx'])
+    expect(result.code).toBe(0)
+    expect(result.stdout.filter((line) => line.startsWith('e2e needed'))).toHaveLength(2)
+  })
+
+  test('--files with only non-surface paths says so, without asking for a run', () => {
+    const result = cli(['--files', 'docs/PLAN.md', 'body/shots/header.png'])
+    expect(result.code).toBe(0)
+    expect(result.stdout.join('\n')).toContain('no e2e needed')
+  })
+
+  test('--files with no paths is a usage error, never an exemption', () => {
+    const result = cli(['--files'])
+    expect(result.code).toBe(1)
+    expect(result.stderr.join('\n')).toContain('at least one path')
+    expect(result.stdout.join('\n')).not.toContain('no e2e needed')
+  })
+
+  test('a flag after --files is still a flag', () => {
+    const result = cli(['--files', 'body/index.html', '--json'])
+    expect(result.code).toBe(0)
+    expect(JSON.parse(result.stdout.join('\n'))).toMatchObject({ needed: true })
+  })
+
+  test('--commit against a run that exists is ok, and against a fabricated sha it is not', () => {
+    const out = emptyOut()
+    makeRun(out, 'card-2026-11-22T10-00-00-000Z')
+    const good = cli(['--commit', SHA], out)
+    expect(good.code).toBe(0)
+    expect(good.stdout.join('\n')).toContain('e2e ok')
+    const bad = cli(['--commit', '0'.repeat(40)], out)
+    expect(bad.code).toBe(1)
+    expect(bad.stderr.join('\n')).toContain('e2e missing')
+  })
+
+  test('an unknown argument is refused with a sentence, not a stack trace', () => {
+    const result = cli(['--nonsense'])
+    expect(result.code).toBe(1)
+    expect(result.stderr.join('\n')).toContain('unknown argument --nonsense')
   })
 })
 

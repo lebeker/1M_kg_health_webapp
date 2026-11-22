@@ -631,10 +631,12 @@ async function main() {
       join(evidence, 'report.json'),
     ]
     commentOnCard(card.id, message, files)
-    if (options.returnCard) {
-      const moved = returnCard(card.id, `G3 agentic e2e failed on ${commit.slice(0, 7)}: ${failed.map((check) => check.name).slice(0, 4).join(', ')} — evidence in ${evidence}`)
-      console.error(`card    ${moved}`)
-    }
+  }
+  // The card's return to `ready` is not a comment: it is item 4 of the gate, so it does not ride
+  // on the comment flag. `--no-comment` quiets the board, it does not leave a red card in review.
+  if (options.returnCard && card.source === 'kanban') {
+    const moved = returnCard(card.id, `G3 agentic e2e failed on ${commit.slice(0, 7)}: ${failed.map((check) => check.name).slice(0, 4).join(', ')} — evidence in ${evidence}`)
+    console.error(`card    ${moved}`)
   }
   process.exit(1)
 }
