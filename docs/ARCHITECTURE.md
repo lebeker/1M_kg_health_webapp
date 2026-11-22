@@ -82,7 +82,8 @@ This repo, and two pages in it, because a page here has two different jobs:
 | `dist/index.html` | `src/` (React, `bun run build`) | the viewer a skill ships: the whole `kg/1` graph in sigma 2D and in the 3D force graph, with the notes beside it. `scripts/bundle.mjs` copies it into a skill as `assets/viewer.html` |
 | `body/index.html` | hand-written, no build step | the health page: the body, the timeline, the records list, one main view per event type. Pulls its three.js and its `body/lib/*.js` modules from the folder beside it; no network |
 
-Both read the same `kg/1-health` document, and neither writes it.
+Both read a `kg/1` JSON document — `dist/index.html` whichever one it is handed, `body/index.html`
+one in the `kg/1-health` profile — and neither writes it.
 
 **Owns:** layout, widget behaviour, empty states, what is shown when a field is missing, and the
 arithmetic that turns facts into an estimate (`src/rules.ts`).
