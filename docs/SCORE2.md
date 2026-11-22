@@ -39,10 +39,11 @@ The recalibration scale is chosen by the person's European risk region: `low`, `
 percentage points, so it is an argument with no default: `score2(input)` without a region refuses
 to print.
 
-The region is not in `kg.json`. Adding it is a change to the data contract (`docs/DATA-CONTRACT.md`,
-`schema_version`), which is a lead-only card, so this card takes the region as a parameter and says
-so. Until that field exists, whoever renders the panel asks the person once and passes the answer;
-nothing in the template guesses a country from a timezone.
+The region is not in `kg.json`. Adding it is a change to the schema
+(`scripts/schema/kg-1-health.schema.json`, its `x-contract-version`), which is a lead-only card, so
+this card takes the region as a parameter and says so. Until that field exists, whoever renders the
+panel asks the person once and passes the answer; nothing in the template guesses a country from a
+timezone.
 
 ## The interval
 
@@ -72,7 +73,7 @@ Carried in `limits` on every result, because a number without them is a claim th
 - ages outside 40–69: over 70 is SCORE2-OP (different coefficients, not this card), under 40 has no
   SCORE2 scale;
 - time: the scales were fitted to contemporary European incidence. A 2015 record and a 2026 record
-  are scored with the same coefficients; no trend is applied.
+  are scored with the same coefficients; no trend is applied;
 - the published charts cover systolic blood pressure 100–200 mmHg and non-HDL cholesterol
   3–6.9 mmol/L. Outside them the equations still evaluate, but the result is an extrapolation and
   not a chart value. Far enough outside, the probability rounds to certainty and the log-log step
