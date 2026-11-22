@@ -377,6 +377,41 @@ describe('the guard reads a command, not the shape of a string', () => {
     }
   })
 
+  test('reads a `..` in the middle of a find path as the walk it is, and a climb as a climb', () => {
+    // Round 6's review measured the strict branch as `word.split('/').includes('..')`, so the
+    // presence of the character decided the verdict and a `..` in the middle of an in-room path
+    // failed the run — four in-room `find` calls that pass on the pre-fix check and on head5. The
+    // strict reading is about where a word *ends*: `find ..` is the room's own root and the card
+    // names it, so a word that climbs (`..`, `../kg`) or resolves back to the root (`kg/../..`) is
+    // out, while one that passes through a parent and comes back down inside the room is in.
+    const allowed = [
+      'find kg/assets/../assets -name "*.svg"',
+      'find kg/../notes -name "*.md"',
+      'find ./kg/../kg -name x',
+      'find kg/a/b/../c -type f',
+      'find . -name "..*"',
+      'find work/kg/../kg/scripts -name "*.py"',
+    ]
+    for (const command of allowed) {
+      expect([command, outsideRoomCalls([call('terminal', { command })])]).toEqual([command, []])
+    }
+    const escapes = [
+      'find ..',
+      'find ../kg -name "*.py"',
+      'find ../home/skills/kg -name x',
+      'find kg/../.. -name x',
+      'find work/../.. -type f',
+      'find ..//.. -name "*.json"',
+      'find $HOME -name kg.py',
+      'find ~ -maxdepth 3 -name "kg.py"',
+      'find / -name kg.py',
+      'find "/" -maxdepth 1',
+    ]
+    for (const command of escapes) {
+      expect([command, outsideRoomCalls([call('terminal', { command })]).length]).toEqual([command, 1])
+    }
+  })
+
   test('judges the operands of the command an -exec tail or a shell string reaches', () => {
     // The path commands used to be four search commands, so `-exec ls /` failed while
     // `-exec rm -rf /` — the same walk, destructive instead of readable — passed. The command an

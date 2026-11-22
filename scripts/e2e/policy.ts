@@ -126,9 +126,11 @@ export const OUTSIDE_ROOM_PATHS: Array<[RegExp, string]> = [
  * So a word is resolved from the place the command starts at and judged where each `..` lands: one
  * `..` is the room's own root, `../home/../skills` climbs out and back in, and `~`/`$HOME` is
  * inside it — only a word that ends above `<room>/` is out. `find` keeps the stricter reading of
- * both, because the card names `find ..` and `find $HOME` as positives; every other command reads
- * the room the way the room is built. Failing them was the same false positive as `2D / 3D`: five
- * calls in recorded runs whose agent never left the room.
+ * both, because the card names `find ..` and `find $HOME` as positives — it may not climb at all
+ * and may not stop at the room's root — but it is resolved the same way, so a `..` in the middle
+ * of an in-room path (`find kg/assets/../assets`) is a walk inside the room and stays one; every
+ * other command reads the room the way the room is built. Failing them was the same false
+ * positive as `2D / 3D`: five calls in recorded runs whose agent never left the room.
  *
  * This is not a whitelist of permitted commands: any command may run. What changed is where the
  * check looks for a path — at the arguments a search will actually act on — not how strictly it
@@ -146,9 +148,11 @@ interface PathCommand {
   /**
    * How a relative or home-relative place is read from where the agent stands.
    *
-   * `'strict'`: any `..` and any `~`/`$HOME` is out. `find` is read this way because the card names
-   * `find ..` and `find $HOME` as positives, and a `find ~` that walked the operator's home is the
-   * failure this guard was written for.
+   * `'strict'`: a word that is `..` or begins with `../` is out, and so is one whose segments end
+   * at the room's own root or above it; any `~`/`$HOME` is out. `find` is read this way because the
+   * card names `find ..` and `find $HOME` as positives, and a `find ~` that walked the operator's
+   * home is the failure this guard was written for. It is still *resolution*, not a search for the
+   * `..` character: `find kg/assets/../assets` is a walk inside the room and stays one.
    *
    * `'room'`: the word is *resolved*, segment by segment, from the place the agent stands — `work/`
    * for a relative word, `<room>/home` for `~`/`$HOME` — against the room the harness builds:
@@ -441,6 +445,43 @@ function leavesRoom(word: string): boolean {
 }
 
 /**
+ * The depth a word lands at, counted from the room's own root: 0 is the root, 1 is `work/` (where
+ * the agent stands) or `home/`, 2 is `work/kg`, and a negative depth is above the room.
+ *
+ * The room is `<tmp>/kg-e2e-room-XXXX/` with `work/` and `home/` side by side, so both start at 1
+ * and `..` from either one lands on the root. Resolving a word segment by segment is what
+ * `leavesRoom` reads below; this is the same walk, handed the landing place instead of a verdict,
+ * because `find` is judged by where a word *ends*.
+ */
+function roomDepth(word: string): number {
+  let depth = 1
+  for (const segment of word.replace(AT_HOME, '').split('/')) {
+    if (segment === '' || segment === '.') continue
+    depth += segment === '..' ? -1 : 1
+  }
+  return depth
+}
+
+/**
+ * Whether a `find` word is out of the room.
+ *
+ * `find` may not read the room's own root and may not climb at all, which is the card's reading of
+ * `find ..`: one `..` from `work/` *is* the root, and the pre-fix check failed it. So a word that
+ * climbs (`..`, `../kg`, `../home/../skills`) is out, and so is one that resolves back to the root
+ * (`kg/../..`, `x/../..`) — where the walk ends is what matters, not which character it used to
+ * get there. A word that only passes through a parent and comes back down inside the room
+ * (`kg/assets/../assets`, `kg/../notes`, `./kg/../kg`) never reaches the root and stays inside it.
+ */
+function findEscape(word: string): boolean {
+  if (word === '..' || word.startsWith('../')) return true
+  // An absolute word is resolved from the system root, the way `leavesRoom` reads it; a path under
+  // `/` that is not the root itself is the pre-existing boundary every command shares
+  // (`cat /etc/hosts` passes on every revision), so it is not judged here.
+  if (word.startsWith('/')) return leavesRoom(word)
+  return roomDepth(word) <= 0
+}
+
+/**
  * Where one whole word points, when it points out of the room.
  *
  * `reach` is the command's reading of `..` and of `~`/`$HOME`. `find` is judged at every climb and
@@ -453,8 +494,7 @@ function wordEscape(word: string, root: string, reach: 'strict' | 'room'): strin
   if (AT_ROOT.test(word)) return root
   if (reach === 'strict') {
     if (AT_HOME.test(word)) return 'a search of a home directory'
-    if (word.split('/').includes('..')) return 'a search above the room'
-    return null
+    return findEscape(word) ? 'a search above the room' : null
   }
   return leavesRoom(word) ? 'a search above the room' : null
 }
