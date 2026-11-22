@@ -58,6 +58,47 @@ describe('the guard that makes the boundary true', () => {
   })
 })
 
+describe('the guard reads a command, not the shape of a string', () => {
+  test('passes an in-room grep whose own pattern contains " / "', () => {
+    // t_6e6fc87e, run published-root-r2: this command searched a file inside the room, and the
+    // gate read the space-slash-space in its own pattern as a walk from `/`.
+    const command =
+      'cd /private/var/folders/wj/9sk4v59j2pn2xt6xszpqnn0c0000gn/T/kg-e2e-room-6W2xt6/work && grep -o "Health map[^\\"<]\\{0,50\\}\\|Visit[^\\"<]\\{0,40\\}\\|Condition[^\\"<]\\{0,40\\}\\|2D / 3D" kg/assets/health-viewer.html | sort | uniq -c | sort -rn | head -20'
+    expect(outsideRoomCalls([call('terminal', { command })])).toEqual([])
+  })
+
+  test('passes the short form of the same grep', () => {
+    expect(outsideRoomCalls([call('terminal', { command: 'grep -o "2D / 3D" kg/assets/health-viewer.html' })])).toEqual([])
+  })
+
+  test('still fails the same grep when the path it is handed is the root', () => {
+    const calls = [call('terminal', { command: 'grep -r "x" /' })]
+    expect(outsideRoomCalls(calls)).toHaveLength(1)
+    expect(outsideRoomCalls(calls)[0]).toContain('filesystem root')
+  })
+
+  test('does not read a pattern where the command expects a pattern', () => {
+    expect(outsideRoomCalls([call('terminal', { command: 'grep -o "/" kg/assets/health-viewer.html' })])).toEqual([])
+    expect(outsideRoomCalls([call('terminal', { command: 'grep -e .. -e / kg/assets/health-viewer.html' })])).toEqual([])
+    expect(outsideRoomCalls([call('terminal', { command: 'find . -name "..*" -maxdepth 2' })])).toEqual([])
+  })
+
+  test('does not read a written file as a command', () => {
+    const content = 'Stay inside the room: no `find /`, no `ls /`, no `mdfind`, no `diskutil`.\n'
+    expect(outsideRoomCalls([call('write_file', { path: 'NOTES.md', content })])).toEqual([])
+    expect(outsideRoomCalls([call('patch', { path: 'NOTES.md', old_string: 'find /', new_string: 'nothing' })])).toEqual([])
+  })
+
+  test('reads a quoted command as a command', () => {
+    expect(outsideRoomCalls([call('terminal', { command: "bash -c 'find / -name validate.ts'" })])).toHaveLength(1)
+    expect(outsideRoomCalls([call('terminal', { command: 'sudo find / -name kg.py' })])).toHaveLength(1)
+  })
+
+  test('reads every line of a script, not just the first', () => {
+    expect(outsideRoomCalls([call('terminal', { command: 'cd kg\ngrep -o "2D / 3D" assets/health-viewer.html\nls /' })])).toHaveLength(1)
+  })
+})
+
 describe('the host-application guard still holds', () => {
   test('fails a child that starts its own browser', () => {
     expect(hostAppCalls([call('terminal', { command: 'open -a "Google Chrome" http://x' })])).toHaveLength(1)
