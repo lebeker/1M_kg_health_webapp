@@ -61,6 +61,25 @@ describe('a product card carries its own question, before anybody writes prose',
     )
   })
 
+  test('a columns-page card says `page: case`, so the harness opens the page the claim lives on', () => {
+    const body = renderCard({ ...product, paths: ['body/index.html'] })
+    expect(body).toContain('page: case')
+    const card = readCard(cardFile(body))
+    expect(card.pages).toEqual(['case'])
+  })
+
+  test('a card that moves both pages says `page: both`', () => {
+    const body = renderCard(product)
+    expect(body).toContain('page: both')
+    expect(readCard(cardFile(body)).pages).toEqual(['case', 'graph'])
+  })
+
+  test('a graph-only card keeps the block it has always had: no `page:` line', () => {
+    const body = renderCard({ ...product, paths: ['src/App.tsx'] })
+    expect(body).not.toContain('page:')
+    expect(readCard(cardFile(body)).pages).toEqual(['graph'])
+  })
+
   test('a card already on the board is read through its own `## surface` section', () => {
     const stamped = `${renderCard(product).replace(/## e2e[\s\S]*?(?=Commit trailer)/, '')}`
     expect(surfacePaths(stamped)).toEqual(['body/index.html', 'src/profile.ts'])
@@ -163,6 +182,25 @@ describe('--stamp writes what --check reads, so a stamped card is not unchecked'
 
   test('stamping a card that already carries a block is refused instead of doubling it', () => {
     expect(() => stampBody(renderCard(product), e2e, ['body/index.html'])).toThrow(/already carries/)
+  })
+
+  test('a stamped columns-page card asks for the columns page, not the graph default', () => {
+    // The stamping tool wrote `prompt:` and `expect:` only, and since the page field existed an
+    // absent `page:` means the graph page — so a stamped body/ card asked for a page its change
+    // is not on and failed its own claim with nothing but CI's refusal to explain why.
+    const fresh = stampBody(bare, e2e, ['body/index.html'])
+    expect(fresh).toContain('page: case')
+    expect(readCard(cardFile(fresh)).pages).toEqual(['case'])
+    // When the card already names what it touches, the pages come from that section, not from
+    // a --path list the caller may not have repeated.
+    const declared = renderCard({ ...product, paths: ['body/index.html'] }).replace(/## e2e[\s\S]*?(?=Commit trailer)/, '')
+    const kept = stampBody(declared, e2e, [])
+    expect(kept).toContain('page: case')
+    expect(readCard(cardFile(kept)).pages).toEqual(['case'])
+    // And a graph-only card is stamped exactly as it was before the field existed.
+    const graph = stampBody(bare, e2e, ['src/App.tsx'])
+    expect(graph).not.toContain('page:')
+    expect(readCard(cardFile(graph)).pages).toEqual(['graph'])
   })
 
   test('--stamp without a prompt is exit 2 before anything is written', () => {

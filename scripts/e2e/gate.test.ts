@@ -485,6 +485,30 @@ describe('a graph receipt does not authorise a claim about the columns page', ()
     expect(gateFor(SHA, both, ['case', 'graph']).ok).toBe(true)
   })
 
+  test('a case-page run asked for the graph page is told page: graph, not page: case', () => {
+    // The live defect: the refusal ended with a fixed `page: case` sentence, so a worker whose
+    // run had captured the columns page and not the graph page was told to add the field it
+    // already had — and would have added it, again, and failed again.
+    const out = emptyOut()
+    makeRun(out, 'case-2026-11-22T10-00-00-000Z', { pages: ['case'], cardPage: ['case'] })
+    const result = gateFor(SHA, out, ['graph'])
+    expect(result.ok).toBe(false)
+    expect(result.reason).toContain('the graph page')
+    expect(result.reason).toContain('`page: graph`')
+    expect(result.reason).not.toContain('page: case')
+  })
+
+  test('a two-page diff missing only the graph capture is told page: both', () => {
+    const out = emptyOut()
+    makeRun(out, 'case-2026-11-22T10-00-00-000Z', { pages: ['case'], cardPage: ['case'] })
+    const result = gateFor(SHA, out, ['case', 'graph'])
+    expect(result.ok).toBe(false)
+    expect(result.reason).toContain('both pages')
+    expect(result.reason).toContain('`page: both`')
+    expect(result.reason).not.toContain('page: case')
+    expect(result.reason).not.toContain('page: graph')
+  })
+
   test('a report whose own card names a page its captures do not is refused without being asked', () => {
     // The second half of the rule: even with no caller-supplied requirement, a report that says
     // "this card asked for the columns page" and carries no columns capture is not evidence.
@@ -563,6 +587,23 @@ describe('the diff decides which page the receipt has to be evidence of', () => 
     expect(decide({ event: 'pull_request', files, status: { state: 'success', description: 'G3 [case] PASS — x' } }).ok).toBe(false)
     expect(decide({ event: 'pull_request', files, status: { state: 'success', description: 'G3 [graph] PASS — x' } }).ok).toBe(false)
     expect(decide({ event: 'pull_request', files, status: { state: 'success', description: 'G3 [case+graph] PASS — x' } }).ok).toBe(true)
+  })
+
+  test('the advice names the pages the diff moves, not the columns page by default', () => {
+    const files = ['body/index.html', 'src/App.tsx']
+    // A two-page diff: whichever capture is missing, the card has to ask for both, because the
+    // next run has to open both. `page: graph` here would drop the columns capture the diff needs.
+    for (const description of ['G3 [case] PASS — x', 'G3 [graph] PASS — x']) {
+      const decision = decide({ event: 'pull_request', files, status: { state: 'success', description } })
+      expect(decision.ok).toBe(false)
+      expect(decision.message).toContain('`page: both`')
+      expect(decision.message).not.toContain('page: case')
+      expect(decision.message).not.toContain('page: graph')
+    }
+    // A columns-page diff whose receipt names the graph page is told `page: case`, not `both`.
+    const caseDiff = decide({ event: 'pull_request', files: ['body/index.html'], status: { state: 'success', description: 'G3 [graph] PASS — x' } })
+    expect(caseDiff.message).toContain('the columns page')
+    expect(caseDiff.message).toContain('`page: case`')
   })
 
   test('the page marker is read from the receipt, and an absent one is not a claim', () => {

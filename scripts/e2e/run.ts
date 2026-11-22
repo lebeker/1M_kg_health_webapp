@@ -719,7 +719,7 @@ async function main() {
   console.log()
   if (failed.length === 0) {
     console.log(`PASS  ${card.id} — ${checks.length} checks, evidence in ${evidence}`)
-    for (const capture of captures) console.log(`      ${capture.label}: ${describeValues(capture.values)} — ${capture.screenshot}`)
+    for (const capture of captures) console.log(`      ${capture.label}: ${describeValues(capture.values, capture.kind)} — ${capture.screenshot}`)
     if (options.comment && card.source === 'kanban') {
       const files = [
         join(evidence, 'report.json'),

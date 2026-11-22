@@ -357,10 +357,21 @@ export async function capturePages(options: CaptureOptions): Promise<CaptureRun>
   }
 }
 
-/** Kept for the failure comment: a page's own words when the harness could not read it. */
-export function describeValues(values: Record<string, unknown>): string {
+/**
+ * One line for the end of a run: where the page was, what it called itself, and the figure that
+ * page actually has. The two pages do not share one: the graph viewer mounts React into `#root`
+ * and counts the elements under it, the columns page mounts nothing and reports the record list
+ * and the three column widths instead. Printing `values.mounted` for both made a passing columns
+ * capture read `0 elements` — a render failure that never happened.
+ */
+export function describeValues(values: Record<string, unknown>, kind: PageKind = 'graph'): string {
   const url = String(values.url ?? '')
   const title = String(values.title ?? '')
+  if (kind === 'case') {
+    const records = (values.records ?? {}) as { stored?: number }
+    const columns = (values.columns ?? {}) as { left?: number; centre?: number; panel?: number }
+    return `${url || 'no url'} ("${title}", ${Number(records.stored ?? 0)} record(s), columns ${Number(columns.left ?? 0)}/${Number(columns.centre ?? 0)}/${Number(columns.panel ?? 0)} px)`
+  }
   const mounted = Number(values.mounted ?? 0)
   return `${url || 'no url'} ("${title}", ${mounted} elements)`
 }
