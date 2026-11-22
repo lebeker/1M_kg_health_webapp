@@ -1,9 +1,9 @@
 {
-  "name": "kg-viewer",
+  "name": "health-viewer",
   "private": true,
-  "version": "0.0.54",
+  "version": "0.0.55",
   "type": "module",
-  "description": "Single-file React viewer for a kg/1 knowledge-graph document.",
+  "description": "Single-file React viewer for a kg/1-health document — the template half of the health map.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -16,6 +16,7 @@
     "test": "bun test src scripts",
     "test:contract": "bun scripts/validate-kg-fixtures.ts",
     "test:branch-name": "bun scripts/check-branch-name.ts --self-test",
+    "test:release": "bun test scripts/release.test.ts",
     "e2e": "bun scripts/e2e/run.ts",
     "rules": "bun scripts/rules.ts",
     "verify": "bun run lint && bun run typecheck && bun run test && bun run test:contract && bun run test:branch-name && bun run test:split",

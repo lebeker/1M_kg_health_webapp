@@ -9,12 +9,16 @@ dist-multi/
 .cache/
 skills/**/__pycache__/
 
-# Generated candidate/Blender backups; final model and editable source are tracked.
+# --- Models -------------------------------------------------------------------
+# body/models is content, not build output: the sixteen models body/index.html loads are
+# tracked on purpose (docs/RELEASE.md §5). What a rebuild drops beside them is not.
+body/models/**/*.blend1
+body/models/**/*.blend2
+body/models/**/*.blend@
+body/models/**/*.glb.tmp
+body/models/**/*.npz
+body/models/**/volume-cache/
+# Candidate exports that were never installed into the page.
 body/models/repair/reproductive-female.glb
-body/models/repair/*.blend1
 body/tools/__pycache__/
 scripts/__pycache__/
-
-# Derived volume caches (regenerable from the .blend sources)
-body/models/repair/*.npz
-body/models/repair/volume-cache/

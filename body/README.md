@@ -142,3 +142,7 @@ Paul Kotelevets, Tonatiuh de San Julián and Julien Kaspar.
 The new female reproductive surfaces are original procedural model geometry, authored here
 rather than copied from atlas female collections (which are empty). three.js r146 and the
 vendored controls/loaders retain their MIT notices in `lib/`.
+
+The repository-wide licence map — which path is MIT, CC BY-SA 4.0 or CC0, and the full texts —
+is [`NOTICE.md`](../NOTICE.md) and [`LICENSES/`](../LICENSES/). This section is the model-specific
+detail behind it.

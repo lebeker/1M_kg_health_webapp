@@ -1,17 +1,53 @@
-# kg-viewer
+# Health map — the template half
 
-A React viewer for a `kg/1` knowledge-graph document — the web-app half of a
-knowledge-graph skill.
+The web half of the health map. A `kg/1-health` document is the facts — labs, diagnoses, visits,
+drugs, each with its date and its source — and this repository is how those facts look: a timeline
+you can stand on a date in, a left column that says what was known then, a centre that shows the
+selected record in full, and estimates that carry their interval and their reason.
 
-**Two worked cases:** a [drug overview](https://lebeker.github.io/1M_kg_sciense-kg_webapp/lynkuet/)
-of the neurokinin antagonist class (35 nodes), and a
-[field survey](https://lebeker.github.io/1M_kg_sciense-kg_webapp/catmap/) of longevity research
-(1,817 nodes, 110 categories, 1,563 works), where the graph carries nine documents and the report
-beside the map is readable in the page. Both are on
-<https://lebeker.github.io/1M_kg_sciense-kg_webapp/>, each showing the document it came from and
-the page it renders into. It builds to **one self-contained HTML file** with every script and style
-inlined, so it opens from `file://` with no server, no network and no build step on the reader's
-machine.
+Three things ship from here:
+
+| what | where | what it is |
+|---|---|---|
+| the main page | `body/index.html` | the health view, the demo, and the anatomy under it |
+| the graph view | `src/` → `dist/index.html` | the same document rendered as a graph, opened behind the "open graph" button, read-only |
+| the skills | `skills/` | what this app hands to the parent `kg` skill: markers → PDF, markers → FHIR, and `add-prediction` |
+
+The app's own identity is `app.json` → `id: health-viewer`, `title: Health map`. A skill routes on
+that file, not on the package name. Everything about publishing, licences and the model set is in
+[`docs/RELEASE.md`](docs/RELEASE.md).
+
+**Read first:** [PRODUCT](docs/PRODUCT.md) (what it is for and what it refuses to do),
+[ARCHITECTURE](docs/ARCHITECTURE.md) (the four layers and the seams between them),
+[DATA-CONTRACT](docs/DATA-CONTRACT.md) (the `kg/1-health` document), and
+[ANATOMY-VOCABULARIES](ANATOMY-VOCABULARIES.md) (the organ vocabulary the meshes are named in).
+
+## Quick start
+
+```bash
+bun install                 # or: npm install
+bun run dev                 # the graph view on the dev server
+python3 -m http.server 8770 --bind 127.0.0.1    # then http://127.0.0.1:8770/body/
+bun run verify              # lint, types, unit, contract fixtures, branch rule, split regression
+```
+
+The main page has no build step and no network: it is one HTML file plus the GLB layers beside it.
+Open it over a local server rather than `file://` — it fetches `models/*.glb` and `demo/graph.json`.
+
+## The demo is not a user
+
+`body/demo/graph.json` is an invented patient (man, 65, twenty years of history). Loading it writes
+nothing into a profile: after the demo runs, the user's own workspace is still empty. That rule has
+its own test (`scripts/demo-user.test.ts`) because the one failure this product cannot survive is
+someone else's labs appearing in your health record.
+
+## The graph view
+
+A graph answers "what connects to what"; a health question usually wants "what is true on this
+date", which the three columns answer better. So the graph is a tool behind a button, never the home
+screen: the button opens this repository's own viewer as a separate view, read-only — no create, no
+connect, no delete — and back returns to the date you were reading. The rules and the evidence are
+in [`docs/GRAPH-VIEW.md`](docs/GRAPH-VIEW.md).
 
 ## The graph object
 
@@ -38,7 +74,7 @@ force layout arranges depth itself.
 
 | command | output | why |
 |---|---|---|
-| `bun run build` | `dist/index.html` — one file, ~1.8 MB | what the skill ships; must open from `file://` |
+| `bun run build` | `dist/index.html` — one file, ~2 MB | what the skill ships; must open from `file://` |
 | `bun run build:multi` | `dist-multi/` — code-split | what a hosted app serves; 3D is fetched on demand |
 
 `vite-plugin-singlefile` sets `codeSplitting: false` (Rollup's
@@ -53,19 +89,6 @@ dist-multi/assets/3d-force-graph-*.js 1,388.13 kB │ gzip: 371.21 kB   three + 
 
 In the single-file build everything is present but 3D still only *executes* when
 it is opened.
-
-## Build
-
-```bash
-bun install            # or: npm install
-bun run build          # -> dist/index.html
-bun run build:multi    # -> dist-multi/
-bun run dev            # dev server; reads ./graph.json as a sidecar
-bun run typecheck
-```
-
-`public/graph.json` is gone: the dev server falls back to `fetch('./graph.json')`
-if one is present next to the served page, and otherwise renders an empty graph.
 
 ## Getting the graph in
 
@@ -102,17 +125,33 @@ is made of.
 It is what turns "make me a graph" into a specific thing to build. A skill reads it to:
 
 - match a user's words to this app rather than to whatever is first in a list,
-- tell the user what has to be installed first — and **why** (`tool_notes`: OpenAlex carries
-  works, authors, institutions and concepts; a web search is the only way to evidence a
-  company; nothing else lists what a private company is working on),
-- build the graph to this app's conventions: `kinds` seed the palette, `edges` are the
-  patterns that make a map of this kind legible. A piece of work is an **edge** between the
-  researcher and the subject, not a node with a line to something.
+- tell the user what has to be installed first — and **why** (`tool_notes`: the `kg` skill writes the
+  document and the three skills in `skills/` export or extend it; nothing here guesses a lab value,
+  so a photo of a printout is what a graph actually starts from),
+- build the graph to this app's conventions: `kinds` seed the palette (`observation`, `condition`,
+  `encounter`, `medication`, `procedure`, `summary`, `prediction`, `document`), and `edges` are the
+  patterns that make a history legible — `tracks`, `treated by`, `contradicts`, `derived from`,
+  `advised` — so a forecast is projected from a condition and never stated as a fact.
 
 Edit it here, in this repo — the app owns the definition of its own goal. It is published at
 `…/main/app.json` (not tag-pinned: what the app is *for* does not change when the build
 does), and picked up by `fetch-app`, or copied in by `bundle.mjs` as
 `assets/viewer.app.json`.
+
+## Skills this app hands to `kg`
+
+`app.json` → `requires.skills` names them, and `skills/` holds them:
+
+| skill | writes? | what it does |
+|---|---|---|
+| `markers-to-pdf` | no | every marker of the main view — value, reference, flag, date, source — as one paginated card |
+| `markers-to-fhir` | no | the same markers as an HL7 FHIR R4 bundle, with the mapping and its limits documented |
+| `add-prediction` | yes | one PubMed paper → its ratio and interval → a cohort check → a `prediction` node and a `projected` edge, both left `confirmed: false` |
+
+A skill that ships code carries it twice — the `.py` in `skills/<name>/scripts/` and a verbatim
+block inside `SKILL.md`, because a skill arrives as one file. `bun scripts/skills.ts --embed`
+refreshes the block and `scripts/skills.test.ts` fails when the two disagree. The long forms are
+[`docs/EXPORT.md`](docs/EXPORT.md) and [`docs/ADD-PREDICTION.md`](docs/ADD-PREDICTION.md).
 
 ## Landing it in a skill
 
@@ -135,7 +174,9 @@ bun run build:local && bun run release
 `release` writes the artifact to a `dist` branch (git plumbing, never a checked-out orphan
 branch) and tags it `viewer-v<version>`: an immutable URL, one `curl`, no node and no bun for
 whoever wants the viewer. A fix gets a new version — the old tag keeps serving exactly what
-it served. With `gh` authenticated it also attaches the file to a GitHub Release.
+it served. With `gh` authenticated it also attaches the file to a GitHub Release. The
+rules around it — what travels in the artefact, how the version is bumped, what the model
+set is and is not — are in [`docs/RELEASE.md`](docs/RELEASE.md).
 
 ## Using the same bundle as an MCP-App
 
@@ -145,6 +186,25 @@ and have the tool advertise `_meta.ui.resourceUri`; the host fetches it and
 renders it in a sandboxed iframe, and the page talks to the host over
 postMessage via `@modelcontextprotocol/ext-apps`. No change to the HTML.
 
-## Licence
+## Licences and attribution
 
-MIT — see `LICENSE`.
+This repository is a collection of three kinds of material, and they do not share a licence:
+
+- **the code** — `src/`, `scripts/`, `body/`, `skills/`, the docs — **MIT**, © 2026 Denis Tatarenko
+  (`LICENSE`).
+- **the anatomy** — the GLB layers exported from the Z-Anatomy atlas, which is based in part on
+  BodyParts3D by the Database Center for Life Science — **CC BY-SA 4.0**. Share-alike travels with
+  the models and with anything derived from them.
+- **the female body surface** — the Blender Studio / Wikimedia scan — **CC0 1.0**.
+
+[`NOTICE.md`](NOTICE.md) is the path-by-path map and carries the credits that have to travel with
+a redistribution; the full licence texts are in [`LICENSES/`](LICENSES/). The published viewer
+artefact is code only and contains no models.
+
+## Provenance
+
+This repository began as a copy of the science viewer (`kg-viewer` 0.0.54) plus a standalone
+three.js page for the body. The science viewer's own two worked cases — a drug overview and a field
+survey — are still published from `docs/lynkuet/` and `docs/catmap/` and describe that product, not
+this one; the parent repository is
+[lebeker/1M_kg_sciense-kg_webapp](https://github.com/lebeker/1M_kg_sciense-kg_webapp).
