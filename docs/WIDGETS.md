@@ -12,7 +12,7 @@ Look at the wireframes in `docs/`:
 | `wireframe-health-v11b-diagnosis.svg` | main view = diagnosis, right panel candidate |
 | `wireframe-health-v11c-summary.svg` | main view = summary, right panel candidate |
 | `wireframe-health-v11d-profile.svg` | main view = profile: who the record is about, the cohort, the inputs, the knobs, who may see it |
-| `wireframe-health-v13-past-then-now.svg` | past date selected: the right panel with both states — solid then, paled now |
+| `wireframe-health-v13-past-compared.svg` | past date selected: three columns — related records, the record, and the right panel with both states — solid then, paled now |
 
 All four views share the same header, timeline, left column and right panel. Only column 2 changes.
 
@@ -127,7 +127,19 @@ shows widget 25 instead of the panel.
 
 The rejected v12 ghost — a dimmed copy carrying today's numbers under a past date, with a label
 admitting it — is not a state. It showed the right numbers in the wrong place: the reader had to
-translate a number backwards in time to use it. See `wireframe-health-v13-past-then-now.svg`.
+translate a number backwards in time to use it. See `wireframe-health-v13-past-compared.svg`.
+
+### How the page composes them (owner correction, 2026-11-22)
+
+The three columns stand side by side at one time: related records, the record itself, and the
+panel — and the record's column is filled when the page opens, on the latest record the document
+holds. The panel is the width the compared pair needs, and the panel's blocks are one two-track
+grid: `then` is the left half of every block and `now` the right half, so a forecast value in 20
+stands in the same column as the same factor's value in 21 and the reader's eye can run down one
+column. A factor the document had not recorded on the selected date keeps its name in the `then`
+half and says `not recorded on this date`; the `now` half says what it says today. Closing the
+record's column does not leave the panel floating beside an empty one — the two remaining columns
+take the page. Drawn in `wireframe-health-v13-past-compared.svg`.
 
 ## Rules that apply to every widget
 

@@ -4,7 +4,13 @@
 <meta charset="utf-8">
 <title>Body — layers, sex, views</title>
 <style>
-  :root { color-scheme: dark; --bg:#0c0f13; --fg:#e6edf3; --mut:#93a4b5; --line:#25303c; --panel:#131922; }
+  :root { color-scheme: dark; --bg:#0c0f13; --fg:#e6edf3; --mut:#93a4b5; --line:#25303c; --panel:#131922;
+    /* the three columns, from one place: the list is 236px, the centre takes what is left, and the
+       panel is the width the compared pair needs (docs/wireframe-health-v13-past-compared.svg).
+       #main's right edge and #rightCol's width are both written from these two, so the columns
+       tile instead of one floating beside the other. */
+    --colgap:12px; --panelw:592px; }
+  @media (max-width:1560px) { :root { --panelw:460px; } }
   * { box-sizing: border-box; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
     font:13px/1.42 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; overflow:hidden; }
@@ -122,8 +128,8 @@
   .bootbar i { display:block; height:100%; width:0; background:#7fb3e0; transition:width .2s ease; }
   .bootnum { color:#5f7183; font-size:11px; margin-top:7px; }
 
-#tl { position:fixed; left:244px; right:404px; top:46px; height:74px; z-index:26;
-      pointer-events:auto; overflow:hidden; }   /* the strip is a scrubber: it must receive the click */
+#tl { position:fixed; left:244px; right:calc(var(--panelw) + var(--colgap) * 2); top:46px; height:74px; z-index:26;
+      pointer-events:auto; overflow:hidden; }   /* the strip is a scrubber over the centre column: it must receive the click */
 #tl .track { position:relative; height:44px; pointer-events:none; }
 #tl .base { position:absolute; left:0; right:0; top:26px; height:1px; background:#3a3a44; }
 #tl .tick { position:absolute; top:16px; width:1px; height:11px; background:#3b3b45; pointer-events:auto;
@@ -173,7 +179,8 @@
   /* widget 9: the main view. The event decides which layout fills it, so the container is one
      box with one header and the body is rebuilt on every selection. It opens over the body: the
      3D scene is a backdrop, not a second answer to the same question. */
-  #main { position:fixed; left:244px; top:122px; bottom:52px; right:404px; width:auto;
+  #main { position:fixed; left:244px; top:122px; bottom:52px; width:auto;
+    right:calc(var(--panelw) + var(--colgap) * 2);
     min-width:420px; z-index:5; display:flex; flex-direction:column; overflow:hidden;
     background:rgba(12,15,19,.96); border:1px solid var(--line); border-radius:10px;
     box-shadow:0 18px 48px rgba(0,0,0,.55); }
@@ -243,13 +250,19 @@
   .srow.hl { background:#1b2532; }
 
   /* widgets 19–25 (SCRUM-47): forecast and recommendations on the selected date. A past record
-     shows the two states side by side — solid `then`, paled `now` — in the same sections, on one
-     scale. Today's record draws one solid column and no paled one. The 42% weight is the same the
-     rejected v12 ghost used, but it now carries the *current* state, not a copy of today's
-     numbers standing in for a past we did not record. */
-  #rightCol { position:fixed; right:12px; top:122px; bottom:52px; width:380px; z-index:4;
+     shows the two states together — solid `then`, paled `now` — as the left and right half of
+     every block, on one scale, so a value in 20 stands in the same column as the same factor's
+     value in 21 (docs/wireframe-health-v13-past-compared.svg). Today's record draws one solid
+     column and no paled one. The 42% weight is the same the rejected v12 ghost used, but it now
+     carries the *current* state, not a copy of today's numbers standing in for a past we did not
+     record. */
+  #rightCol { position:fixed; right:var(--colgap); top:122px; bottom:52px; width:var(--panelw); z-index:4;
     display:flex; flex-direction:column; background:rgba(12,15,19,.96); border:1px solid var(--line);
     border-radius:10px; box-shadow:0 18px 48px rgba(0,0,0,.45); overflow:hidden; }
+  /* the centre closed with ✕: the two columns that remain still fill the page — the panel takes the
+     place of the centre instead of floating to the right of an empty one. Any row in the list
+     brings the centre back (selectDate clears mainHidden). */
+  body.centre-closed #rightCol { left:244px; width:auto; }
   #rightCol header { display:flex; align-items:baseline; justify-content:space-between; gap:8px;
     padding:8px 12px; border-bottom:1px solid var(--line); font-size:10.5px; letter-spacing:.09em;
     text-transform:uppercase; color:var(--mut); }
@@ -261,11 +274,17 @@
   .rpsec h3 { margin:0 0 5px; font-size:10px; letter-spacing:.09em; text-transform:uppercase;
     color:#7f8b98; font-weight:600; display:flex; gap:6px; align-items:baseline; }
   .rpsec h3 i { font-style:normal; color:#4d5b6a; font-size:9px; }
-  .rpsec .rpcmp { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
+  /* every block is the same two-track grid: the left half is `then`, the right half is `now`, so a
+     value in 20 stands in the same column as the same factor's value in 21 and the two states read
+     against each other down the panel. Today's record drops the second track. */
+  .rpsec .rpcmp, .rphead, .rprow { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    gap:0 16px; align-items:baseline; }
+  .rpsec[data-one="yes"] .rpcmp, .rpsec[data-one="yes"] .rphead, .rpsec[data-one="yes"] .rprow {
+    grid-template-columns:minmax(0,1fr); }
   .rpsec .rpcol { min-width:0; }
   .rpsec .rptag { display:block; font-size:9px; letter-spacing:.05em; text-transform:uppercase;
     color:#7f8b98; margin-bottom:1px; white-space:nowrap; }
-  .rpsec .rpval { font-size:23px; font-weight:600; color:#eef4fa; font-variant-numeric:tabular-nums; }
+  .rpsec .rpval { font-size:26px; font-weight:600; color:#eef4fa; font-variant-numeric:tabular-nums; }
   .rpsec .rpun { color:var(--mut); font-size:11.5px; margin-left:3px; }
   .rpsec .rpdatanone { color:#8a7a4a; font-size:12px; font-style:italic; }
   .rpsec .rpnote { color:#6f7f90; font-size:10.5px; line-height:1.45; margin:4px 0 0; }
@@ -273,17 +292,21 @@
     background:#131b24; border-radius:0 5px 5px 0; font-size:11.5px; line-height:1.5; color:#cfe0f0; }
   .rpsec .rpdelta b { display:block; font-weight:600; color:#eef4fa; }
   .rpsec .rpdelta span { display:block; color:#8fa2b5; }
-  .rphead, .rprow { display:grid; grid-template-columns:minmax(0,1fr) 96px 96px; gap:0 10px;
-    align-items:baseline; }
-  .rpsec[data-one="yes"] .rphead, .rpsec[data-one="yes"] .rprow { grid-template-columns:minmax(0,1fr) 132px; }
   .rphead { padding:0 0 3px; border-bottom:1px solid #1b2430; margin-bottom:2px; }
   .rphead span { font-size:9.5px; letter-spacing:.07em; text-transform:uppercase; color:#7f8b98; }
   .rphead span.then { color:#9fb3c6; }
-  .rprow { padding:4px 0; border-bottom:1px solid #161e27; }
+  .rprow { padding:5px 0; border-bottom:1px solid #161e27; }
   .rprow:last-child { border-bottom:0; }
-  .rplabel { color:#cfe0f0; font-size:11.5px; line-height:1.35; min-width:0; }
-  .rplabel small { display:block; color:#6f7f90; font-size:10px; }
-  .rpcell { font-size:11.5px; color:#dbe6f1; font-variant-numeric:tabular-nums; }
+  .rpcell { min-width:0; font-size:11.5px; color:#dbe6f1; font-variant-numeric:tabular-nums; }
+  .rpcell .rpn { font-weight:600; color:#eef4fa; margin-right:5px; }
+  .rpcell .rplabel { color:#cfe0f0; }
+  .rpcell .rpvalue { color:#cfe0f0; margin-left:4px; }
+  .rpcell .rpline { display:flex; gap:8px; align-items:baseline; justify-content:space-between; }
+  .rpcell .rpadv { color:#cfe0f0; }
+  .rpcell .rpwhen { font-weight:600; color:#eef4fa; white-space:nowrap; }
+  .rpcell .rpstate { display:block; color:#9fb3c6; font-size:11px; line-height:1.4; }
+  .rpcell .rpgname { display:block; font-size:9px; letter-spacing:.06em; text-transform:uppercase;
+    color:#7f8b98; }
   .rpcell .rpsrc { display:block; color:#6f7f90; font-size:10px; line-height:1.35; }
   .rpcell .rpsrc a { color:#8fc2f0; text-decoration:none; }
   .rpcell.rpgap { color:#6f7f90; font-style:italic; }
@@ -3386,6 +3409,10 @@ function renderMain() {
   const body = document.getElementById("mainBody");
   if (!box || !body) return;
   const row = state.event ? STATE_ROWS.find(r => r.id === state.event) : null;
+  /* the page is three columns side by side; closing the centre must not leave the right panel
+     floating to the right of an empty one, so the class that tells the CSS the centre is gone is
+     set here, where the centre's visibility is decided. */
+  document.body.classList.toggle("centre-closed", !!state.mainHidden);
   if (state.mainHidden) { box.hidden = true; box.classList.remove("bare"); return; }
   box.hidden = false;
   if (!row) {
@@ -3427,38 +3454,80 @@ function rpSigned(value) {
 function rpCell(text, cls) {
   return mk("span", "rpcell " + cls, text);
 }
+/* The record a number came from, under the number: the day it was recorded and the document it
+   was recorded in. Same shape in both halves — a source is not a second kind of claim. */
+function rpSource(cell, at, source) {
+  const src = mk("span", "rpsrc", at || "");
+  if (source && source.link) {
+    if (at) src.appendChild(document.createTextNode(" \u00b7 "));
+    src.appendChild(linkEl(source.label || "source", source.link));
+  } else if (source && source.label) {
+    if (at) src.appendChild(document.createTextNode(" \u00b7 "));
+    src.appendChild(mk("span", "", source.label));
+  }
+  cell.appendChild(src);
+}
 function rpHead(section, panel) {
   const head = mk("div", "rphead");
-  head.appendChild(mk("span", "", ""));
-  // The dates are stated once, in the panel header and over the forecast. In a table of rows the
-  // two words are enough to tell the states apart, and they do not wrap into the value column.
-  const then = mk("span", "then", panel.past ? "then" : "today");
-  then.title = panel.asOf;
-  head.appendChild(then);
-  if (panel.past) {
-    const now = mk("span", "now", "now");
-    now.title = panel.today;
-    head.appendChild(now);
-  }
+  head.appendChild(mk("span", "then",
+    panel.past ? "then \u00b7 " + panel.asOf : "today \u00b7 " + panel.asOf));
+  if (panel.past) head.appendChild(mk("span", "now", "now \u00b7 " + panel.today));
   section.appendChild(head);
 }
-function rpRow(section, panel, label, sub, thenCell, nowCell) {
+function rpRow(section, panel, thenCell, nowCell) {
   const row = mk("div", "rprow");
-  const l = mk("span", "rplabel", label);
-  if (sub) l.appendChild(mk("small", "", sub));
-  row.appendChild(l);
   row.appendChild(thenCell || rpCell("\u2014", "then rpgap"));
   if (panel.past) row.appendChild(nowCell || rpCell("\u2014", "now rpgap"));
   section.appendChild(row);
 }
-function rpStatus(cell, state) {
-  cell.appendChild(mk("span", "", state.status));
-  if (state.source && state.source.label) {
-    const src = mk("span", "rpsrc");
-    if (state.source.link) src.appendChild(linkEl(state.source.label, state.source.link));
-    else src.appendChild(mk("span", "", state.source.label));
-    cell.appendChild(src);
+/* widget 21, one state of one factor: how much it moved the estimate, the factor, what the
+   document recorded about it, and the record it recorded it in. A record that carries no effect
+   size shows a dash, never +0.0 — the column says how much, and nothing is not zero. A factor the
+   document had not recorded yet keeps its name and says so, so an empty half still reads. */
+function rpFactorCell(row, state, key) {
+  if (!state) {
+    const gap = rpCell("", key + " rpgap");
+    gap.appendChild(mk("b", "rpn rpgap", "\u2014"));
+    gap.appendChild(mk("span", "rplabel", row.label));
+    gap.appendChild(mk("span", "rpstate", "not recorded on this date"));
+    return gap;
   }
+  const cell = rpCell("", key);
+  cell.appendChild(mk("b", "rpn" + (state.delta == null ? " rpgap" : ""),
+    state.delta == null ? "\u2014" : rpSigned(state.delta)));
+  cell.appendChild(mk("span", "rplabel", row.label));
+  if (state.value) cell.appendChild(mk("span", "rpvalue", String(state.value)));
+  rpSource(cell, state.date, state.source);
+  return cell;
+}
+/* widget 22, one state: what was advised, what became of it, and the document that advised it. */
+function rpAdviceCell(row, state, key) {
+  if (!state) {
+    const gap = rpCell("", key + " rpgap");
+    gap.appendChild(mk("span", "rplabel", row.label));
+    gap.appendChild(mk("span", "rpstate", "not advised on this date"));
+    return gap;
+  }
+  const cell = rpCell("", "adv " + key);
+  const line = mk("span", "rpline");
+  line.appendChild(mk("span", "rpadv", row.label));
+  if (state.status) line.appendChild(mk("b", "rpwhen", state.status));
+  cell.appendChild(line);
+  rpSource(cell, state.advisedOn, state.source);
+  return cell;
+}
+/* widget 23, one state: the gap, and whether it is still a gap on that date. */
+function rpGapCell(row, state, key) {
+  const cell = rpCell("", key + (state.known ? "" : " rpgap"));
+  cell.appendChild(mk("span", "rplabel", row.text));
+  cell.appendChild(mk("span", "rpstate", state.text));
+  return cell;
+}
+/* widget 24, one state: what stands behind the number on that date. */
+function rpGroundsCell(row, value, key) {
+  const cell = rpCell("", key);
+  cell.appendChild(mk("span", "rpgname", row.label));
+  cell.appendChild(mk("span", "rpstate", String(value)));
   return cell;
 }
 function renderRightPanel() {
@@ -3532,64 +3601,40 @@ function renderRightPanel() {
       section.appendChild(mk("p", "rpnote", f.note));
     } else if (sec.key === "moves") {
       /* widget 21: the factors the estimate is explained by — LDL, blood pressure, age, statin,
-         smoking, steps — each with what the document says about it and the record it says it in.
-         A lab panel that records no effect is not a driver and is not drawn; a factor the document
-         records without an effect size shows a dash, never "+0.0", because the column is "how much
-         did this move it" and a record that says nothing about how much has no number to show. */
+         smoking, steps — each with what the document says about it and the record it says it in,
+         in both states. A lab panel that records no effect is not a driver and is not drawn; a
+         factor the document records without an effect size shows a dash, never "+0.0". */
       rpHead(section, panel);
       const moves = panel.sections.moves;
       const rows = moves.rows;
-      if (!rows.length) rpRow(section, panel, "nothing moves the forecast yet", "",
+      if (!rows.length) rpRow(section, panel,
         rpCell("no factor recorded", "then rpgap"), rpCell("no factor recorded", "now rpgap"));
       rows.forEach(row => {
-        const cell = key => {
-          const state = row[key];
-          if (!state) return rpCell("\u2014", key + " rpgap");
-          const el = rpCell(state.delta == null ? "\u2014" : rpSigned(state.delta),
-                            key + (state.delta == null ? " rpgap" : ""));
-          const src = mk("span", "rpsrc", state.date);
-          if (state.source && state.source.link) {
-            src.appendChild(document.createTextNode(" "));
-            src.appendChild(linkEl(state.source.label || "source", state.source.link));
-          }
-          el.appendChild(src);
-          return el;
-        };
-        rpRow(section, panel, row.label, row.value || "", cell("then"), cell("now"));
+        rpRow(section, panel, rpFactorCell(row, row.then, "then"), rpFactorCell(row, row.now, "now"));
       });
       if (moves.note) section.appendChild(mk("p", "rpnote moves", moves.note));
     } else if (sec.key === "recommended") {
       rpHead(section, panel);
       const rows = panel.sections.recommended.rows;
-      if (!rows.length) rpRow(section, panel, "nothing was advised", "",
+      if (!rows.length) rpRow(section, panel,
         rpCell("no advice recorded", "then rpgap"), rpCell("no advice recorded", "now rpgap"));
       rows.forEach(row => {
-        const cell = key => {
-          const state = row[key];
-          return state ? rpStatus(rpCell("", key), state) : rpCell("\u2014", key + " rpgap");
-        };
-        rpRow(section, panel, row.label, stateAdvice(row), cell("then"), cell("now"));
+        rpRow(section, panel, rpAdviceCell(row, row.then, "then"), rpAdviceCell(row, row.now, "now"));
       });
     } else if (sec.key === "unknown") {
       rpHead(section, panel);
       panel.sections.unknown.rows.forEach(row => {
-        rpRow(section, panel, row.text, "",
-          rpCell(row.then.text, "then" + (row.then.known ? "" : " rpgap")),
-          rpCell(row.now.text, "now" + (row.now.known ? "" : " rpgap")));
+        rpRow(section, panel, rpGapCell(row, row.then, "then"), rpGapCell(row, row.now, "now"));
       });
     } else {
       rpHead(section, panel);
       panel.sections.grounds.rows.forEach(row => {
-        rpRow(section, panel, row.label, "",
-          rpCell(String(row.then), "then"), rpCell(String(row.now), "now"));
+        rpRow(section, panel, rpGroundsCell(row, row.then, "then"),
+          rpGroundsCell(row, row.now, "now"));
       });
     }
     body.appendChild(section);
   });
-}
-function stateAdvice(row) {
-  const state = row.now || row.then;
-  return state && state.by ? "advised by " + state.by : "";
 }
 
 function tlCard(e, d, hits) {
@@ -4038,6 +4083,37 @@ window.__mainView = () => {
   };
 };
 window.__mainClose = () => { document.getElementById("mainClose").click(); return Boolean(state.mainHidden); };
+/* the three columns as geometry, for the acceptance run: whether they are on screen, where their
+   edges are, and whether the centre is carrying a record. Nothing here describes the design — it
+   reports what the browser laid out. */
+window.__columns = () => {
+  const rectOf = id => {
+    const el = document.getElementById(id);
+    if (!el || el.hidden) return null;
+    const style = getComputedStyle(el);
+    if (style.display === "none") return null;
+    const r = el.getBoundingClientRect();
+    return { left: Math.round(r.left), right: Math.round(r.right), width: Math.round(r.width) };
+  };
+  const main = document.getElementById("main");
+  const panel = document.getElementById("rightCol");
+  return {
+    left: rectOf("leftCol"),
+    centre: rectOf("main"),
+    panel: rectOf("rightCol"),
+    centreFilled: !!(main && !main.hidden && main.dataset.record && !main.classList.contains("bare")),
+    centreRecord: main ? (main.dataset.record || "") : "",
+    states: panel ? Number(panel.dataset.states || 0) : 0,
+    past: panel ? panel.dataset.past === "yes" : false,
+    halves: panel ? panel.querySelectorAll("#rightBody .rpcmp, #rightBody .rprow").length : 0,
+    nowCells: panel ? panel.querySelectorAll("#rightBody .now").length : 0,
+    panelWidth: panel ? Math.round(panel.getBoundingClientRect().width) : 0,
+    gap: (() => {
+      const c = rectOf("main"), p = rectOf("rightCol");
+      return c && p ? p.left - c.right : null;
+    })()
+  };
+};
 </script>
 </body>
 </html>

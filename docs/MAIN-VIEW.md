@@ -131,7 +131,9 @@ a gap that has been filled since reads as known in the paled column only.
 The panel is hidden in the graph view, like everything else that belongs to the product view
 (`.only-main`). Its model is `body/lib/right-panel.js`, pure like `state-list.js` and `main-view.js`,
 so the two states can be tested without a browser. The layout is
-`docs/wireframe-health-v13-past-then-now.svg`.
+`docs/wireframe-health-v13-past-compared.svg`: three columns side by side — the records list, the
+record, and the panel — with the record's column filled on open, and inside the panel `then` as the
+left half of every block and `now` as the right half on one scale.
 
 ## The case document
 

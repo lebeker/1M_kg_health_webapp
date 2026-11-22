@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import vm from 'node:vm'
 import { validateKg } from './lib/kg-contract'
 
@@ -394,14 +394,85 @@ describe('the page spends the model, and the rejected ghost is gone', () => {
     expect(page).not.toContain("these are today's numbers")
   })
 
-  test('a driver row draws the factor\'s value, a dash when nothing is recorded, and its source link', () => {
-    expect(page).toContain('state.delta == null')
-    expect(page).toContain('linkEl(state.source.label')
-    expect(page).toContain('row.value || ""')
+  test('a factor row draws the number, the factor and its source in each half, a dash for no effect', () => {
+    expect(page).toContain('state.delta == null ? "\\u2014" : rpSigned(state.delta)')
+    expect(page).toContain('function rpFactorCell(row, state, key)')
+    expect(page).toContain('linkEl(source.label')
+    // an empty half keeps the factor's name instead of a bare dash
+    expect(page).toContain('not recorded on this date')
   })
 
   test('the panel follows the same date as the main view', () => {
     const refresh = page.slice(page.indexOf('function refreshPick'), page.indexOf('function refreshPick') + 900)
     expect(refresh).toContain('renderRightPanel()')
+  })
+})
+
+/**
+ * The reopen (supervisor, 2026-11-22): "the third column landed with the right content but the page
+ * draws it floating to the right of an empty centre. Reopen: three columns side by side, centre
+ * filled, on open." These are the page's own invariants for that, in the only form a unit gate can
+ * hold them: the columns' edges come from one pair of numbers, the centre is filled on the record
+ * the page opens on, and a closed centre does not leave the panel stranded.
+ */
+describe('three columns side by side (docs/wireframe-health-v13-past-compared.svg)', () => {
+  const page = read('body/index.html')
+  const style = page.slice(page.indexOf('<style>'), page.indexOf('</style>'))
+
+  test('the panel width is one variable, and the centre stops where the panel starts', () => {
+    expect(style).toContain('--panelw:592px')
+    expect(style).toContain('--colgap:12px')
+    expect(style).toContain('width:var(--panelw)')
+    expect(style).toContain('right:calc(var(--panelw) + var(--colgap) * 2)')
+    // the old fixed panel: a width that knew nothing about the centre
+    expect(style).not.toContain('right:404px')
+    expect(style).not.toContain('width:380px')
+  })
+
+  test('a narrower window shrinks the panel before it hides it', () => {
+    expect(style).toContain('@media (max-width:1560px) { :root { --panelw:460px; } }')
+    expect(style).toContain('@media (max-width:1180px)')
+  })
+
+  test('closing the centre lets the panel take its place instead of floating', () => {
+    expect(style).toContain('body.centre-closed #rightCol')
+    expect(page).toContain('classList.toggle("centre-closed"')
+  })
+
+  test('the page opens on a record, so the centre is filled without a click', () => {
+    expect(page).toContain('openLatestRecord()')
+    expect(page).toContain('STATE_ROWS.find(row => row.stored)')
+    expect(page).toContain('selectDate(dayOf(latest.date), latest.id)')
+  })
+
+  test('every block is the same two-track grid: then is the left half, now the right', () => {
+    expect(style).toContain('.rpsec .rpcmp, .rphead, .rprow { display:grid;')
+    expect(style).toContain('grid-template-columns:minmax(0,1fr) minmax(0,1fr)')
+    expect(style).toContain('.rpsec[data-one="yes"]')
+    expect(page).toContain('function rpHead(section, panel)')
+    expect(page).toContain('panel.past ? "then \\u00b7 " + panel.asOf : "today \\u00b7 " + panel.asOf')
+  })
+
+  test('the geometry is reported as data, so a run can check it without reading the CSS', () => {
+    expect(page).toContain('window.__columns = () =>')
+    expect(page).toContain('centreFilled:')
+  })
+})
+
+describe('the card names its wireframe by path', () => {
+  const widgets = read('docs/WIDGETS.md')
+  test('v13-past-compared is the drawing the past record is implemented against', () => {
+    expect(widgets).toContain('`wireframe-health-v13-past-compared.svg`')
+    expect(existsSync(new URL('../docs/wireframe-health-v13-past-compared.svg', import.meta.url))).toBe(true)
+  })
+
+  test('the superseded drawing is gone, so nobody implements it', () => {
+    expect(existsSync(new URL('../docs/wireframe-health-v13-past-then-now.svg', import.meta.url))).toBe(false)
+    expect(widgets).not.toContain('wireframe-health-v13-past-then-now.svg')
+  })
+
+  test('the rule that every UI card names its wireframe is written down', () => {
+    expect(widgets).toContain('Every UI card names the exact wireframe file(s) it implements, by path')
+    expect(read('docs/DELIVERY-LOOP.md')).toContain('A UI card is written against a wireframe')
   })
 })

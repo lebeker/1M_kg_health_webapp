@@ -13,7 +13,7 @@
     .badge { fill: #111; }
   </style>
 
-  <text x="40" y="16" class="tm">WIREFRAME v13 · PAST DATE · SOLID THEN, PALED NOW · ONE PANEL, ONE SCALE</text>
+  <text x="40" y="16" class="tm">WIREFRAME v13 · PAST DATE · RIGHT PANEL COMPARED: SOLID = KNOWN THEN · PALED = KNOWN NOW</text>
 
   <!-- 1 graph -->
   <rect x="1214" y="24" width="30" height="30" rx="4" fill="#111"/>
@@ -197,103 +197,95 @@
   <text x="390" y="704" class="ts" style="fill:#111; text-decoration:underline">→ statin started · 2026-08-19</text>
   <text x="390" y="722" class="ts" style="fill:#111; text-decoration:underline">→ hyperlipidaemia · 2021-05-14</text>
 
-    <!-- ================= COLUMN 3: then solid / now paled =================
-       Owner correction 2026-11-22: v12's ghost copy is rejected. A past record shows the two
-       states together, in one panel, in the same sections and on one scale. SOLID = what was
-       known on that date; PALED (42%) = what we know now. Today's record draws one solid state. -->
-  <rect x="840" y="180" width="592" height="690" rx="6" class="box"/>
+  <!-- ================= COLUMN 3 · COMPARED ================= -->
+  <!-- solid = what was known on the selected date · paled = what we know now -->
+  <rect x="840" y="180" width="592" height="644" rx="6" class="box"/>
   <circle cx="854" cy="194" r="7" class="badge"/><text x="854" y="197" class="num" text-anchor="middle">19</text>
-  <text x="870" y="198" class="tm">FORECAST AND RECOMMENDATIONS · ON THIS DATE</text>
+  <text x="870" y="198" class="tm">FORECAST AND RECOMMENDATIONS · COMPARED</text>
 
-  <!-- 20 forecast: one scale, two states -->
-  <circle cx="854" cy="222" r="7" class="badge"/><text x="854" y="225" class="num" text-anchor="middle">20</text>
-  <text x="870" y="226" class="tm">FORECAST</text>
-  <text x="1040" y="243" class="tm">THEN · 2023-02-17</text>
-  <text x="1224" y="243" class="tm">NOW · 2026-11-22</text>
-  <text x="1040" y="272" font-size="30" font-weight="600" fill="#111">76.4</text>
-  <text x="1134" y="272" class="t">years</text>
+  <text x="868" y="222" class="tm" style="fill:#111">THEN · 2023-02-17 · SOLID</text>
+  <text x="1150" y="222" class="tm" style="fill:#999">NOW · 2026-11-22 · PALED</text>
+  <line x1="868" y1="230" x2="1416" y2="230" class="line"/>
+
+  <!-- 20 forecast, both states -->
+  <circle cx="854" cy="252" r="7" class="badge"/><text x="854" y="255" class="num" text-anchor="middle">20</text>
+  <text x="870" y="255" class="tm">FORECAST · YEARS</text>
+
+  <text x="868" y="284" font-size="26" font-weight="600" fill="#111">78.1</text>
+  <text x="938" y="284" class="t">years · 72.0 – 83.6</text>
+
   <g opacity="0.42">
-    <text x="1224" y="272" font-size="30" font-weight="600" fill="#111">80.0</text>
-    <text x="1318" y="272" class="t">years</text>
-  </g>
-  <rect x="870" y="284" width="530" height="40" rx="4" fill="#f6f6f6"/>
-  <text x="882" y="300" class="t">+3.6 years since 2023-02-17</text>
-  <text x="882" y="316" class="ts">+3.6 of it — the statin recommended on 2022-06-14</text>
-  <text x="870" y="340" class="ts">one scale · no interval is published for this baseline · not a promise</text>
-
-  <line x1="870" y1="352" x2="1400" y2="352" class="line"/>
-
-  <!-- 21 what moves it: same tracks, then left, now right -->
-  <circle cx="854" cy="368" r="7" class="badge"/><text x="854" y="371" class="num" text-anchor="middle">21</text>
-  <text x="870" y="372" class="tm">WHAT MOVES IT</text>
-  <text x="1040" y="372" class="tm" text-anchor="end">THEN</text>
-  <text x="1400" y="372" class="tm" text-anchor="end">NOW</text>
-  <g class="ts">
-    <text x="870" y="392">LDL 4.9, no statin</text><text x="1040" y="392" text-anchor="end">−2.1</text>
-    <text x="870" y="410">BP 158/96</text><text x="1040" y="410" text-anchor="end">−1.4</text>
-    <text x="870" y="428">statin, started 2022</text><text x="1040" y="428" text-anchor="end">—</text>
-    <text x="870" y="446">stopped smoking 2018</text><text x="1040" y="446" text-anchor="end">+1.2</text>
-  </g>
-  <g class="ts" opacity="0.42">
-    <text x="1400" y="392" text-anchor="end">+0.8</text>
-    <text x="1400" y="410" text-anchor="end">−1.4</text>
-    <text x="1400" y="428" text-anchor="end">+2.8</text>
-    <text x="1400" y="446" text-anchor="end">+1.2</text>
+    <text x="1150" y="284" font-size="26" font-weight="600" fill="#111">80.2</text>
+    <text x="1220" y="284" class="t">years · 75.1 – 84.0</text>
   </g>
 
-  <line x1="870" y1="458" x2="1400" y2="458" class="line"/>
+  <text x="868" y="302" class="ts">median for this cohort · not a promise · read on its own date</text>
+  <text x="868" y="320" class="ts" style="fill:#111">→ +2.1 years in 3 years 9 months · +1.2 of it — the statin started 2026-08, five years late</text>
 
-  <!-- 22 recommended on this date: the advice and its status then; the same row, its status now -->
-  <circle cx="854" cy="474" r="7" class="badge"/><text x="854" y="477" class="num" text-anchor="middle">22</text>
-  <text x="870" y="478" class="tm">RECOMMENDED ON THIS DATE</text>
-  <g class="ts">
-    <text x="870" y="500">statins · GP note 2022-06-14</text>
-    <text x="1180" y="500" text-anchor="end">recommended, not started</text>
-    <text x="870" y="518">colonoscopy · NordICC</text>
-    <text x="1180" y="518" text-anchor="end">not yet</text>
-    <text x="870" y="536">HbA1c yearly · GP note</text>
-    <text x="1180" y="536" text-anchor="end">next 2022-06</text>
-  </g>
-  <g class="ts" opacity="0.42">
-    <text x="1400" y="500" text-anchor="end">since 2022-06-14</text>
-    <text x="1400" y="518" text-anchor="end">done 2023-05-16</text>
-    <text x="1400" y="536" text-anchor="end">next 2027-06</text>
-  </g>
+  <line x1="868" y1="332" x2="1416" y2="332" class="line"/>
 
-  <line x1="870" y1="548" x2="1400" y2="548" class="line"/>
+  <!-- 21 what moves it -->
+  <circle cx="854" cy="354" r="7" class="badge"/><text x="854" y="357" class="num" text-anchor="middle">21</text>
+  <text x="870" y="357" class="tm">WHAT MOVES IT</text>
 
-  <!-- 23 what we do not know: a gap that closed reads "recorded" on the right -->
-  <circle cx="854" cy="564" r="7" class="badge"/><text x="854" y="567" class="num" text-anchor="middle">23</text>
-  <text x="870" y="568" class="tm">WHAT WE DO NOT KNOW</text>
-  <g class="ts">
-    <text x="870" y="588">no family history recorded</text><text x="1180" y="588" text-anchor="end">missing</text>
-    <text x="870" y="606">no smoking record</text><text x="1180" y="606" text-anchor="end">missing</text>
-    <text x="870" y="624">depression, loneliness (not in the model)</text>
-    <text x="1180" y="624" text-anchor="end">not in the model</text>
-  </g>
-  <g class="ts" opacity="0.42">
-    <text x="1400" y="588" text-anchor="end">missing</text>
-    <text x="1400" y="606" text-anchor="end">recorded 2019-03-04</text>
-    <text x="1400" y="624" text-anchor="end">not in the model</text>
+  <text x="868" y="378" class="ts" style="fill:#111">−3.1 LDL 7.1, no statin</text>
+  <text x="868" y="394" class="ts" style="fill:#111">−1.4 BP 158/96, untreated</text>
+  <text x="868" y="410" class="ts" style="fill:#111">−9 age 62</text>
+
+  <g opacity="0.42">
+    <text x="1150" y="378" class="ts" style="fill:#111">−2.1 LDL 4.9, on statin</text>
+    <text x="1150" y="394" class="ts" style="fill:#111">+0.6 walks 7k steps</text>
+    <text x="1150" y="410" class="ts" style="fill:#111">−9 age 65</text>
   </g>
 
-  <line x1="870" y1="636" x2="1400" y2="636" class="line"/>
+  <line x1="868" y1="422" x2="1416" y2="422" class="line"/>
 
-  <!-- 24 on what grounds: the same rows, the count differs -->
-  <circle cx="854" cy="652" r="7" class="badge"/><text x="854" y="655" class="num" text-anchor="middle">24</text>
-  <text x="870" y="656" class="tm">ON WHAT GROUNDS</text>
-  <g class="ts">
-    <text x="870" y="676">baseline · male 74 years</text>
-    <text x="870" y="694">records behind it · 11</text>
-    <text x="870" y="712">every number carries a source or it is not shown</text>
-  </g>
-  <g class="ts" opacity="0.42">
-    <text x="1400" y="676" text-anchor="end">male 74 years</text>
-    <text x="1400" y="694" text-anchor="end">27</text>
+  <!-- 22 recommendations, both states -->
+  <circle cx="854" cy="444" r="7" class="badge"/><text x="854" y="447" class="num" text-anchor="middle">22</text>
+  <text x="870" y="447" class="tm">RECOMMENDED ON THAT DATE · WHAT BECAME OF IT</text>
+
+  <text x="868" y="468" class="ts" style="fill:#111">start a statin · source: ESC 2021</text>
+  <text x="1120" y="468" class="ts" style="fill:#111" text-anchor="end">due · not done</text>
+  <g opacity="0.42"><text x="1150" y="468" class="ts" style="fill:#111">done 2026-08, five years late</text></g>
+
+  <text x="868" y="486" class="ts" style="fill:#111">colonoscopy · source: USPSTF</text>
+  <text x="1120" y="486" class="ts" style="fill:#111" text-anchor="end">due 2023 · not done</text>
+  <g opacity="0.42"><text x="1150" y="486" class="ts" style="fill:#111">still not done</text></g>
+
+  <text x="868" y="504" class="ts" style="fill:#111">HbA1c once a year</text>
+  <text x="1120" y="504" class="ts" style="fill:#111" text-anchor="end">next 2023-06</text>
+  <g opacity="0.42"><text x="1150" y="504" class="ts" style="fill:#111">next 2027-06</text></g>
+
+  <line x1="868" y1="516" x2="1416" y2="516" class="line"/>
+
+  <!-- 23 what we do not know -->
+  <circle cx="854" cy="538" r="7" class="badge"/><text x="854" y="541" class="num" text-anchor="middle">23</text>
+  <text x="870" y="541" class="tm">WHAT WE DO NOT KNOW</text>
+
+  <text x="868" y="562" class="ts" style="fill:#111">no family history · no sleep data · no vaccinations</text>
+  <text x="868" y="578" class="ts" style="fill:#111">no colonoscopy after 60 · no lipid panel for 2025</text>
+
+  <g opacity="0.42">
+    <text x="1150" y="562" class="ts" style="fill:#111">the same gaps, three years on</text>
+    <text x="1150" y="578" class="ts" style="fill:#111">no vaccination record either</text>
   </g>
 
-  <!-- the rule the correction fixes: today has one solid state; the rejected v12 ghost is not a state -->
-  <rect x="870" y="726" width="530" height="56" rx="4" fill="#f6f6f6"/>
-  <text x="882" y="744" class="ts">today's record: one solid column, no paled one</text>
-  <text x="882" y="762" class="ts">v12's ghost copy is rejected — it showed today's numbers in the past's place</text>
+  <line x1="868" y1="590" x2="1416" y2="590" class="line"/>
+
+  <!-- 24 on what grounds -->
+  <circle cx="854" cy="612" r="7" class="badge"/><text x="854" y="615" class="num" text-anchor="middle">24</text>
+  <text x="870" y="615" class="tm">ON WHAT GROUNDS</text>
+
+  <text x="868" y="636" class="ts" style="fill:#111">SCORE2 · ESC 2021 · Lee index · model v0.3</text>
+  <g opacity="0.42"><text x="1150" y="636" class="ts" style="fill:#111">SCORE2 · ESC 2021 · Lee index · model v0.4</text></g>
+  <text x="868" y="654" class="ts">every number carries a source or is not shown</text>
+
+  <!-- 25 honest empty state -->
+  <rect x="868" y="672" width="548" height="64" rx="4" class="dash" fill="none"/>
+  <circle cx="854" cy="686" r="7" class="badge"/><text x="854" y="689" class="num" text-anchor="middle">25</text>
+  <text x="884" y="694" class="ts">empty state: no events yet — forecast is unavailable, not zero</text>
+  <text x="884" y="712" class="ts">the app says "not enough data" instead of inventing a number</text>
+
+  <text x="868" y="756" class="ts">solid is what the record held on that date · paled is today's answer, drawn to the same scale</text>
+  <text x="868" y="772" class="ts">the two are never merged into one number, and neither is recomputed from the other</text>
 </svg>
