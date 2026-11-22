@@ -1,0 +1,8 @@
+{
+  "note": "where the five built-in strategies land in the demo record: the node each forecast is about, and the date it is about. The horizons are demo data, not a claim any paper makes.",
+  "statin-ldl": { "target": "obs-ldl-2026-11", "horizon": "2031-11-12" },
+  "quit-smoking": { "target": "cond-tobacco-use", "horizon": "2031-11-12" },
+  "colonoscopy-screening": { "target": "cond-adenoma", "horizon": "2036-11-12" },
+  "intensive-hba1c": { "target": "obs-hba1c-2026-11", "horizon": "2031-11-12" },
+  "bp-lowering": { "target": "obs-sbp-2026-11", "horizon": "2031-11-12" }
+}
