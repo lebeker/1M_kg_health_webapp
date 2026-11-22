@@ -132,10 +132,11 @@ describe('what the number says about itself', () => {
     }
   })
 
-  test('what it does not know travels with it: diabetes, the target population, the age range, the interval', () => {
+  test('what it does not know travels with it: diabetes, the target population, the age range, the chart ranges, the interval', () => {
     const limits = score2(MAN_50, 'low').limits.join('\n')
     expect(limits).toContain('diabetes')
     expect(limits).toContain('40–69')
+    expect(limits).toContain('extrapolation')
     expect(limits).toContain('interval covers')
   })
 
@@ -227,6 +228,14 @@ describe('a missing fact is not a default', () => {
   test('there is no default region, and a region that is not one of the four is refused', () => {
     expect(refusal(MAN_50, undefined)).toContain('region: must be one of low, moderate, high, very_high')
     expect(refusal(MAN_50, 'Moderate')).toContain('region: must be one of')
+  })
+
+  test('an input so far outside the charts that the equation rounds to certain death is refused, not answered', () => {
+    // Without the guard this returns 0%: the probability rounds to 1, the log-log step runs to
+    // minus infinity, and a person at absurd risk is told they are safe.
+    const message = refusal(withField(MAN_50, { systolicBp: 1e6 }), 'high')
+    expect(message).toContain('not a number strictly between 0 and 1')
+    expect(message).toContain('extrapolating')
   })
 })
 

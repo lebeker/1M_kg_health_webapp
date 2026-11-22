@@ -194,6 +194,7 @@ const LIMITS: readonly string[] = [
   'the model sets the published diabetes indicator to zero: SCORE2 is not for people with diabetes, who have their own algorithm (SCORE2-Diabetes)',
   'people with previous cardiovascular disease, familial hypercholesterolaemia, chronic kidney disease, other rare lipid or blood-pressure disorders, or who are pregnant are outside the published target population',
   'ages 40–69 only: over 70 is SCORE2-OP, a different model with different coefficients',
+  'the published charts cover systolic blood pressure 100–200 mmHg and non-HDL cholesterol 3–6.9 mmol/L; outside that the equations still evaluate, but the result is an extrapolation and not a chart value',
   'the interval covers the uncertainty of the published hazard ratios only, with the coefficients treated as independent; it does not cover the recalibration scales, the baseline survival, or a person',
 ] as const
 
@@ -226,6 +227,14 @@ export function score2(input: Score2Input, region: Region): Score2Risk {
   const linearPredictorSe = Math.sqrt(variance)
 
   const uncalibrated = 1 - model.baselineSurvival ** Math.exp(linearPredictor)
+  // The equations are defined on any positive input, but far enough outside the published charts
+  // a double rounds the probability to 0 or 1 and the log-log step would print a confident zero.
+  // Refuse instead of answering, and say which door the input came through.
+  if (!(uncalibrated > 0 && uncalibrated < 1)) {
+    throw new Score2Error([
+      `input: at these values the model's probability is not a number strictly between 0 and 1 (linear predictor ${linearPredictor.toFixed(4)}); the published charts stop long before this, and the equations are extrapolating`,
+    ])
+  }
   const [intercept, slope] = SCORE2.calibration[input.sex][region]
   const z = Math.log(-Math.log(1 - uncalibrated))
   const calibrated = 1 - Math.exp(-Math.exp(intercept + slope * z))

@@ -73,6 +73,11 @@ Carried in `limits` on every result, because a number without them is a claim th
   SCORE2 scale;
 - time: the scales were fitted to contemporary European incidence. A 2015 record and a 2026 record
   are scored with the same coefficients; no trend is applied.
+- the published charts cover systolic blood pressure 100–200 mmHg and non-HDL cholesterol
+  3–6.9 mmol/L. Outside them the equations still evaluate, but the result is an extrapolation and
+  not a chart value. Far enough outside, the probability rounds to certainty and the log-log step
+  would print a confident 0% — so the model refuses instead of answering (`Score2Error`), and a test
+  holds that.
 
 ## The three known profiles the tests hold it to
 
