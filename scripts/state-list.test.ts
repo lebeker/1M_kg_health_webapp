@@ -17,11 +17,22 @@ import vm from 'node:vm'
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 const page = read('body/index.html')
 
-type Row = { id: string; kind: string; date: string; title: string; note: string; stored: boolean }
+type Row = {
+  id: string
+  kind: string
+  date: string
+  title: string
+  note: string
+  stored: boolean
+  future: boolean
+}
 type StateList = {
-  rows: (nodes: Array<Record<string, unknown>>, today: string) => Row[]
+  rows: (nodes: Array<Record<string, unknown>>, today: string, edges?: Array<Record<string, unknown>>) => Row[]
   events: (nodes: Array<Record<string, unknown>>) => Row[]
   annual: (list: Row[], today: string) => Row[]
+  summaryOf: (node: Record<string, unknown>) => string
+  moved: (nodes: Array<Record<string, unknown>>, today: string) => number
+  ignored: (nodes: Array<Record<string, unknown>>, edges: Array<Record<string, unknown>>, today: string) => number
   day: (value: unknown) => string
 }
 const sandbox: { StateList?: StateList } = {}
@@ -138,9 +149,42 @@ describe('the today summary is generated at launch and never stored', () => {
     expect(SL.rows(NODES, TODAY).filter((r) => r.id === 'today').length).toBe(1)
   })
 
-  test('it counts what is behind today and what is still ahead', () => {
+  test('its line is what moved and what was ignored, in v11’s shape', () => {
+    /* v11 draws "3 moved, 1 ignored" as the today row's second line: the state as it stands now,
+       counted from the records, not a sentence the page made up. */
     const row = SL.rows(NODES, TODAY)[0]
-    expect(row.note).toBe('4 records · latest 2026-10-15 · 1 ahead')
+    expect(row.note).toMatch(/^\d+ moved, \d+ ignored$/)
+    expect(row.note).toBe(`${SL.moved(NODES, TODAY)} moved, ${SL.ignored(NODES, [], TODAY)} ignored`)
+  })
+
+  test('a track that changed counts; the one record on a track cannot have moved', () => {
+    const nodes = [
+      { id: 'a', kind: 'observation', label: 'LDL', track: 'ldl', date: '2024-01-01', values: [{ name: 'LDL', value: 4.2, unit: 'mmol/L' }] },
+      { id: 'b', kind: 'observation', label: 'LDL', track: 'ldl', date: '2025-01-01', values: [{ name: 'LDL', value: 3.1, unit: 'mmol/L' }] },
+      { id: 'c', kind: 'observation', label: 'TSH', track: 'tsh', date: '2025-02-01', values: [{ name: 'TSH', value: 2.2, unit: 'mU/L' }] },
+      { id: 'd', kind: 'observation', label: 'TSH', track: 'tsh', date: '2026-02-01', values: [{ name: 'TSH', value: 2.2, unit: 'mU/L' }] },
+      { id: 'e', kind: 'prediction', label: 'LDL 3.0 by 2027', horizon: '2027-01-01' }
+    ]
+    expect(SL.moved(nodes, TODAY)).toBe(1)          // LDL moved, TSH repeated itself, the forecast is not a reading
+  })
+
+  test('advice nobody ever recorded counts as ignored; advice that was done does not', () => {
+    const nodes = [
+      { id: 'enc', kind: 'encounter', label: 'visit', when: '2024-01-01' },
+      { id: 'drug', kind: 'medication', label: 'statin', when: { from: '2024-02-01', to: null } },
+      { id: 'later', kind: 'encounter', label: 'visit', when: '2024-03-01' },
+      { id: 'test', kind: 'observation', label: 'panel', when: '2027-01-01' },
+      { id: 'nowhere', kind: 'medication', label: 'scheduled drug' }
+    ]
+    const edges = [
+      { label: 'advised', from: 'enc', to: 'drug' },
+      { label: 'advised', from: 'enc', to: 'nowhere' },
+      { label: 'advised', from: 'later', to: 'test' },
+      { label: 'tracks', from: 'drug', to: 'enc' }
+    ]
+    /* the statin was started, the drug with no record was never recorded, and the 2027 test has a
+       date — it is scheduled, not ignored */
+    expect(SL.ignored(nodes, edges, TODAY)).toBe(1)
   })
 
   test('an empty document still has an honest today row, not an invented count', () => {
@@ -150,10 +194,86 @@ describe('the today summary is generated at launch and never stored', () => {
   })
 })
 
+describe('every row carries the record’s own one line', () => {
+  test('a measurement says its number, not its panel title', () => {
+    const panel = {
+      kind: 'observation', label: 'Lipid panel', when: '2026-10-21',
+      values: [
+        { name: 'Total cholesterol', value: 6.1, unit: 'mmol/L', flag: 'high' },
+        { name: 'LDL cholesterol', value: 4.2, unit: 'mmol/L', flag: 'high' },
+        { name: 'HDL cholesterol', value: 1.1, unit: 'mmol/L', flag: 'normal' }
+      ]
+    }
+    expect(SL.summaryOf(panel)).toBe('Total cholesterol 6.1 mmol/L · +2 more')
+    /* the flagged marker leads when the first one is in range */
+    expect(SL.summaryOf({ ...panel, values: [
+      { name: 'HDL cholesterol', value: 1.1, unit: 'mmol/L', flag: 'normal' },
+      { name: 'LDL cholesterol', value: 4.2, unit: 'mmol/L', flag: 'high' }
+    ] })).toBe('LDL cholesterol 4.2 mmol/L · +1 more')
+    expect(SL.summaryOf({ kind: 'observation', label: 'HbA1c', value: 7.3, unit: '%' })).toBe('7.3 %')
+  })
+
+  test('a visit says where and with whom, a document who issued it, a diagnosis its own name', () => {
+    expect(SL.summaryOf({ kind: 'encounter', label: 'Family practice visit, 8 Apr 2021',
+                          clinic: 'Family Practice', doctor: { name: 'Dr Petro Melnyk', specialty: 'family medicine' } }))
+      .toBe('Family Practice · Dr Petro Melnyk')
+    expect(SL.summaryOf({ kind: 'document', label: 'GP note — Family Practice', lab: 'City Lab' })).toBe('City Lab')
+    expect(SL.summaryOf({ kind: 'condition', label: 'Hyperlipidaemia', status: 'active' })).toBe('Hyperlipidaemia')
+    expect(SL.summaryOf({ kind: 'medication', label: 'Ramipril 5 mg, once daily', status: 'stopped' }))
+      .toBe('Ramipril 5 mg, once daily · stopped')
+  })
+
+  test('a generated record says so, and no row is ever blank', () => {
+    expect(SL.summaryOf({ kind: 'condition', label: 'Anaemia', confirmed: false })).toBe('Anaemia · not confirmed')
+    const rows = SL.events([{ id: 'bare', kind: 'observation', when: '2026-01-01' }])
+    expect(rows[0].note).toBe('bare')          // the id stands in rather than an empty line
+    expect(SL.rows(NODES, TODAY).every((r) => r.note.trim() !== '')).toBe(true)
+  })
+
+  test('the selected row is a row: it keeps the same one line the list gave it', () => {
+    const rows = SL.rows(NODES, TODAY)
+    const picked = rows.find((r) => r.id === 'obs-2026')
+    /* the page marks the row it drew (`el.classList.toggle("on")`) and writes no second text, so the
+       marked row reads the record's own line — there is nothing else for it to read */
+    expect(picked?.note).toBe('BP 150/110')
+    expect(page).toMatch(/t\.className = "t"; t\.textContent = row\.note;/)
+    expect(page).not.toMatch(/\.srow\.on[^}]*content\s*:/)
+  })
+})
+
+describe('the legend v11 draws under the list', () => {
+  test('its four lines are on the page, in the wireframe’s words', () => {
+    expect(page).toContain('id="stateNotes"')
+    const notes = ['future above, past below — dates are enough',
+                   'dashed edge = has not happened yet',
+                   'annual summary stamped 01-01',
+                   'list mixes analyses, diagnoses, summaries, decisions']
+    for (const line of notes) expect(page).toContain(line)
+    /* the wireframe is the source: every line is a line of it */
+    const svg = read('docs/wireframe-health-v11-analysis.svg')
+    expect(svg).toContain('NOTES')
+  })
+
+  test('the dashed marker the legend explains is on the rows above today', () => {
+    const rows = SL.rows(NODES, TODAY)
+    expect(rows.filter((r) => r.future).map((r) => r.date)).toEqual(['2026-12-01'])
+    expect(rows.find((r) => r.id === 'today')?.future).toBe(false)
+    expect(page).toContain('.srow[data-future="1"] .dot')
+  })
+
+  test('the legend is not a second list: no caption rows, no counts, nothing clickable', () => {
+    expect(SL.rows(NODES, TODAY).every((r) => r.kind !== 'caption')).toBe(true)
+    const block = page.slice(page.indexOf('id="stateNotes"'))
+    const notes = block.slice(0, block.indexOf('</div>'))
+    expect(notes).not.toContain('<button')
+    expect(notes).not.toMatch(/\d+\s+moved/)
+  })
+})
+
 describe('the panel the page draws', () => {
   test('the list is the left column and reads the whole document, not only the analyses', () => {
     expect(page).toContain('id="stateRows"')
-    expect(page).toContain('StateList.rows(DOC_NODES, iso(new Date()))')
+    expect(page).toContain('StateList.rows(DOC_NODES, iso(new Date()), DOC_EDGES)')
     expect(page).toContain('id="leftCol"')
   })
 
