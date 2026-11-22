@@ -79,9 +79,9 @@ describe('every relative URL the published page carries resolves from the reposi
     for (const url of relative) expect(existsSync(join(ROOT, ASSET_ROOT, url))).toBe(true)
     // the models are loaded by the page's own loader from a path it builds, not from an attribute:
     // `models/${file}.glb`, which the <base> resolves exactly like the script tags
-    const marker = 'models/${file}.glb'
-    expect(published.includes(marker)).toBe(true)
-    const model = marker.replace('${file}', 'cardio')
+    const loader = /\bmodels\/\$\{\w+\}\.glb/.exec(published)
+    expect(loader).not.toBeNull()
+    const model = (loader as RegExpExecArray)[0].replace(/\$\{\w+\}/, 'cardio')
     expect(existsSync(join(ROOT, ASSET_ROOT, model))).toBe(true)
   })
 
