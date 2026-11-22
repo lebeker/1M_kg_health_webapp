@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -339,6 +340,85 @@ describe('the CI step reads the receipt, and only a run can write one', () => {
     ]
     expect(latestE2eStatus(entries)).toEqual({ state: 'success', description: 'newer' })
     expect(latestE2eStatus([])).toBeNull()
+  })
+})
+
+describe('a pull request with no head or base is a usage error, not an empty diff', () => {
+  // The bug this pins: `main()` handed `files: []` to `decide()` when the diff was merely
+  // unknown, so `appSurface([])` was empty and the branch was exempt — exit 0 from the script
+  // whose whole job is refusing a product pull request without a receipt. The exit code is the
+  // contract, so these run the CLI the way `verify.yml` does.
+  const CI_GATE = join(import.meta.dirname, 'ci-gate.ts')
+  const REPO = join(import.meta.dirname, '..', '..')
+
+  function runCiGate(env: Record<string, string>, cwd: string = REPO): { code: number; stdout: string; stderr: string } {
+    const result = spawnSync(process.execPath, [CI_GATE], {
+      cwd,
+      encoding: 'utf8',
+      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', ...env },
+    })
+    return { code: result.status ?? -1, stdout: result.stdout, stderr: result.stderr }
+  }
+
+  /** A throwaway repo whose two commits are the two ends of the pull request under test. */
+  function twoCommitRepo(before: string, after: string): { dir: string; base: string; head: string } {
+    const dir = mkdtempSync(join(tmpdir(), 'e2e-ci-gate-'))
+    const git = (args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim()
+    const write = (rel: string, body: string) => {
+      mkdirSync(join(dir, rel, '..'), { recursive: true })
+      writeFileSync(join(dir, rel), body)
+    }
+    git(['init', '-q'])
+    git(['config', 'user.email', 'gate@example.test'])
+    git(['config', 'user.name', 'gate test'])
+    write(before, 'before\n')
+    git(['add', '-A'])
+    git(['commit', '-q', '-m', 'base'])
+    const base = git(['rev-parse', 'HEAD'])
+    write(after, 'after\n')
+    git(['add', '-A'])
+    git(['commit', '-q', '-m', 'head'])
+    const head = git(['rev-parse', 'HEAD'])
+    return { dir, base, head }
+  }
+
+  test('neither end given exits 1 and names both inputs', () => {
+    const result = runCiGate({ GITHUB_EVENT_NAME: 'pull_request' })
+    expect(result.code).toBe(1)
+    expect(result.stderr).toContain('E2E_HEAD_SHA')
+    expect(result.stderr).toContain('E2E_BASE_SHA')
+    // the old fail-open message must not appear anywhere
+    expect(`${result.stdout}${result.stderr}`).not.toContain('no app-surface files')
+  })
+
+  test('only the head missing names the head and nothing else', () => {
+    const result = runCiGate({ GITHUB_EVENT_NAME: 'pull_request', E2E_BASE_SHA: 'a'.repeat(40) })
+    expect(result.code).toBe(1)
+    expect(result.stderr).toContain('E2E_HEAD_SHA')
+    expect(result.stderr).not.toContain('E2E_BASE_SHA')
+  })
+
+  test('a docs-only diff is still exempt, and says so', () => {
+    const repo = twoCommitRepo('docs/PLAN.md', 'docs/NOTES.md')
+    const result = runCiGate({ GITHUB_EVENT_NAME: 'pull_request', E2E_HEAD_SHA: repo.head, E2E_BASE_SHA: repo.base }, repo.dir)
+    expect(result.code).toBe(0)
+    expect(result.stdout).toContain('no app-surface files')
+  })
+
+  test('a diff that moves the surface still goes to the receipt, and refuses without a token', () => {
+    const repo = twoCommitRepo('docs/PLAN.md', 'body/index.html')
+    const result = runCiGate(
+      { GITHUB_EVENT_NAME: 'pull_request', E2E_HEAD_SHA: repo.head, E2E_BASE_SHA: repo.base, GITHUB_TOKEN: '' },
+      repo.dir,
+    )
+    expect(result.code).toBe(1)
+    expect(result.stdout).toContain('no GITHUB_TOKEN')
+  })
+
+  test('a push with no diff is not a merge and is still a pass', () => {
+    const result = runCiGate({ GITHUB_EVENT_NAME: 'push' })
+    expect(result.code).toBe(0)
+    expect(result.stdout).toContain('not a pull request')
   })
 })
 
