@@ -4,6 +4,11 @@
 Its eight-layer rail, eye toggles, sex switch, skin control, collapse button and three view modes
 are retained. The React app is unchanged.
 
+It is also the template: the document goes into its `#kg-graph` placeholder, and the page never
+fetches one. `bun scripts/build-demo.ts` (run from the repo root) writes the invented case into that
+placeholder and produces `demo.html`; `demo/` holds the source document, `demo/kg_demo.json`. Open
+`index.html` for the empty start, `demo.html` for the case.
+
 ```sh
 python3 -m http.server 8770 --bind 127.0.0.1
 # http://127.0.0.1:8770/body/

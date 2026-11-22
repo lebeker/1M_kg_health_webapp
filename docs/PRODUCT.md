@@ -67,10 +67,11 @@ interval — the split is gone and both halves become untrustworthy.
 ## Honest position today
 
 The health page (`body/index.html`) draws the body, the timeline, the records list and one main view
-per event type, and it starts empty. The only document it loads is `body/demo/graph.json` — an invented
-man, 65, twenty years of records, labelled `meta.demo: true` — which passes the contract gate, and
-loading it writes nothing into a reader's own record (T21, T23). No `kg.json` of a real person ships in
-this repository: data lives beside the document, never in the template.
+per event type, and it starts empty: the template carries the `#kg-graph` placeholder, not a document.
+The demo is a build artifact (`body/demo.html`, from `body/demo/kg_demo.json`) — an invented man, 65,
+twenty years of records, labelled `meta.demo: true` — which passes the contract gate. Loading it writes
+nothing into a reader's own record (T21, T23). No `kg.json` of a real person ships in this repository:
+data lives beside the document, never in the template.
 
 The estimates are implemented and tested — SCORE2 (`src/score2.ts`), the Lee index (`src/lee.ts`), delta
 explanations (`src/explain.ts`), the forecast gate (`src/prediction.ts`) and five built-in strategies

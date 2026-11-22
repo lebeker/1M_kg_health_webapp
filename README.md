@@ -28,22 +28,25 @@ that file, not on the package name. Everything about publishing, licences and th
 bun install                 # or: npm install
 bun run dev                 # the graph view on the dev server
 python3 -m http.server 8770 --bind 127.0.0.1    # then http://127.0.0.1:8770/body/
+bun run build:demo          # build body/demo.html from body/demo/kg_demo.json
 bun run verify              # lint, types, unit, contract fixtures, branch rule, split regression
 ```
 
-The main page has no build step and no network: it is one HTML file plus the GLB layers beside it.
-Open it over a local server rather than `file://` — it fetches `models/*.glb` and `demo/graph.json`.
+The body page has no build step and no network. `body/index.html` is the template: it carries the
+`#kg-graph` placeholder and nothing else. Open it over a local server rather than `file://` — the 3D
+layer loads `models/*.glb` when, and only when, the reader asks for it.
 
 ## The demo is not a user
 
-`body/demo/graph.json` is an invented patient (man, 65, twenty years of history). The checked-in
-`body/index.html` is the demo page, so it opens with that case already loaded — no button, no
-interaction. A page rendered for a reader's own document carries that document instead and never
-fetches the demo, so its empty start stays empty.
+`body/demo/kg_demo.json` is an invented patient (man, 65, twenty years of history). `bun run
+build:demo` writes that document into the template's placeholder and produces `body/demo.html`; open
+it and the case is on screen — no button, no interaction. The template itself carries no records, so
+a page rendered for a reader's own document draws that document and its empty start stays empty.
 
 Opening the demo writes nothing into a profile: after it opens, the user's own workspace is still
-empty. That rule has its own test (`scripts/demo-user.test.ts`) because the one failure this product
-cannot survive is someone else's labs appearing in your health record.
+empty. That rule has its own test (`scripts/demo-user.test.ts`), which runs the page's own reader over
+the artifact's document with an empty storage and fails if a key appears — the one failure this
+product cannot survive is someone else's labs appearing in your health record.
 
 ## The graph view
 

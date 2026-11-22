@@ -125,7 +125,7 @@ so the two states can be tested without a browser. The layout is
 
 ## Demo
 
-`body/demo/graph.json` is the T21 case — a `kg/1-health` document of 62 events over twenty years —
+`body/demo/kg_demo.json` is the T21 case — a `kg/1-health` document of 62 events over twenty years —
 and it carries the records that make each view visible without a real document: four-marker lipid
 panels with a lab, an address, a scan and printed flags; a cardiologist's note that put a
 condition on the record and a drug under `treated_by`; a note that stopped a drug for its cough; a
@@ -134,25 +134,26 @@ read from the observation itself. The diet, activity and restriction lines are i
 the contract has no decision kind to hang them on. There is no stored summary and no prediction in
 the file — the page generates its annual markers (T10) and forecasts have their own fixtures.
 
-Loading it is a view and never a record: the page has no write path, so a clean reader who opens
-the demo still has nothing of their own stored. `scripts/demo-user.test.ts` (T23) executes the
-page's own `loadDemo` against this file with an empty storage and fails if a single key appears.
+Opening it is a view and never a record: the page has no write path, so a clean reader who opens the
+demo still has nothing of their own stored. `scripts/demo-user.test.ts` (T23) executes the page's own
+reader over the artifact's document with an empty storage and fails if a single key appears.
 
-### The demo page opens with the case (SCRUM-48)
+### The demo is a build artifact (T01)
 
-The checked-in `body/index.html` carries no document of its own, and that is what makes it the demo
-artifact: at launch it fetches `demo/graph.json` and opens on the case — the same timeline, the same
-47 records in the left list, the same centre view a click used to produce. There is no *load demo*
-button, because a demo that waits for a click is an empty page.
+`body/index.html` is the template. It carries the `#kg-graph` placeholder and no document of its own:
+no sample set, no birth date, no `fetch`. `bun scripts/build-demo.ts` replaces the placeholder with
+`body/demo/kg_demo.json` and writes `body/demo.html`, so the demo opens on the case — the same
+timeline, the same 47 records in the left list, the same centre view — with no click and no network.
 
-A rendered page is the other surface. The render command writes the reader's document into
-`<script id="kg-graph">`, and the page draws what it was handed: it never calls `loadDemo`, and a
-document with no records keeps its empty start (no profile, an empty ruler, the records list's
-"nothing recorded yet"). The guard is one line — `if (!KGDATA) loadDemo()` — and
-`scripts/demo-user.test.ts` executes it both ways, with no document and with an empty one.
+A rendered page is the other surface. The render command writes the reader's document into the same
+placeholder, and the page draws what it was handed: a document with no records keeps its empty start
+(no profile, an empty ruler, the records list's "nothing recorded yet"). The template's placeholder is
+read as "no document" and never warns, so opening the template itself is an empty page, not an error.
 
-The case stays the fetched artifact it was: the page never inlines it, so the checked-in file carries
-no patient history and nothing of the demo travels into a reader's rendered copy.
+The artifact is checked byte-for-byte against the build in `scripts/demo-artifact.test.ts`: a
+hand-edited demo page, or a document that drifted from its source, fails CI. The case exists in exactly
+two places — the source document and the page built from it — and never in the template a reader's own
+page is rendered from.
 
 ## Export — how a marker leaves, and how it does not
 

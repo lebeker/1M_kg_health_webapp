@@ -116,14 +116,13 @@ describe('the graph button beside the profile control (SCRUM-49)', () => {
 
 describe('read-only: the viewer renders the document and cannot change it', () => {
   test('there is no write path in the page at all', () => {
-    // no storage, no sockets, no beacons, no non-GET request: the document arrives (embedded or
-    // fetched) and is drawn, never sent anywhere
+    // no storage, no sockets, no beacons, no request: the document arrives in the `#kg-graph`
+    // placeholder (replaced when the page is rendered) and is drawn, never sent anywhere. There is
+    // no fetch at all — not the demo, not a sidecar (T01)
     expect(page).not.toMatch(/localStorage\.(setItem|removeItem|clear)/)
     expect(page).not.toMatch(/sessionStorage|indexedDB|sendBeacon|new WebSocket|XMLHttpRequest/)
     expect(page).not.toMatch(/fetch\([^)]*method\s*:/)
-    // the one fetch is the demo artifact, GET, page-relative (T01's rule, kept here)
-    expect(page.match(/fetch\(/g)?.length).toBe(1)
-    expect(page).toContain('fetch("demo/graph.json"')
+    expect(page.match(/fetch\(/g)?.length ?? 0).toBe(0)
   })
 
   test('no control in the page offers to add, connect or delete a node', () => {

@@ -1,20 +1,20 @@
-# body/demo/graph.json
+# body/demo/kg_demo.json
 
-The demonstration case (T21), and the only copy of it. The page (`body/index.html`) fetches this
-file at launch and opens with it on screen (SCRUM-48): the checked-in page is the demo artifact, and
-a demo that waits for a click is an empty page. A page rendered for a reader's own `kg/1-health`
-document carries that document instead — it never fetches this one — so the demo is never what a
-reader sees in place of their own record.
+The demonstration case (T21), and the only source copy of it. `body/index.html` is the template: it
+carries the `#kg-graph` placeholder and never fetches a document. `bun scripts/build-demo.ts` writes
+this document into that placeholder and produces `body/demo.html`, the demo page — so the invented
+case lives in one document and one page built from it, never in the template a reader's own page is
+rendered from.
 
-It is deliberately an artifact and not part of the page: somebody else's lab results must never
-be inlined into a file a reader owns. Nothing here is saved — the page has no write path — so
+It is deliberately an artifact and not part of the template: somebody else's lab results must never
+be inlined into the file a reader owns. Nothing here is saved — the page has no write path — so
 opening the demo leaves a clean reader with an empty record of their own. `scripts/demo-user.test.ts`
-(T23) runs the page's own `loadDemo` against this file in a clean stub workspace and holds
+(T23) runs the page's own reader over the built page's document with a recording storage and holds
 that: no key written, no profile taken, nothing to clean up afterwards.
 
-The path is page-relative (`demo/graph.json` from `body/index.html`), so the page works from its
-own directory on any static host — GitHub Pages, `python3 -m http.server` at the repo root —
-without climbing out of it.
+A page rendered for a reader's own `kg/1-health` document replaces the same placeholder with that
+document instead, so the demo is never what a reader sees in place of their own record. Both pages
+work from `body/`, so every relative asset path (`lib/`, `models/*.glb`) is unchanged.
 
 ## The case
 
@@ -38,9 +38,10 @@ a document in the file, and every document is one the invented record says was p
 
 A `kg/1-health` document (`meta.app: "health-viewer"`, `x-contract-version` 2.1.0): `meta.profile`
 is the identity, every fact carries `source` naming a `document` node, and a document carries
-none. It passes the contract gate — `bun scripts/validate-kg-fixtures.ts body/demo/graph.json`
+none. It passes the contract gate — `bun scripts/validate-kg-fixtures.ts body/demo/kg_demo.json`
 exits 0 — and `scripts/demo-artifact.test.ts` holds the counts above so the case cannot quietly
-lose its teeth.
+lose its teeth. The build runs that gate too: an artifact is only written from a document the
+contract accepts.
 
 A separate workspace in the everyday sense: its own document, its own profile, its own file. The
 reader's `kg.json` is never this one, and the page never copies this one into anything.
@@ -67,7 +68,8 @@ Two things the event model deliberately cannot carry here, so they are not faked
 ## Re-checking it
 
 ```
-bun scripts/validate-kg-fixtures.ts body/demo/graph.json   # the contract, over this file
-bun test scripts/demo-artifact.test.ts                    # the counts, the span, the page's grip on it
-bun test scripts/demo-user.test.ts                        # loading it writes nothing (T23)
+bun scripts/validate-kg-fixtures.ts body/demo/kg_demo.json   # the contract, over this file
+bun scripts/build-demo.ts --check                            # the page is the build, byte for byte
+bun test scripts/demo-artifact.test.ts                       # the counts, the span, the page's grip on it
+bun test scripts/demo-user.test.ts                           # opening it writes nothing (T23)
 ```
