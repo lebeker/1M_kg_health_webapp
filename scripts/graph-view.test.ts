@@ -39,11 +39,11 @@ function anatomyRows(sex: 'male' | 'female') {
 describe('widget 1: one button, a view of its own', () => {
   test('the button is in the header, square and hexagon-shaped, and says what it opens', () => {
     const bar = page.slice(page.indexOf('<div class="bar">'), page.indexOf('<div id="leftCol">'))
-    const btn = bar.slice(bar.indexOf('id="openGraph"'), bar.indexOf('class="only-main">Body'))
+    const start = bar.indexOf('id="openGraph"')
+    const btn = bar.slice(start, bar.indexOf('</svg></button>', start))
     expect(btn).toContain('title="open graph')
     expect(btn).toContain('aria-label="open graph"')
     expect(btn).toContain('aria-pressed="false"')
-    // the registry's icon: a hexagon with the nodes on it
     expect(btn).toMatch(/<svg[^>]*>[\s\S]*<path d="M8 1\.7 13\.4 4\.85/)
     expect(btn.match(/<circle/g)?.length).toBe(4)
   })
@@ -66,6 +66,52 @@ describe('widget 1: one button, a view of its own', () => {
     // the boot overlay starts hidden and is opened by the button, not by the page
     expect(page).toContain('<div id="boot" hidden>')
     expect(page).toContain('#boot[hidden] { display:none; }')
+  })
+})
+
+/**
+ * SCRUM-49 — the graph is the app's data, drawn as a view, and its button belongs beside the profile
+ * control: one view of the document the page already holds, never a second page or a file of its own.
+ *
+ * The placement is text in the header, so it is pinned here: the left keeps the mark and the title,
+ * and the button sits in the right-hand cluster, glued to the left of the profile control, in the
+ * same box and the same ink as the player and the seg around it.
+ */
+describe('the graph button beside the profile control (SCRUM-49)', () => {
+  const bar = page.slice(page.indexOf('<div class="bar">'), page.indexOf('<div id="leftCol">'))
+  const at = (needle: string) => bar.indexOf(needle)
+
+  test('the left of the header keeps the mark and the title, and nothing else', () => {
+    // the bar opens on the wordmark; the graph button is not before it any more
+    expect(bar.slice(0, at('class="only-main">Body'))).not.toContain('id="openGraph"')
+    expect(at('id="openGraph"')).toBeGreaterThan(at('class="only-main">Body'))
+    expect(at('id="openGraph"')).toBeGreaterThan(at('id="loadDemo"'))
+  })
+
+  test('it sits in the right-hand cluster, glued to the left of the profile control', () => {
+    const btn = at('id="openGraph"')
+    const seg = at('<div class="seg" id="sex">')
+    expect(btn).toBeGreaterThan(at('class="spacer"'))       // right of the spacer: the cluster's side
+    expect(btn).toBeGreaterThan(at('id="tlPlayer"'))        // after the timeline player
+    expect(btn).toBeGreaterThan(at('id="tlDate"'))          // and after the date it points at
+    expect(btn).toBeLessThan(seg)
+    // nothing but the button's own markup between it and the profile control
+    expect(bar.slice(btn, seg)).toMatch(/^id="openGraph"[\s\S]*<\/svg><\/button>\s*$/)
+  })
+
+  test('same box, same weight as its neighbours', () => {
+    // the seg's own box is 19px glyphs on 3px+4px padding + the 1px group border = 28px; the button
+    // takes that height, that border, that radius and the player's muted ink
+    expect(page).toMatch(/#openGraph \{ height:28px; padding:0 9px; border-radius:7px; color:#9fb3c6; \}/)
+    expect(page).toMatch(/\.seg button \{[^}]*font-size:19px; line-height:1;/)
+    expect(page).toMatch(/\.player button \{[^}]*padding:5px 8px; color:#9fb3c6;/)
+  })
+
+  test('still one button on one page: it opens the view and writes no file', () => {
+    // the click path is unchanged: the button opens the page's own view of the document it holds
+    expect(page).toContain('document.getElementById("openGraph").onclick = () => setGraphView(true);')
+    // no second page and no second file for the graph: the view is this page
+    expect(page).not.toMatch(/window\.location\s*=|location\.href\s*=/)
   })
 })
 
