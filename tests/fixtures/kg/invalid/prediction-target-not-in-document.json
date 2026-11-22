@@ -1,0 +1,47 @@
+{
+  "meta": {
+    "title": "A forecast about nothing",
+    "schema": "kg/1",
+    "app": "health-viewer",
+    "requires": { "skills": ["kg"], "plugins": [], "tools": [] },
+    "colors": { "condition": "#c0504d", "observation": "#4f81bd", "prediction": "#7b68ee" },
+    "profile": { "sex": "male", "year_of_birth": 1961, "name": null },
+    "timezone": "Europe/Berlin"
+  },
+  "nodes": [
+    {
+      "id": "src-discharge-2021",
+      "label": "Discharge note, 2021-05-14",
+      "kind": "document",
+      "when": "2021-05-14",
+      "confirmed": true,
+      "link": "sources/discharge-2021-05-14.pdf"
+    },
+    {
+      "id": "obs-ldl-2026-11",
+      "label": "LDL, 2026-11-12",
+      "kind": "observation",
+      "when": "2026-11-12",
+      "value": 4.9,
+      "unit": "mmol/L",
+      "confirmed": true,
+      "source": "src-discharge-2021"
+    },
+    {
+      "id": "pred-ldl-2028",
+      "label": "LDL below 3.0 by 2028",
+      "kind": "prediction",
+      "target": "obs-ldl-2029",
+      "horizon": "2028-01-01",
+      "condition": { "fact": "on_statin", "op": "eq", "value": true },
+      "delta_median": -1.1,
+      "confidence": 0.6,
+      "confirmed": false,
+      "source": "src-discharge-2021"
+    }
+  ],
+  "edges": [
+    { "from": "obs-ldl-2026-11", "to": "src-discharge-2021", "label": "derived_from" },
+    { "from": "pred-ldl-2028", "to": "obs-ldl-2026-11", "label": "projected", "confidence": 0.6 }
+  ]
+}

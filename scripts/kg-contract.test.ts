@@ -7,9 +7,12 @@ import {
   HEALTH_KINDS,
   HEALTH_SCHEMA,
   HEALTH_SCHEMA_VERSION,
+  PREDICTION_REQUIRED,
+  PREDICTION_TARGET_KINDS,
   TEMPORAL_NODE_KINDS,
   validateKg,
 } from './lib/kg-contract'
+import { PREDICTION_FIELDS } from '../src/prediction'
 
 const FIXTURES = 'tests/fixtures/kg'
 const read = (rel: string): unknown => JSON.parse(readFileSync(join(FIXTURES, rel), 'utf8'))
@@ -43,6 +46,11 @@ describe('the contract gate', () => {
     ['invalid/missing-profile.json', 'must have required property "profile"'],
     ['invalid/wrong-endpoints.json', 'tracks starts at condition, expected observation'],
     ['invalid/valid-from-on-non-temporal-node.json', 'valid_from on a non-temporal node'],
+    ['invalid/prediction-without-condition.json', 'a prediction is a simulation, not a fact'],
+    ['invalid/prediction-with-when.json', 'a prediction is not an event'],
+    ['invalid/prediction-target-not-in-document.json', 'is not a node in this document'],
+    ['invalid/prediction-horizon-before-its-document.json', 'a forecast is about a later date, never an earlier one'],
+    ['invalid/prediction-condition-as-prose.json', 'must be an object'],
   ]
 
   for (const [fixture, expected] of mustReject) {
@@ -249,7 +257,18 @@ describe('rules a card can trip over', () => {
 
   test('every event carries its date, and a prediction is not an event', () => {
     const doc = health({}) as { nodes: Array<Record<string, unknown>> }
-    doc.nodes.push({ id: 'pred-1', kind: 'prediction', label: 'LDL under 3 by 2031', confirmed: false, source: 'src-1' })
+    doc.nodes.push({
+      id: 'pred-1',
+      kind: 'prediction',
+      label: 'LDL under 3 by 2031',
+      target: 'obs-1',
+      horizon: '2031-01-01',
+      condition: { fact: 'on_statin', op: 'eq', value: true },
+      delta_median: -1.1,
+      confidence: 0.6,
+      confirmed: false,
+      source: 'src-1',
+    })
     expect(validateKg(doc)).toEqual([])
   })
 
@@ -258,5 +277,129 @@ describe('rules a card can trip over', () => {
     const before = JSON.stringify(doc)
     validateKg(doc)
     expect(JSON.stringify(doc)).toBe(before)
+  })
+})
+
+describe('a prediction is a simulation, not a fact', () => {
+  const PREDICTION_KEY = 'pred-1'
+
+  /**
+   * A document with one prediction, its document, its target and the `projected` edge. Each test
+   * breaks one thing; the rest of the document is what a forecast looks like when it is right.
+   */
+  const forecast = (): {
+    meta: Record<string, unknown>
+    nodes: Array<Record<string, unknown>>
+    edges: Array<Record<string, unknown>>
+  } => ({
+    meta: {
+      title: 't',
+      schema: 'kg/1',
+      app: 'health-viewer',
+      requires: { skills: ['kg'], plugins: [], tools: [] },
+      colors: {},
+      profile: { sex: 'male', year_of_birth: 1961 },
+      timezone: 'Europe/Berlin',
+    },
+    nodes: [
+      { id: 'src-1', kind: 'document', label: 'a note', when: '2021-05-14', confirmed: true },
+      {
+        id: 'obs-1',
+        kind: 'observation',
+        label: 'LDL',
+        when: '2026-11-12',
+        value: 4.9,
+        unit: 'mmol/L',
+        confirmed: true,
+        source: 'src-1',
+      },
+      {
+        id: PREDICTION_KEY,
+        kind: 'prediction',
+        label: 'LDL under 3 by 2028',
+        target: 'obs-1',
+        horizon: '2028-01-01',
+        condition: { fact: 'on_statin', op: 'eq', value: true },
+        delta_median: -1.1,
+        confidence: 0.6,
+        confirmed: false,
+        source: 'src-1',
+      },
+    ],
+    edges: [{ from: PREDICTION_KEY, to: 'obs-1', label: 'projected', confidence: 0.6 }],
+  })
+
+  const pred = (doc: ReturnType<typeof forecast>): Record<string, unknown> =>
+    doc.nodes.find((node) => node.id === PREDICTION_KEY) as Record<string, unknown>
+
+  test('a well-formed forecast is clean', () => {
+    expect(validateKg(forecast())).toEqual([])
+  })
+
+  // The schema is the list's home; the loader in src/prediction.ts restates it for the app, and the
+  // two are held together here so a field added to one cannot be forgotten in the other.
+  test('the six fields the schema requires are the six the gate reads', () => {
+    expect([...PREDICTION_REQUIRED]).toEqual([...PREDICTION_FIELDS])
+    expect([...PREDICTION_REQUIRED]).toEqual(['target', 'horizon', 'condition', 'delta_median', 'source', 'confidence'])
+  })
+
+  test('a prediction is about an outcome — the kinds it may project onto are the relation’s', () => {
+    expect([...PREDICTION_TARGET_KINDS]).toEqual([...HEALTH_EDGE_LABELS.projected.to])
+    expect([...PREDICTION_TARGET_KINDS]).toEqual(['condition', 'observation'])
+  })
+
+  const broken: Array<[string, (doc: ReturnType<typeof forecast>) => void, string]> = [
+    ['target', (doc) => { delete pred(doc).target }, 'missing "target"'],
+    ['horizon', (doc) => { delete pred(doc).horizon }, 'missing "horizon"'],
+    ['condition', (doc) => { delete pred(doc).condition }, 'missing "condition"'],
+    ['delta_median', (doc) => { delete pred(doc).delta_median }, 'missing "delta_median"'],
+    ['source', (doc) => { delete pred(doc).source }, 'missing "source"'],
+    ['confidence', (doc) => { delete pred(doc).confidence }, 'missing "confidence"'],
+    ['when', (doc) => (pred(doc).when = '2026-11-12'), 'a prediction is not an event'],
+    ['target that is not here', (doc) => { pred(doc).target = 'obs-gone' }, 'is not a node in this document'],
+    ['target that is a document', (doc) => { pred(doc).target = 'src-1' }, 'expected condition or observation'],
+    ['horizon before the document', (doc) => (pred(doc).horizon = '2020-01-01'), 'never an earlier one'],
+    ['horizon that is not a date', (doc) => (pred(doc).horizon = '2028-02-30'), 'must be a date, YYYY-MM-DD'],
+    ['condition in prose', (doc) => (pred(doc).condition = 'if he takes a statin'), 'must be an object'],
+    ['empty condition object', (doc) => (pred(doc).condition = {}), 'missing "fact"'],
+    ['condition with an unknown operator', (doc) => (pred(doc).condition = { fact: 'x', op: 'roughly' }), 'must be one of: eq'],
+    ['delta_median as a string', (doc) => (pred(doc).delta_median = 'a bit'), 'must be a number'],
+    ['confidence above 1', (doc) => (pred(doc).confidence = 1.4), 'must be at most 1'],
+  ]
+
+  for (const [name, breakIt, expected] of broken) {
+    test(`a prediction with ${name} is rejected`, () => {
+      const doc = forecast()
+      breakIt(doc)
+      const issues = validateKg(doc)
+      expect(issues.length).toBeGreaterThan(0)
+      expect(issues.map((issue) => issue.message).join(' | ')).toContain(expected)
+    })
+  }
+
+  test('the refusal points at the prediction by id, not by its index', () => {
+    const doc = forecast()
+    delete pred(doc).target
+    expect(validateKg(doc).map((issue) => issue.path)).toContain(`$.nodes[${PREDICTION_KEY}]`)
+  })
+
+  test('a comparison, a group and a negation are all conditions', () => {
+    const doc = forecast()
+    pred(doc).condition = {
+      all: [
+        { fact: 'on_statin', op: 'eq', value: true },
+        { any: [{ fact: 'ldl_cholesterol', op: 'lt', value: 3 }, { not: { fact: 'current_smoker', op: 'eq', value: true } }] },
+      ],
+    }
+    expect(validateKg(doc)).toEqual([])
+  })
+
+  test('an interval document date is compared by the day it starts', () => {
+    const doc = forecast()
+    doc.nodes[0].when = { from: '2021-05-14', to: null }
+    expect(validateKg(doc)).toEqual([])
+
+    pred(doc).horizon = '2021-05-13'
+    expect(validateKg(doc).map((issue) => issue.path)).toContain(`$.nodes[${PREDICTION_KEY}].horizon`)
   })
 })

@@ -60,7 +60,7 @@ template has a layout for each and nothing for the rest.
 | `procedure` | yes | `when`: the day it was performed | something done to the person | coronary angiography 2021-05-15 |
 | `document` | yes | `when`: the date printed on it | the file the facts came from | discharge note, page 2 |
 | `summary` | no | `when`: the period end | a period rolled up: annual or today. Virtual | 2025 annual summary |
-| `prediction` | no | target date, from T18 | a simulated projection under a condition | LDL < 3.0 by 2028 |
+| `prediction` | no | `horizon`: the date it is about | a simulated projection under a condition | LDL < 3.0 by 2028 |
 
 Rules:
 
@@ -75,7 +75,9 @@ Rules:
 - A `summary` is virtual. It is not an event somebody recorded; it is a marker the app generates for
   a year (stamped `01-01` of the following year) or for today. It is stored only once confirmed.
 - A `prediction` never moves the main estimate until its condition is met. When it is met, the
-  estimate moves and the history says which prediction moved it.
+  estimate moves and the history says which prediction moved it. The condition is a predicate over
+  the facts — the same vocabulary a rule's `when` uses (see §Predictions) — and it is three-valued:
+  a missing or mistyped fact is **unknown**, and an unknown condition is not met.
 
 ## Node fields
 
@@ -94,9 +96,76 @@ Base fields are `kg/1` (`id`, `label`, `kind`, `level`, `size`, `style`, `desc`,
 | `source` | any but `document` | yes | id of a `document` node; a document is the provenance and carries none |
 | `origin` | `condition`, `summary` | no | `doctor` or `generated`; the two never look alike |
 | `confidence` | any | no | `0..1`; shown only when it exists |
+| `target` | `prediction` | yes | id of the condition or observation the forecast is about |
+| `horizon` | `prediction` | yes | ISO date: the date the forecast is about, not the day it was made |
+| `condition` | `prediction` | yes | the predicate that has to be met before the forecast may move an estimate |
+| `delta_median` | `prediction` | yes | number: what the estimate of its scale would move by, once the condition is met |
 
 `value` is a number and `unit` is separate on purpose: a string `"4.9 mmol/L"` cannot be plotted,
 sorted or compared, and every downstream bug starts there.
+
+## Predictions
+
+A forecast is a simulation, not a fact. It is a node — visible, dated, drawable — and it is the one
+kind that may carry a number the record has not earned yet. So it says exactly what it is waiting
+for, in a form a program can decide:
+
+```json
+{
+  "id": "pred-ldl-2028",
+  "kind": "prediction",
+  "label": "LDL below 3.0 by 2028 on a statin",
+  "target": "obs-ldl-2026-11",
+  "horizon": "2028-01-01",
+  "condition": { "fact": "on_statin", "op": "eq", "value": true },
+  "delta_median": -1.1,
+  "confidence": 0.6,
+  "source": "src-discharge-2021",
+  "confirmed": false
+}
+```
+
+| field | what it is | what a document may not do without it |
+|---|---|---|
+| `target` | the condition or observation the forecast is about | a forecast about nothing is a mood |
+| `horizon` | the date the forecast is about | without it the timeline cannot place the projection; a prediction carries **no** `when` — its date is the horizon, and the day it was made is the date printed on its document |
+| `condition` | the predicate that has to be met | it is the only thing that may let the number move; a forecast with no condition moves the estimate the day it is written |
+| `delta_median` | the change it would make, in the unit of the scale it adjusts | a number with no size is not a forecast |
+| `source` | the document or citation it came from | required on every kind but the document, and a forecast is no exception |
+| `confidence` | 0..1 | the reader has to know how much to trust the delta |
+
+The condition is **a predicate over the facts**, in the same vocabulary as a rule's `when`
+(`$defs.predicate` in the schema; `src/rules.ts`):
+
+```json
+{ "all": [ { "fact": "on_statin", "op": "eq", "value": true },
+           { "any": [ { "fact": "ldl_cholesterol", "op": "lt", "value": 3 },
+                      { "not": { "fact": "current_smoker", "op": "eq", "value": true } } ] } ] }
+```
+
+One comparison is `{fact, op, value}`; `all`, `any` and `not` compose them; `op` is one of
+`eq ne lt le gt ge in exists`. A condition is about facts — `age`, `on_statin`, `ldl_cholesterol` —
+never about dates: dates live on nodes, and a condition that carried one would be the second kind
+of time this contract exists to prevent.
+
+**The gate.** `src/prediction.ts` is the only thing that turns a prediction into a number, and it
+applies a delta **only** when the condition is exactly `met`:
+
+| verdict | when | what the estimate does |
+|---|---|---|
+| `met` | every comparison is true | takes the delta |
+| `unmet` | a comparison is false | stays where it was; the row is withheld as `no-match` |
+| `unknown` | a fact is missing or of the wrong type | stays where it was; the row is withheld as `missing-fact` / `type-mismatch` |
+
+`unknown` is the important one. "We do not know whether he is on a statin" is not "he is on a
+statin", and it is not "he is not" either: the forecast stays visibly pending instead of firing or
+being quietly dropped. For the same reason `not` over an unknown comparison is still unknown.
+
+Two things the contract refuses outright, because they are the shape of a forecast mistaken for a
+fact: a `target` that is not a condition or an observation in the same document, and a `horizon`
+earlier than the date printed on the forecast's own document — a forecast is about a later date,
+never an earlier one. `docs/PREDICTIONS.md` is the long form: why the gate exists, what the rows look
+like, and what a prediction is not allowed to claim.
 
 ## Edge relations
 
@@ -137,8 +206,8 @@ window; the checker refuses one on it.
 ## What the template may assume
 
 1. `id` is unique and stable. Never reused for different content.
-2. An event has `when`; a `summary` has the date it marks; a `prediction` has a target date only from
-   T18. A non-event needs no date of its own.
+2. An event has `when`; a `summary` has the date it marks; a `prediction` has a `horizon` and no
+   `when` (§Predictions). A non-event needs no `when` of its own.
 3. Every node has `kind` from the list above and `confirmed` set.
 4. Fields may be missing. **A missing field hides its row; it never breaks the layout.**
 5. The document is read-only for the template. No writes, no mutation, no caching into localStorage.
@@ -151,9 +220,11 @@ draft 2020-12, version in `x-contract-version`), and the checker that reads it i
 in `valid/` must pass, a fixture in `invalid/` must be rejected, and the run exits non-zero when
 either half misbehaves. It needs no network and no `node_modules` — `bun` is the whole install.
 
-The schema is at **2.0.0** since T06: `source` is renamed to `document`, `procedure` became its own
-event, and the six event kinds are the spine of the model. A document written against 1.0.0 is
-migrated by renaming the `source` kind to `document` and giving it the date printed on it.
+The schema is at **2.1.0** since T18: a `prediction` carries `target`, `horizon`, `condition`,
+`delta_median`, `source` and `confidence`, and no `when`. **2.0.0** (T06) renamed `source` to
+`document`, made `procedure` its own event, and made the six event kinds the spine of the model. A
+document written against 1.0.0 is migrated by renaming the `source` kind to `document` and giving it
+the date printed on it.
 
 The document is valid when:
 
@@ -170,7 +241,10 @@ The document is valid when:
 - no node but one that can be in force carries a validity window: `valid_from` / `valid_to` are a
   relation's device. A stable thing — a document, an organ — has no window, and an event states its
   date in `when`. A window that ends before it starts is rejected on both nodes and edges;
-- `meta.profile.sex` and `meta.profile.year_of_birth` exist.
+- `meta.profile.sex` and `meta.profile.year_of_birth` exist;
+- a `prediction` carries all six of its fields, its `condition` is a well-formed predicate, its
+  `target` is a condition or an observation in the same document, its `horizon` is not before the
+  date printed on its own document, and it carries no `when`.
 
 What the schema deliberately does not describe: a stored snapshot. A snapshot is derived, not
 recorded — the state at date D is every node whose `when` is on or before D, plus every edge whose

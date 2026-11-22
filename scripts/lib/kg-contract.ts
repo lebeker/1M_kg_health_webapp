@@ -11,6 +11,8 @@
  *   - a node's `source` names a node whose kind is `document` (a document is the provenance and
  *     carries no `source` of its own);
  *   - an edge's ends carry the kinds its relation allows (`x-relations` in the schema);
+ *   - a prediction's `target` is a condition or an observation in the same document, and its
+ *     `horizon` is not before the date printed on the document it came from;
  *   - only a dated node may carry a validity window, and a window does not end before it starts.
  *
  * The base part stays deliberately thin, because the renderer only needs `nodes[].id` and
@@ -137,6 +139,17 @@ export const OBSERVATION_FLAGS = strings(
   '$defs.node[observation].properties.flag.enum',
 )
 
+/**
+ * The six fields a prediction cannot do without, read off the schema's prediction branch so the
+ * list has one home. The card T18 names exactly these: a forecast that is missing any of them is
+ * either not about anything, not about any date, not waiting on anything, or not changing anything
+ * — and the last two are how a simulation gets mistaken for a fact.
+ */
+export const PREDICTION_REQUIRED = strings(
+  branchFor('prediction').required,
+  '$defs.node[prediction].required',
+)
+
 const RELATIONS = isObject(HEALTH_SCHEMA['x-relations']) ? HEALTH_SCHEMA['x-relations'] : {}
 
 /** The closed relation list: relation → which kinds may sit on each end. `*` is "any". */
@@ -158,6 +171,12 @@ if (LABEL_ENUM.join(',') !== Object.keys(HEALTH_EDGE_LABELS).join(',')) {
 }
 
 const BASE_TOP_LEVEL = new Set(['meta', 'nodes', 'edges'])
+
+/**
+ * Kinds a prediction may be about. Read off the `projected` relation rather than copied: the edge
+ * and the node's `target` say one thing, and a document may not have them disagree.
+ */
+export const PREDICTION_TARGET_KINDS: readonly string[] = HEALTH_EDGE_LABELS.projected?.to ?? []
 
 const isHealthDocument = (doc: Json): boolean => isObject(doc.meta) && doc.meta.app === 'health-viewer'
 
@@ -281,6 +300,8 @@ function crossReferences(doc: Json, health: boolean): Issue[] {
       }
     }
 
+    if (kind === 'prediction') issues.push(...predictionProblems(node, path, byId))
+
     const window = validityWindow(node)
     if (window !== undefined) {
       if (!(TEMPORAL_NODE_KINDS as readonly string[]).includes(kind)) {
@@ -329,6 +350,53 @@ function crossReferences(doc: Json, health: boolean): Issue[] {
   })
 
   return issues
+}
+
+/**
+ * What a prediction owes the rest of the document, beyond the fields the schema already types:
+ *
+ *   - its `target` is a node here, and one of the kinds it may project onto (a condition or an
+ *     observation) — a forecast about a document or a medication names a thing that cannot carry
+ *     the outcome it claims;
+ *   - its `horizon` is not before the date printed on the document it came from. A forecast is made
+ *     on a date and is about a later one; one that looks back is a record with a forecast's clothes.
+ *
+ * The condition itself is checked by the schema (`$defs.predicate`), and whether it is *met* is not a
+ * question about the document at all — that is `src/prediction.ts`, which never lets an unmet or
+ * undecidable condition move an estimate.
+ */
+function predictionProblems(node: Json, path: string, byId: Map<string, Json>): Issue[] {
+  const issues: Issue[] = []
+
+  if (isNonEmptyString(node.target)) {
+    const target = byId.get(node.target)
+    if (!target) {
+      issues.push({ path: `${path}.target`, message: `target "${node.target}" is not a node in this document` })
+    } else if (!PREDICTION_TARGET_KINDS.includes(String(target.kind))) {
+      issues.push({
+        path: `${path}.target`,
+        message: `target "${node.target}" is a ${String(target.kind)} node, expected ${PREDICTION_TARGET_KINDS.join(' or ')}: a prediction is about an outcome, not about the paper it cites`,
+      })
+    }
+  }
+
+  const horizon = node.horizon
+  const made = isNonEmptyString(node.source) ? startOf(byId.get(node.source)?.when) : undefined
+  if (typeof horizon === 'string' && made !== undefined && horizon < made) {
+    issues.push({
+      path: `${path}.horizon`,
+      message: `horizon ${horizon} is before ${made}, the date printed on the document it came from: a forecast is about a later date, never an earlier one`,
+    })
+  }
+
+  return issues
+}
+
+/** The start of a `when`: a date, or the `from` of an interval. */
+function startOf(when: unknown): string | undefined {
+  if (typeof when === 'string') return when
+  if (isObject(when) && typeof when.from === 'string') return when.from
+  return undefined
 }
 
 type Window = { field: string; from: string; to?: string | null }
