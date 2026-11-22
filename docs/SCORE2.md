@@ -122,6 +122,6 @@ this number (a treatment effect, a prediction that has been met) carries `score2
 percentage points to `risk`, in that unit, with its own citation.
 
 `src/score2.ts` is a coefficient model with published citations and no free parameters; T16 (Lee
-index) is additive and will be a rule set on the same engine. The explanation view (T17) therefore
-has to handle two shapes: `Estimate` (base + deltas) and `Score2Risk` (a coefficient model). This
-document, not the code, is where that split is decided.
+index, `docs/LEE.md`) is additive and ships as a rule set on the same engine. The explanation view
+(T17) therefore has to handle two shapes: `Estimate` (base + deltas) and `Score2Risk` (a coefficient
+model). This document, not the code, is where that split is decided.
