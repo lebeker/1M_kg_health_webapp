@@ -91,6 +91,25 @@ of each node stays inside the frustum clear of the rail and the open panel. Fram
 box in the body's plane and aiming at z = 0 is what left five of six systems off screen
 (LIST OF PROBLEMS 2).
 
+## The timeline — time is the navigator (T07)
+
+The strip under the header runs from birth to forty years past today: year ticks outside a ±2-year
+window around today, month ticks inside it, future ticks painted by the annual risk at that age, and
+one click anywhere selects that calendar day (no wheel scroll — the strip is not a scroller). The
+ruler's arithmetic lives in `lib/timeline-step.js` for the player and in `index.html` for the
+geometry.
+
+**Widget 6 (the player) lives in the main view's header**, at the centre column's top-right, as
+`wireframe-health-v11-analysis.svg` draws it — not in the page bar with the graph button and the
+profile. `start` / `prev` / `next` / `end` step between **events**, and a step opens the record it
+lands on, so stopping on an event never reads "no record on this date".
+
+A click on a bare stretch between two events keeps the column: it collapses to its own header
+(`#main.bare`), because the player is the navigator and must not vanish under the reader's hand. The
+body is not drawn — an empty panel would be a lie — and the header says `no record on this date`
+(`no records` for an empty document). The ✕ closes the whole column deliberately; the next date the
+reader picks brings it back.
+
 ## State at date — the left list (T10)
 
 The left column is one list, newest on top: the future above, the past below, no FUTURE/PAST
