@@ -35,4 +35,12 @@ describe('injecting a document into the built page', () => {
   test('no document title leaves the page title alone', () => {
     expect(inject(BUILD, { nodes: [] })).toContain('<title>knowledge graph</title>')
   })
+
+  test('the case page keeps the product title, and still gets the document', () => {
+    // `dist/demo.html` is built from a template whose title is the product's. Retitling it would
+    // capture a page nobody ships, so the columns-page capture asks for the payload only.
+    const out = inject(BUILD, { meta: { title: 'SYNTHETIC — one check-up' }, nodes: [1], edges: [] }, { title: false })
+    expect(out).toContain('<title>knowledge graph</title>')
+    expect(out).toContain('{"meta":{"title":"SYNTHETIC')
+  })
 })

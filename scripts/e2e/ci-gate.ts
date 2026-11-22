@@ -13,7 +13,11 @@
  * rather than a record of the run, so it waits (ten minutes by default) and fails only after.
  *
  * The diff decides, not a card's prose: `appSurface()` is the same list the card template and the
- * gate use, so a docs or tooling branch is exempt without anybody remembering to exempt it.
+ * gate use, so a docs or tooling branch is exempt without anybody remembering to exempt it. The
+ * diff also decides which *page* the receipt has to be evidence of (`pagesFor`): a `body/` change
+ * needs a run that opened the columns page, and the receipt says which pages it opened in its
+ * description. Before that, a graph-page run was a green light for a columns-page change — the
+ * exact receipt t_7557a1f2 proved was an infrastructure smoke rather than a test of the claim.
  *
  * Both ends of that diff are required. A pull request that names no head or no base is a usage
  * error, not an empty diff: `appSurface([])` is empty, so a missing diff used to read as
@@ -22,7 +26,8 @@
  */
 import { execFileSync } from 'node:child_process'
 import { appendFileSync } from 'node:fs'
-import { appSurface } from './gate'
+import { PAGE_KINDS, type PageKind } from './card'
+import { appSurface, pagesFor } from './gate'
 import { E2E_STATUS_CONTEXT } from './status'
 
 export type StatusEntry = { context?: string; state?: string; description?: string; created_at?: string }
@@ -37,11 +42,40 @@ export function latestE2eStatus(statuses: StatusEntry[]): { state: string; descr
   return { state: String(newest.state ?? ''), description: String(newest.description ?? '') }
 }
 
+/**
+ * The pages a receipt says it opened: `run.ts` writes `G3 [case] …` or `G3 [case+graph] …` into
+ * the status description. An old receipt has no marker and is read as "unnamed", which is not the
+ * same as "the case page": the marker is the only way a reader can tell the two apart.
+ */
+export function receiptPages(description: string): PageKind[] | null {
+  const match = description.match(/\[\s*(case|graph|both)((?:\s*[+,]\s*(?:case|graph|both))+)?\s*\]/i)
+  if (!match) return null
+  const tokens = `${match[1]}${match[2] ?? ''}`
+    .toLowerCase()
+    .split(/[+,]/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+  const named = new Set<PageKind>()
+  for (const token of tokens) {
+    if (token === 'both') {
+      named.add('case')
+      named.add('graph')
+    } else if (token === 'case' || token === 'graph') named.add(token)
+  }
+  return PAGE_KINDS.filter((kind) => named.has(kind))
+}
+
 export type Decision = { required: boolean; ok: boolean; message: string }
 
 /**
  * The verdict for one look at the pull request. `pending` and `null` are not verdicts — the
  * caller polls — except at the deadline, where both become the same failure.
+ *
+ * A green receipt is not enough on its own: it has to be evidence of the page this diff moves.
+ * The graph page was the only page a run could open when this gate was written, so an unmarked
+ * receipt still satisfies a graph-only diff; a diff that moves the columns page needs a receipt
+ * that says it opened the columns page, because otherwise a run against a page the card never
+ * mentioned is what lets a `body/` pull request merge.
  */
 export function decide(input: { event: string; files: string[]; status: { state: string; description: string } | null }): Decision {
   if (input.event !== 'pull_request') {
@@ -51,6 +85,7 @@ export function decide(input: { event: string; files: string[]; status: { state:
   if (surface.length === 0) {
     return { required: false, ok: true, message: 'no app-surface files in this diff, so no clean-room run is required' }
   }
+  const needed = pagesFor(input.files)
   const moved = surface.map((hit) => `${hit.path} (${hit.area})`).slice(0, 6)
   if (!input.status) {
     return {
@@ -60,6 +95,21 @@ export function decide(input: { event: string; files: string[]; status: { state:
     }
   }
   if (input.status.state === 'success') {
+    const named = receiptPages(input.status.description)
+    // `case` can never be assumed: no run before this gate existed opened that page, so an
+    // unmarked receipt is a graph-page run. `graph` is assumed from an unmarked receipt, which is
+    // what every older green status is, but a receipt that names pages and leaves the graph out
+    // does not cover a diff that moves the graph view.
+    const missing = needed.filter((kind) => (named === null ? kind === 'case' : !named.includes(kind)))
+    if (missing.length > 0) {
+      return {
+        required: true,
+        ok: false,
+        message: `the e2e receipt on this head is green but it is not evidence of ${missing
+          .map((kind) => (kind === 'case' ? 'the columns page (dist/demo.html)' : 'the graph page (dist/graph.html)'))
+          .join(' and ')}, and this diff moves it — ${moved.join('; ')}. ${named === null ? 'The receipt names no page, so it was a graph-page run.' : `The receipt names ${named.join('+')} only.`} Run e2e against this head with \`page: case\` in the card's ## e2e block.`,
+      }
+    }
     return { required: true, ok: true, message: `e2e run recorded against this head: ${input.status.description || '(no description)'}` }
   }
   if (input.status.state === 'pending') {
@@ -202,9 +252,13 @@ async function main(argv: string[]): Promise<number> {
       '```',
       '',
       'The run builds this head, gives a fresh agent one sentence from the card, captures the page',
-      'it renders in Hermes\'s own browser, replays its document in this build, and attaches the',
+      "it renders in Hermes' own browser, replays its document in this build, and attaches the",
       'evidence to the card. It exits non-zero when the card\'s claim is not visible, and a red run',
       'posts no success. Do not post this status by hand: it is the receipt for evidence, not a tick.',
+      '',
+      'A card whose claim lives on the columns page must say `page: case` in its `## e2e` block:',
+      'the receipt names the pages it opened (`[case]`, `[graph]`, `[case+graph]`), and a run that',
+      'never opened the page this diff moves is not a receipt for it.',
     ].join('\n'),
   )
   return 1

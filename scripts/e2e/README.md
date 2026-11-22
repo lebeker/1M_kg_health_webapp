@@ -59,8 +59,9 @@ run and takes the branch out of the gate with it.
    while the agent is working.
 5. **Shows it** in a second, narrowly scoped Hermes session: the capture session, pinned to the
    `browser` toolset, whose only tools it may call are `browser_navigate`, `browser_console` and
-   `browser_vision`. It opens the page the agent rendered, waits for the first render, reads the
-   title, the header, the visible text and a sha256 of the live DOM, answers the card's `expect`
+   `browser_vision`. It opens every page the card names, waits for the first render, reads the
+   title, the header (the graph page) or the three column widths and record rows (the columns
+   page), the visible text and a sha256 of the live DOM, answers the card's `expect`
    list in the page itself, and takes the screenshot. See **Why a browser session and not a
    driver** below.
 6. **Replays**: the agent's `kg.json` is injected into the branch build
@@ -68,12 +69,32 @@ run and takes the branch out of the gate with it.
    again; then `bun run verify` and the kg/1 contract over the agent's document run in the
    worktree. No crash, no regression, same claim visible.
 
+## The two pages
+
+The product has two built pages and they do not show the same thing, so a card says which one its
+claim lives on:
+
+| `page:` | artifact | what the run checks |
+|---|---|---|
+| `graph` (default) | `dist/graph.html` — the React viewer the skill installs | `#root` mounted, `<title>` equals the document's, the `N nodes · M edges` header matches the document |
+| `case` | `dist/demo.html` — the columns page: timeline, record list, centre, right panel (widgets 19–25) | the page holds the document (`__documentState()`), the three columns are laid out with a record in the centre, and every stored row in the record list is dated in the document |
+| `both` | both | both, and the card's `expect` text has to be visible on each |
+
+The graph page is captured twice — the page the agent rendered in the clean room, and the replay
+of its document in the branch build. The columns page is captured once: the branch's
+`dist/demo.html` with the run's own document injected into its `#kg-graph` slot (`inject`, payload
+only — the page keeps the title it ships with, because the page under test is the one the branch
+builds). `lib/` and `models/` are linked beside the copy, because the page loads them relatively.
+The clean room installs the graph app, so a case-page capture is always a replay of the branch
+artifact — `report.json` says so per capture, under `pages[].kind`.
+
 ## The card contract
 
 The card states its own user question, in the same body that carries its acceptance:
 
 ```markdown
 ## e2e
+page: case
 prompt: show me my last lipid panel
 expect: LDL cholesterol, mmol/L
 ```
@@ -81,6 +102,9 @@ expect: LDL cholesterol, mmol/L
 - `prompt` — one sentence a user would say. It is the card's, not the harness's: a card about
   the state-at-date panel asks for a date, a card about the risk model asks for the number and
   where it comes from.
+- `page` — `graph` (default), `case` or `both`; see **The two pages** above. A card whose claim
+  is only visible on the columns page and does not say `page: case` gets a graph-page receipt, and
+  `scripts/e2e/gate.ts` refuses it — that mismatch is the loophole this field closes.
 - `expect` — optional text that must be visible in the page when the card is really done. Each
   entry is matched, case-insensitively, against the page's own `innerText` **inside the page**,
   and the browser's answer is what the harness asserts — the model never retypes it. The graph
@@ -100,12 +124,13 @@ test is blocked, not started. The harness prints the block to add and exits 2.
 
 | file | what it is |
 |---|---|
-| `card.json` | card id, prompt, mode, branch, commit, build sha256, dirty flag |
+| `card.json` | card id, prompt, mode, `pages`, branch, commit, build sha256 (graph and case), dirty flag |
 | `build.html` | the exact artifact under test |
 | `agent.jsonl` | the fresh agent's record stream — every tool call it made |
 | `kg.json` | the document the clean room produced |
 | `cleanroom.values.json`, `cleanroom.png` | what the browser read from the page the agent rendered, and the screenshot |
 | `replay.values.json`, `replay.png` | the same for the document inside the branch build |
+| `case.html`, `case.values.json`, `case.png` | on a `page: case` (or `both`) card: the branch's columns page with this run's document injected, what the browser read from it, and the screenshot. `lib/` and `models/` are symlinks to the worktree's build output |
 | `capture.jsonl`, `capture.prompt.txt`, `capture.tools.json` | the capture session's brief, its record stream and the `browser_*` calls it made |
 | `contract.txt`, `verify.txt` | G1 and G2 output |
 | `report.json` | every check, pass/fail, plus the paths above |

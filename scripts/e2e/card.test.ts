@@ -34,4 +34,23 @@ describe('the e2e block on a card', () => {
     const e2e = parseE2e(['## e2e notes', 'prompt: nope'].join('\n'))
     expect(e2e.prompt).toBeUndefined()
   })
+
+  test('page: names which built page the claim lives on', () => {
+    const caseCard = parseCard(['## e2e', 'prompt: what moves my forecast', 'page: case', 'expect: statin'].join('\n'), 'T17 — what moves it')
+    expect(caseCard.pages).toEqual(['case'])
+    expect(parseCard(['## e2e', 'prompt: p', 'expect: x'].join('\n'), 'T1').pages).toEqual(['graph'])
+    expect(parseCard(['## e2e', 'prompt: p', 'page: both', 'expect: x'].join('\n'), 'T1').pages).toEqual(['case', 'graph'])
+    expect(parseCard(['## e2e', 'prompt: p', 'page: graph', 'expect: x'].join('\n'), 'T1').pages).toEqual(['graph'])
+  })
+
+  test('a page nobody has is refused, not quietly turned back into the graph page', () => {
+    // The whole point of the field: a typo must not fall back to the page the harness used to
+    // capture, or the card would get a receipt for something it never claimed.
+    expect(() => parseE2e(['## e2e', 'prompt: p', 'page: colums', 'expect: x'].join('\n'))).toThrow(/not a page/)
+    expect(() => parseE2e(['## e2e', 'prompt: p', 'page: ,', 'expect: x'].join('\n'))).toThrow(/names no page/)
+  })
+
+  test('pages are listed in a stable order, so a report reads the same twice', () => {
+    expect(parseE2e(['## e2e', 'prompt: p', 'page: graph+case', 'expect: x'].join('\n')).pages).toEqual(['case', 'graph'])
+  })
 })
