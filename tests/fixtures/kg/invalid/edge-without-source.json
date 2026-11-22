@@ -6,7 +6,7 @@
     "profile": { "sex": "male", "year_of_birth": 1961 }
   },
   "nodes": [
-    { "id": "src-1", "label": "Discharge note", "kind": "source", "confirmed": true },
+    { "id": "src-1", "label": "Discharge note", "kind": "document", "when": "2021-05-14", "confirmed": true },
     { "id": "obs-1", "label": "LDL cholesterol", "kind": "observation", "when": "2026-11-12", "value": 4.9, "unit": "mmol/L", "confirmed": true }
   ],
   "edges": [{ "from": "obs-1", "to": "src-1", "label": "derived_from" }]

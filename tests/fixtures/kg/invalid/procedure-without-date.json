@@ -1,0 +1,13 @@
+{
+  "meta": {
+    "title": "A procedure nobody dated",
+    "schema": "kg/1",
+    "app": "health-viewer",
+    "profile": { "sex": "male", "year_of_birth": 1958 }
+  },
+  "nodes": [
+    { "id": "src-1", "label": "Operative note", "kind": "document", "when": "2022-06-01", "confirmed": true },
+    { "id": "proc-1", "label": "Total knee replacement", "kind": "procedure", "confirmed": true, "source": "src-1" }
+  ],
+  "edges": [{ "from": "proc-1", "to": "src-1", "label": "derived_from" }]
+}

@@ -66,6 +66,62 @@ DOM, renderer and orbit controls are test adapters: **this is not a live browser
 Current geometry was rendered directly in Blender. Browser access was declined during the
 previous work and was not bypassed for this repair.
 
+## Split regression (T24)
+
+```sh
+bun run test:split                 # curl-checks the server, starts one on 8770 if it is dead
+node body/tools/split-regression.mjs --root <tree> --port 8771   # run it on another tree
+```
+
+`split-regression.mjs` presses the viewer's own "split into systems" button in a Node VM, then
+asserts the four things a working split has: six systems, six edges, every edge endpoint on a node
+(and none in another edge's span), and every node inside the camera frame once the movement
+settles. The page, its scripts and the GLBs come over the local HTTP server, so a missing file is
+that server's 404 and not a broken page; the harness curls the server first and exits 2 with an
+instruction when it is dead (LIST OF ISSUES 4). Exit 1 means the split is wrong.
+
+It is part of `bun run verify` and of the CI `verify` job. The frame it asserts is `splitFrame()` in
+`index.html`: the six systems and the set are fitted in 3D, aimed at their own centre, so the ball
+of each node stays inside the frustum clear of the rail and the open panel. Framing them as a flat
+box in the body's plane and aiming at z = 0 is what left five of six systems off screen
+(LIST OF PROBLEMS 2).
+
+## State at date — the left list (T10)
+
+The left column is one list, newest on top: the future above, the past below, no FUTURE/PAST
+captions, and the row the reader picked marked black. It mixes what the document holds — analyses,
+diagnoses, decisions — with two rows the page makes itself: an annual marker stamped `01-01` of
+the year after the one it covers, and the today summary, which is the first row and is generated at
+launch, never stored as an event. Clicking a row moves the ruler to that day and scrolls the row to
+the middle of the panel.
+
+The rules (order, annual marker, today row) live in `lib/state-list.js`, pure and DOM-free, so
+`scripts/state-list.test.ts` can state them as dates. The page only decides what a row looks like.
+The body's layer rail now sits under the list in the same column; the collapse button folds the
+whole column, which is the width the stage's framing maths has always assumed.
+
+## Main view — the centre (T11)
+
+Picking a record opens it in the centre, over the body. The event decides the layout: an analysis
+opens its panel as a table (marker, value, reference, flag — a lipid panel is four rows, a single
+test is one) with the lab, its address, a link to the original scan, the plain-language meaning and
+the linked items; a diagnosis opens its verdict (an official note with doctor, clinic and links, or
+a generated one with the `not confirmed` badge and no doctor link) and, separately, what was decided
+— tests, drugs, diet, activity, restrictions; a summary opens plan versus fact, and carries no links
+and no assignments. Records that are not a state — a decision, a visit, a drug, a document — get
+their own facts instead of a panel they do not have.
+
+The four marks carry the card's meaning: the yellow triangle says check before acting (a generated
+note, or a doctor's note a later test contradicts), the skull says dangerous, do not act, a red `!`
+on an assignment says a known side effect or low trust in the generator, and a yellow `!` says
+plausible but unverified. Model advice is red until there is no alternative, a real diagnosis stands
+behind it, or the reader applied it and it helped.
+
+The rules live in `lib/main-view.js`, pure and DOM-free, so `scripts/main-view.test.ts` states them
+as data; `docs/MAIN-VIEW.md` lists the optional keys the views read. `window.__mainView()` returns
+what the page drew, for the acceptance run; the ✕ hides the view and nothing else — the record stays
+selected and its row stays marked.
+
 ## Earlier interface experiment
 
 The Forma/constellation experiment has been moved to `constellation.html`; it is not the

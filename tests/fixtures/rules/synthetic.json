@@ -1,0 +1,31 @@
+{
+  "version": "demo-rules/1",
+  "rules": [
+    {
+      "id": "demo-male",
+      "when": { "fact": "demo.sex", "op": "eq", "value": "male" },
+      "delta": 0.1,
+      "source": "synthetic:demo-sex",
+      "confidence": 0.5
+    },
+    {
+      "id": "demo-older-and-flagged",
+      "when": {
+        "all": [
+          { "fact": "demo.age", "op": "ge", "value": 50 },
+          { "fact": "demo.flag", "op": "in", "value": ["high", "critical"] }
+        ]
+      },
+      "delta": 0.2,
+      "source": "synthetic:demo-composite",
+      "confidence": 0.75
+    },
+    {
+      "id": "demo-existing-condition",
+      "when": { "fact": "demo.condition", "op": "exists" },
+      "delta": 0.3,
+      "source": "synthetic:demo-presence",
+      "confidence": 0.6
+    }
+  ]
+}

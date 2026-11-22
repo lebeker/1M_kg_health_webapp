@@ -1,0 +1,11 @@
+{
+  "version": "demo-rules/1",
+  "rules": [
+    {
+      "id": "rule-without-source",
+      "when": { "fact": "demo.sex", "op": "eq", "value": "male" },
+      "delta": 0.1,
+      "confidence": 0.5
+    }
+  ]
+}

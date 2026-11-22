@@ -8,7 +8,8 @@
  * other members of the same document:
  *
  *   - an id is unique, and an edge's ends are nodes that exist;
- *   - a node's `source` names a node whose kind is `source`;
+ *   - a node's `source` names a node whose kind is `document` (a document is the provenance and
+ *     carries no `source` of its own);
  *   - an edge's ends carry the kinds its relation allows (`x-relations` in the schema);
  *   - only a dated node may carry a validity window, and a window does not end before it starts.
  *
@@ -61,8 +62,11 @@ function strings(value: unknown, what: string): readonly string[] {
 const NODE = definition('node')
 const EDGE = definition('edge')
 
-/** The seven kinds, and no free-form ones: the template has a layout for each and nothing for the rest. */
+/** The eight kinds, six of them events, and no free-form ones: the template has a layout for each and nothing for the rest. */
 export const HEALTH_KINDS = strings(declared(NODE, 'kind').enum, '$defs.node.properties.kind.enum')
+
+/** The kind that is the provenance: every `source` points at one, and the document points at none. */
+const PROVENANCE_KIND = 'document'
 
 const NODE_BRANCHES = Array.isArray(NODE.oneOf) ? NODE.oneOf.filter(isObject) : []
 
@@ -78,20 +82,51 @@ function branchFor(kind: string): Json {
 }
 
 /**
- * Kinds that carry a date in `when` — read off the schema, which is the only place that says so:
- * a kind is an event when its branch requires `when`. A `source` and a `prediction` have their
- * own dates (a document date, a target date) and are not events in this sense.
+ * Kinds that are events: visible on the timeline by their own date, and named by T06 — condition,
+ * observation, encounter, medication, procedure, document. The branch is where the schema says so:
+ * an event's branch requires `when`, and "cannot be created without a date" starts here.
+ *
+ * The one kind that requires `when` without being an event is the summary: it carries the date it
+ * marks, because a marker that cannot be placed is useless, but rev 4 says a summary is virtual and
+ * "not an event somebody recorded" — the player never steps to it as one.
  */
+const MARKER_KINDS: readonly string[] = ['summary']
+
 export const HEALTH_EVENT_KINDS = NODE_BRANCHES.filter(
   (branch) => Array.isArray(branch.required) && branch.required.includes('when'),
-).map(branchKind)
+)
+  .map(branchKind)
+  .filter((kind) => !MARKER_KINDS.includes(kind))
 
 /**
- * Kinds whose own existence is dated. A validity window (`valid_from`/`valid_to`) is a relation's
- * device: a stable thing — a document, an organ — has no window, and a dated node states its date
- * in `when`. The line between the two is DATA-CONTRACT §Temporal rule.
+ * Kinds whose own existence is dated in a way a validity window can express. A window is a relation's
+ * device: a thing that holds between two dates (a condition, a medication, a projection) may carry
+ * one, and a document may not — the date on a document is the date it was written, not a period it
+ * was in force for. The line between the two is DATA-CONTRACT §Temporal rule.
  */
-export const TEMPORAL_NODE_KINDS = [...HEALTH_EVENT_KINDS, 'prediction'] as const
+export const TEMPORAL_NODE_KINDS = [...HEALTH_EVENT_KINDS.filter((kind) => kind !== 'document'), 'prediction'] as const
+
+// The event list and the branches are two statements of one fact. T06 says six events; a document is
+// the one event without `source`, because the document is the provenance itself. A schema whose
+// branches contradict either statement is refused at load, not discovered by a card in review.
+if (HEALTH_EVENT_KINDS.length !== 6) {
+  throw new Error(
+    `scripts/schema/kg-1-health.schema.json: T06 names six event kinds, the schema's branches require \`when\` on ${HEALTH_EVENT_KINDS.length} (${HEALTH_EVENT_KINDS.join(', ')})`,
+  )
+}
+for (const kind of HEALTH_EVENT_KINDS) {
+  const required = strings(branchFor(kind).required, `$defs.node[${kind}].required`)
+  if (kind === 'document' && required.includes('source')) {
+    throw new Error(
+      'scripts/schema/kg-1-health.schema.json: a document is the provenance, so its branch may not require `source` (DATA-CONTRACT §Node kinds)',
+    )
+  }
+  if (kind !== 'document' && !required.includes('source')) {
+    throw new Error(
+      `scripts/schema/kg-1-health.schema.json: ${kind} is an event, so its branch must require the \`source\` document it came from (DATA-CONTRACT §Node kinds)`,
+    )
+  }
+}
 
 export const CONDITION_STATUS = strings(
   declared(branchFor('condition'), 'status').enum,
@@ -234,14 +269,14 @@ function crossReferences(doc: Json, health: boolean): Issue[] {
     const path = `$.nodes[${id}]`
     const kind = typeof node.kind === 'string' ? node.kind : ''
 
-    if (kind !== 'source' && isNonEmptyString(node.source)) {
+    if (kind !== PROVENANCE_KIND && isNonEmptyString(node.source)) {
       const parent = byId.get(node.source)
       if (!parent) {
         issues.push({ path: `${path}.source`, message: `source "${node.source}" is not a node in this document` })
-      } else if (parent.kind !== 'source') {
+      } else if (parent.kind !== PROVENANCE_KIND) {
         issues.push({
           path: `${path}.source`,
-          message: `"${node.source}" is a ${String(parent.kind)} node, not a source`,
+          message: `"${node.source}" is a ${String(parent.kind)} node, not a document`,
         })
       }
     }
@@ -251,7 +286,7 @@ function crossReferences(doc: Json, health: boolean): Issue[] {
       if (!(TEMPORAL_NODE_KINDS as readonly string[]).includes(kind)) {
         issues.push({
           path: `${path}.${window.field}`,
-          message: `${window.field} on a non-temporal node: a ${kind || 'node'} is not a dated thing, so it has no validity window — its own date goes in when, and a relation's window goes on the edge`,
+          message: `${window.field} on a non-temporal node: a ${kind || 'node'} does not hold between two dates, so it has no validity window — its own date goes in when, and a relation's window goes on the edge`,
         })
       }
       const reversed = reversedWindow(window)
@@ -265,10 +300,10 @@ function crossReferences(doc: Json, health: boolean): Issue[] {
       const parent = byId.get(edge.source)
       if (!parent) {
         issues.push({ path: `${path}.source`, message: `edge source "${edge.source}" is not a node in this document` })
-      } else if (parent.kind !== 'source') {
+      } else if (parent.kind !== PROVENANCE_KIND) {
         issues.push({
           path: `${path}.source`,
-          message: `edge source "${edge.source}" is a ${String(parent.kind)} node, not a source`,
+          message: `edge source "${edge.source}" is a ${String(parent.kind)} node, not a document`,
         })
       }
     }

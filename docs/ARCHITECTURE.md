@@ -56,7 +56,8 @@ Two companions travel with it and never mix:
 
 This repo. A single-file HTML app that reads the inlined document and draws three columns.
 
-**Owns:** layout, widget behaviour, empty states, what is shown when a field is missing.
+**Owns:** layout, widget behaviour, empty states, what is shown when a field is missing, and the
+arithmetic that turns facts into an estimate (`src/rules.ts`).
 **Does not own:** facts, defaults that look like data, editing.
 
 The build inlines the document:
@@ -79,6 +80,41 @@ replaces that text and changes nothing else.
 | `edges` | relation patterns that make it readable |
 | `requires` | what has to be installed before a graph can be built |
 | `tool_notes` | why each requirement exists |
+
+### Estimates
+
+An estimate is a base number plus the deltas of the rules that fire, and every rule carries its own
+citation: `{id, when, delta, source, confidence}` (`src/rules.ts`). `when` is a condition over the
+facts — `age >= 50`, `flag in [high, critical]` — never a date; dates live on nodes.
+
+A rule set names the scale it adjusts (`score2-10y/1`), and the scale travels with the rules: the
+engine takes the set, never a bare array of rules, one call applies one scale, and the estimate it
+returns carries `version`. So every number printed names the unit its deltas are in, and there is
+no call that takes two sets. Adding two scales therefore means hand-writing a third set whose
+version is false — a mistake that is visible in the diff that wrote it, not one the engine can make
+silently on a caller's behalf.
+
+The engine owns the arithmetic and one promise: the same facts and the same rules give the same
+number, bit for bit; a fact that is missing is not a default — the rule does not fire, and the
+estimate says which rules did not fire and why. A rule without a `source` does not load. What counts
+as a risk factor is not the engine's claim to make: it arrives as a reviewed rule file with a
+citation and a confidence, with the scales that use it (T16 Lee index) and the explanation (T17).
+
+### The one scale that is not a rule set
+
+SCORE2 (T15, `src/score2.ts`, `docs/SCORE2.md`) is the exception, and it is arithmetic, not
+editorial: a Cox model whose predictors enter as `exp(Σβx)` and interact with age cannot be written
+as a sum of independent deltas. It is a coefficient table copied from the paper's supplement — eleven
+rows, a baseline survival, four regional recalibration scales — and it publishes `score2-10y/1` as
+its version for the same reason the engine does. Every number it prints carries a 95% interval
+built from the published hazard-ratio intervals, and a list of what the model does not know
+(diabetes, the population it was not fitted for, the age range, the assumptions behind the
+interval). A rule set that later adjusts that number carries `score2-10y/1` and its deltas are in
+percentage points, which is what the version is for.
+
+So T17 has two shapes to explain — `Estimate` (base + deltas) and `Score2Risk` (a coefficient model)
+— and two things never to do: add a delta to a number whose scale it does not name, and print a
+coefficient model as if it were a sum.
 
 **Today this file is a byte-for-byte copy of the science app** (`id: "viewer"`, `title: "Research
 field map"`). Fixing it is task T02 in the plan, and until it is fixed every agent that reads this
@@ -131,8 +167,8 @@ Not for decoration. Four things only a graph carries at once:
    two tables.
 2. **Temporal structure** — an event between two states is a node with edges into both; a table can
    only say the row exists.
-3. **Provenance chains** — every claim points to a source, and a source points to a document; the
-   graph is the only place where that chain is one object.
+3. **Provenance chains** — every claim points at a document, and the document carries the date printed
+   on it; the graph is the only place where that chain is one object.
 4. **Honest gaps** — a missing edge is visible. A missing column is just a blank cell nobody notices.
 
 If a screen can be drawn from three numbers, draw three numbers. The graph earns its place when a

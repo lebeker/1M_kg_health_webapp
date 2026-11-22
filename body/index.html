@@ -24,14 +24,37 @@
   .seg button[data-sex="female"].on { color:#f2a0bf; }
   .seg button[data-sex="male"].on { color:#7fb4f2; }
 
-  .legend { position:fixed; left:0; top:48px; bottom:0; width:236px; display:flex; flex-direction:column;
+  /* widget 6, the player: four buttons and the date they are standing on */
+  .player { display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden; }
+  .player button { border:0; border-radius:0; background:transparent; padding:5px 8px; color:#9fb3c6; }
+  .player button + button { border-left:1px solid var(--line); }
+  .player button:hover:enabled { background:#1b2532; color:#fff; }
+  .player button:disabled { color:#47535f; cursor:default; }
+  .player svg { display:block; }
+  .tl-date { min-width:112px; color:var(--mut); font-size:11.5px; letter-spacing:.03em;
+             font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+  /* the left column: the records list (widget 7) on top, the body's layer list under it. One column,
+     one collapse button: the same width the stage's layout maths has always assumed. */
+  #leftCol { position:fixed; left:0; top:120px; bottom:0; width:236px; display:flex; flex-direction:column;
     background:var(--panel); border-top:1px solid var(--line); border-right:1px solid var(--line);
     overflow:hidden; transition:width .18s ease; z-index:2; }
-  .legend header { display:flex; align-items:center; justify-content:space-between; padding:8px 10px;
+  #state { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
+  #leftCol header { display:flex; align-items:center; justify-content:space-between; padding:8px 10px;
     border-bottom:1px solid var(--line); font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--mut); }
-  .legend header .btn { padding:2px 6px; border:1px solid transparent; background:transparent; color:var(--mut); }
-  /* a grid column sizes to its widest row, which pushed the eye buttons out of the panel */
-  .legend .rows { overflow:auto; padding:6px; display:grid; grid-template-columns:minmax(0,1fr); gap:2px; }
+  #leftCol header .btn { padding:2px 6px; border:1px solid transparent; background:transparent; color:var(--mut); }
+  #state .rows { flex:1 1 auto; min-height:0; overflow:auto; padding:4px 6px 10px; }
+  .srow { padding:6px 7px; border-radius:6px; cursor:pointer; border-left:2px solid transparent; }
+  .srow:hover { background:#18202b; }
+  .srow .d { font-size:10px; letter-spacing:.04em; color:var(--mut); }
+  .srow .t { font-size:12.5px; color:#cfe0f0; margin-top:1px; line-height:1.35; }
+  /* widget 8: the selected row is the only marker in the list — a black row, nothing else */
+  .srow.on { background:#05070a; border-left-color:#dfe8f2; }
+  .srow.on .t { color:#fff; }
+  .legend { display:flex; flex-direction:column; flex:0 1 auto; min-height:0; max-height:38%;
+    border-top:1px solid var(--line); overflow:hidden; }
+  .legend .rows { min-height:0; overflow:auto; padding:6px; display:grid;
+    grid-template-columns:minmax(0,1fr); gap:2px; }
   .row { display:flex; align-items:center; gap:8px; padding:5px 6px; border-radius:6px; cursor:pointer; }
   .row:hover { background:#18202b; }
   .row .dot { width:10px; height:10px; border-radius:3px; flex:none; }
@@ -45,10 +68,13 @@
   .row.off .nm, .row.off .cnt { opacity:.38; }
   .row.off .eye { color:#5a6a7a; }
   svg { display:block; }
-  /* collapsed: just the button and a couple of pixels around it */
-  .legend.collapsed { width:28px; }
-  .legend.collapsed .rows, .legend.collapsed header span, .legend.collapsed .eye, .legend.collapsed .cnt { display:none; }
-  .legend.collapsed header { justify-content:center; border-bottom:0; padding:8px 0; }
+  /* collapsed: the whole left column folds to the button, which is how the stage's layout maths
+     (panelL = 28 when collapsed) has always measured it */
+  #leftCol.collapsed { width:28px; }
+  #leftCol.collapsed #state, #leftCol.collapsed .legend .rows { display:none; }
+  #leftCol.collapsed .legend header span { display:none; }
+  #leftCol.collapsed .legend { border-top:0; max-height:none; }
+  #leftCol.collapsed .legend header { justify-content:center; padding:8px 0; border-bottom:0; }
   /* organ tree: the organs row is a folder, every organ is a row of its own */
   .row .chev { width:18px; height:20px; flex:none; display:grid; place-items:center; padding:0;
     border:1px solid transparent; background:transparent; color:var(--mut); font-size:10px; }
@@ -94,7 +120,7 @@
   .bootnum { color:#5f7183; font-size:11px; margin-top:7px; }
 
 #tl { position:fixed; left:244px; right:14px; top:46px; height:74px; z-index:26;
-      pointer-events:auto; }   /* the strip is a scrubber: it must receive the click */
+      pointer-events:auto; overflow:hidden; }   /* the strip is a scrubber: it must receive the click */
 #tl .track { position:relative; height:44px; pointer-events:none; }
 #tl .base { position:absolute; left:0; right:0; top:26px; height:1px; background:#3a3a44; }
 #tl .tick { position:absolute; top:16px; width:1px; height:11px; background:#3b3b45; pointer-events:auto;
@@ -140,6 +166,71 @@
 .nle .small { font-size:11px; color:#8f8f9c; }
 .nbadge { display:inline-block; padding:1px 6px; border-radius:10px; font-size:10px; margin-left:6px;
           border:1px solid currentColor; }
+
+  /* widget 9: the main view. The event decides which layout fills it, so the container is one
+     box with one header and the body is rebuilt on every selection. It opens over the body: the
+     3D scene is a backdrop, not a second answer to the same question. */
+  #main { position:fixed; left:244px; top:122px; bottom:52px; width:min(700px, calc(100vw - 600px));
+    min-width:420px; z-index:5; display:flex; flex-direction:column; overflow:hidden;
+    background:rgba(12,15,19,.96); border:1px solid var(--line); border-radius:10px;
+    box-shadow:0 18px 48px rgba(0,0,0,.55); }
+  #main[hidden] { display:none; }
+  #main header { display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:8px 12px; border-bottom:1px solid var(--line); font-size:10.5px; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--mut); }
+  #main header .btn { padding:2px 6px; border:1px solid transparent; background:transparent; color:var(--mut); }
+  #main .mbody { padding:14px 16px 18px; overflow:auto; }
+  #main .mtitle { margin:0 0 2px; font-size:17px; font-weight:600; color:#eef4fa; }
+  #main .msub { color:var(--mut); font-size:11px; letter-spacing:.05em; text-transform:uppercase; margin-bottom:14px; }
+  #main .msec { font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:#7f8b98;
+    margin:18px 0 6px; padding-bottom:3px; border-bottom:1px solid #1d2630; }
+  #main .mtext { color:#cfdae5; font-size:13px; line-height:1.55; margin:8px 0 0; }
+  #main .mno { color:#7c8896; font-style:italic; font-size:12px; }
+  #main .mgap { color:#8a7a4a; font-size:11.5px; margin-top:6px; }
+  #main .mrow { display:flex; gap:8px; align-items:baseline; padding:4px 0; border-bottom:1px solid #171e26; }
+  #main .mrow:last-child { border-bottom:0; }
+  #main .mrow .mrl { color:#93a4b5; font-size:11px; min-width:74px; }
+  #main .mrow .mrv { color:#dbe6f1; font-size:12.5px; }
+  #main .mrow .mrv .mdetail { display:block; color:#93a4b5; font-size:11.5px; margin-top:1px; }
+  #main .mgroup { font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:#a9b6c3;
+    margin:10px 0 2px; }
+  /* widget 10: the whole panel as a table — a lipid panel is four rows, a single test is one */
+  #main table.mtab { width:100%; border-collapse:collapse; font-size:12.5px; margin-top:4px; }
+  #main .mtab th { text-align:left; font-weight:600; color:#8b98a6; font-size:10px; letter-spacing:.07em;
+    text-transform:uppercase; padding:0 8px 4px 0; border-bottom:1px solid #2a3542; }
+  #main .mtab td { padding:6px 8px 6px 0; border-bottom:1px solid #182029; color:#dbe6f1;
+    font-variant-numeric:tabular-nums; vertical-align:baseline; }
+  #main .mtab td.out { color:#e8a07e; }
+  #main .mtab .mcode { display:block; color:#6f7c8a; font-size:10px; letter-spacing:.03em; }
+  #main .mtab td.mk-ref { color:#93a4b5; }
+  #main .flab { border:1px solid #3d4b5a; border-radius:9px; padding:0 6px; font-size:10px; color:#cfdae5; }
+  #main .frange { color:#c9a86a; font-size:11px; }
+  /* widget 11: lab, address, the scan — and what is missing, said instead of left blank */
+  #main a.mlink { display:inline-block; color:#8fc2f0; font-size:12px; margin-top:4px; }
+  #main .mbadge { display:inline-block; border:1px solid #c9a86a; color:#e0bd7a; border-radius:10px;
+    padding:0 7px; font-size:10.5px; letter-spacing:.04em; margin-right:8px; }
+  #main .mverdict { margin:4px 0 0; }
+  #main .mwhy { color:#c9a86a; font-size:11.5px; margin-top:5px; }
+  #main .mverdict.gen .mtext { color:#c4cfda; }
+  /* the four marks, one place each: the glyph carries the meaning, the title carries the words */
+  #main .mk { font-size:13px; line-height:1; display:inline-block; margin-left:8px; }
+  #main .mk.check { color:#e8c34a; }
+  #main .mk.danger { color:#e2725b; }
+  #main .mk.red { color:#e2725b; font-weight:700; }
+  #main .mk.amber { color:#e8c34a; font-weight:700; }
+  /* widget 13: linked items are links, always */
+  #main .mlink-list { display:flex; flex-direction:column; gap:2px; }
+  #main .mlink-list button { justify-content:flex-start; gap:8px; border:1px solid transparent;
+    background:transparent; padding:4px 6px; text-align:left; }
+  #main .mlink-list button:hover { background:#18202b; border-color:#2a3542; }
+  #main .mlink-list .mlrel { color:#7f8b98; font-size:10.5px; min-width:86px; }
+  #main .mlink-list .mldate { color:#7f8b98; font-size:10.5px; margin-left:auto; }
+  #main .mlink-list .mrow, #main .mlink-list .row-link { display:flex; align-items:baseline; gap:8px;
+    padding:4px 6px; border-bottom:0; }
+  #main .mlink-list .row-link { color:#dbe6f1; text-decoration:none; margin-top:0; }
+  #main .mlink-list .row-link:hover { background:#18202b; }
+  #main .mlink-list .nolink { color:#8b98a6; font-style:italic; }
+  .srow.hl { background:#1b2532; }
 </style>
 </head>
 <body>
@@ -170,19 +261,39 @@
   <button id="loadDemo" title="load demo/graph.json — invented records, nothing saved">load demo</button>
 
   <span class="spacer"></span>
+  <div class="player" id="tlPlayer" role="group" aria-label="timeline player">
+    <button data-step="start" title="start — first event" aria-label="start"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><rect x="1" y="2" width="1.7" height="8" fill="currentColor"/><path d="M10.5 2.4 L4.2 6 L10.5 9.6 Z" fill="currentColor"/></svg></button>
+    <button data-step="prev" title="previous event" aria-label="previous event"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M9 2.4 L2.7 6 L9 9.6 Z" fill="currentColor"/></svg></button>
+    <button data-step="next" title="next event" aria-label="next event"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M3 2.4 L9.3 6 L3 9.6 Z" fill="currentColor"/></svg></button>
+    <button data-step="end" title="end — last event" aria-label="end"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M1.5 2.4 L7.8 6 L1.5 9.6 Z" fill="currentColor"/><rect x="9.3" y="2" width="1.7" height="8" fill="currentColor"/></svg></button>
+  </div>
+  <span class="tl-date" id="tlDate" title="the date the timeline points at"></span>
   <div class="seg" id="sex">
     <button data-sex="female" title="female" aria-label="female">&#9792;</button>
     <button data-sex="male" class="on" title="male" aria-label="male">&#9794;</button>
   </div>
 </div>
 
-<aside class="legend" id="legend">
-  <header>
-    <span>layers</span>
-    <button class="btn" id="collapse" title="collapse">◀</button>
-  </header>
-  <div class="rows" id="rows"></div>
-</aside>
+<div id="leftCol">
+  <aside id="state" aria-label="records">
+    <header><span>records</span></header>
+    <div class="rows" id="stateRows"></div>
+  </aside>
+
+  <aside class="legend" id="legend">
+    <header>
+      <span>layers</span>
+      <button class="btn" id="collapse" title="collapse">◀</button>
+    </header>
+    <div class="rows" id="rows"></div>
+  </aside>
+</div>
+
+<!-- widget 9: the main view. One container in the centre; the event fills it. -->
+<section id="main" aria-label="record" hidden>
+  <header><span id="mainKicker">record</span><button class="btn" id="mainClose" title="close">✕</button></header>
+  <div class="mbody" id="mainBody"></div>
+</section>
 
 <div id="tl"><div class="track" id="tlTrack"></div></div>
 <div id="tlCard" hidden></div>
@@ -198,6 +309,9 @@
 <script src="lib/d3-octree.min.js"></script>
 <script src="lib/d3-timer.min.js"></script>
 <script src="lib/d3-force-3d.min.js"></script>
+<script src="lib/timeline-step.js"></script>
+<script src="lib/state-list.js"></script>
+<script src="lib/main-view.js"></script>
 <script>
 const LAYERS = [
   { id:"skin",     name:"skin · teeth · nails", color:0xe8c9a0, filesBySex:true,
@@ -224,7 +338,9 @@ const state = {
   treeOpen:false, openGroups:new Set(),
   analysisOpen:true, analysisHidden:new Set(), layersOpen:true,
   edgeOff:new Set(),         // edge types the user has hidden
-  date:null                  // the day the timeline is pointing at: analyses fade with distance
+  date:null,                // the day the timeline is pointing at: analyses fade with distance
+  event:null,               // the record the reader picked in the left list, if any
+  mainHidden:false          // ✕ on the main view: closing it is not a deselection
 };
 const EYE_OUT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
 const SHELL_OPACITY = 0.45;
@@ -821,6 +937,14 @@ function selectAnalysis(a) {
 
   panel.hidden = false;
   if (a.node) focusOn(a.node);
+  /* a document on the body is a record in the left list: opening it opens its view in the centre
+     and marks its row, so one record is never two different things in two places */
+  if (docById(a.id)) {
+    state.event = a.id;
+    state.mainHidden = false;
+    markStateRow();
+    renderMain();
+  }
 }
 
 /* The ✕ hides the panel and nothing else. Closing the panel is not a gesture that means "back to
@@ -833,6 +957,9 @@ function closePanel() {
   clearHighlight();
 }
 document.getElementById("nodeClose").onclick = closePanel;
+/* the main view's ✕ hides the view and nothing else: the record stays selected and its row stays
+   marked, because closing a view is not a deselection. */
+document.getElementById("mainClose").onclick = () => { state.mainHidden = true; renderMain(); };
 
 /* double-click any node to fly to it: the same framing a selection gets, no second camera path */
 renderer.domElement.addEventListener("dblclick", e => {
@@ -2049,6 +2176,62 @@ function bodyHeadCut() {
   });
 }
 
+/* The split's own frame, fitted in 3D. The six systems stand on a sphere round the set, and the
+   set stands at its ring slot 3.6 units in FRONT of the plane the body is in. A frame measured as
+   a flat box in that plane and aimed at z = 0 therefore puts the nearest systems outside the
+   frustum — that is HANDOVER LIST OF PROBLEMS 2, and it is why five of six systems were off
+   screen. So: aim at the centre of what the split put on screen, then walk back along the view
+   direction until every ball and the set itself are inside the frustum, clear of the rail and
+   the open panel. The body stays where it is, a zoom-out away, as before: a frame that holds it
+   too is a twenty-unit stadium shot and the systems become specks. */
+function splitFrame(elev) {
+  const pts = [];
+  const at = (v, r) => { if (v) pts.push({p: v.clone(), r: r || 0}); };
+  // wantPos, not o.target: target still holds graphRows()' force-solved spot, and the systems
+  // are placed on their own sphere after that — framing the stale one misses the fan
+  organNodes.forEach(o => at(o.node.userData.wantPos || o.node.position, o.node.userData.radius || 0));
+  partNodes.forEach(pn => at(pn.node.userData.wantPos || pn.node.position, pn.node.userData.radius || 0));
+  ANALYSES.forEach(a => { if (a.node && a.node.visible) at(a.node.position, 0.12); });
+  if (organGhost) {
+    const gb = new THREE.Box3().setFromObject(organGhost);
+    if (!gb.isEmpty()) at(gb.getCenter(new THREE.Vector3()), gb.getSize(new THREE.Vector3()).length() / 2);
+  }
+  if (!pts.length) return null;
+
+  const box = new THREE.Box3();
+  pts.forEach(({p}) => box.expandByPoint(p));
+  const centre = box.getCenter(new THREE.Vector3());
+  const dir = new THREE.Vector3(0, elev, 1).normalize();
+
+  const panelL = state.collapsed ? 28 : 236, panelR = state.sel ? 320 : 0;
+  // the strip the scene has to live in, measured out from the middle of the view
+  const limX = 0.98 * Math.max(0.3, Math.min(2 - (2 * panelL) / innerWidth, 1 - (2 * panelR) / innerWidth));
+  const limY = 0.98;
+  const probe = new THREE.PerspectiveCamera(camera.fov, camera.aspect, camera.near, camera.far);
+  const tanH = Math.tan((camera.fov * Math.PI) / 360);
+  const fits = d => {
+    probe.position.copy(centre).addScaledVector(dir, d);
+    probe.lookAt(centre);
+    probe.updateMatrixWorld(true);
+    probe.matrixWorldInverse.copy(probe.matrixWorld).invert();
+    probe.updateProjectionMatrix();
+    return pts.every(({p, r}) => {
+      const depth = -p.clone().applyMatrix4(probe.matrixWorldInverse).z;
+      if (depth - r <= probe.near) return false;
+      const v = p.clone().project(probe);
+      return Math.abs(v.x) + r / (depth * tanH * probe.aspect) <= limX &&
+             Math.abs(v.y) + r / (depth * tanH) <= limY;
+    });
+  };
+  let lo = 0.5, hi = 2;
+  while (!fits(hi) && hi < 400) { lo = hi; hi *= 1.6; }
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (fits(mid)) hi = mid; else lo = mid;
+  }
+  return {centre, dir, d: hi};
+}
+
 function layout() {
   // the ghost's visibility belongs to syncOrgans(); layout only places things
   if (!bodyBox) return;
@@ -2134,50 +2317,25 @@ function layout() {
   }
 
   // what the camera frames: once the organs are split they are the work surface, and fitting the
-  // whole ring plus the fan at once made every organ a speck. Splitting now flies to the fan; the
-  // ring is still there, a zoom-out away
-  let spanW, spanH, cx;
-  if (graph) {
-    // frame the body and the nodes that are out together: the body is the anchor that says what
-    // left it, and framing the tree alone pushes the body behind the panel
-    const c = setCentre();
-    let rad = 0.4;
-    organNodes.forEach(o => {
-      const p = o.target || o.node.position;
-      rad = Math.max(rad, p.distanceTo(c) + organMaxNode * 0.55 + 0.08);
-    });
-    partNodes.forEach(pn => {
-      const p = pn.target || pn.node.position;
-      rad = Math.max(rad, p.distanceTo(c) + PART_NODE_SIZE * 0.9);
-    });
-    let minX = c.x - rad, maxX = c.x + rad, minY = -rad, maxY = rad;
-    if (bodyBox && !bodyBox.isEmpty()) {
-      minX = Math.min(minX, bodyBox.min.x - 0.12); maxX = Math.max(maxX, bodyBox.max.x + 0.12);
-      minY = Math.min(minY, bodyBox.min.y - 0.06); maxY = Math.max(maxY, bodyBox.max.y + 0.06);
-    }
-    spanW = Math.max(0.8, maxX - minX); spanH = Math.max(0.8, maxY - minY); cx = (minX + maxX) / 2;
-  } else {
-    const left = lc - width * 0.30;
-    let right = rc + width * 0.30;
-    if (organsOut) {
-      right = Math.max(right, slot.organs.x + (organSize.x / 2) * 1.2);
-      // the split graph is part of the picture: a camera framed on the body alone leaves half of
-      // it outside the frustum, which is what "where are the organs" looked like
-      organNodes.forEach(o => { right = Math.max(right, o.node.position.x + 0.55); });
-    }
-    spanW = Math.max(width * 1.1, right - left);
-    spanH = 1.8;
-    cx = (left + right) / 2;
+  // whole ring plus the fan at once made every organ a speck. Splitting flies to the fan (see
+  // splitFrame); the ring is still there, a zoom-out away
+  const left = lc - width * 0.30;
+  let right = rc + width * 0.30;
+  if (organsOut) {
+    right = Math.max(right, slot.organs.x + (organSize.x / 2) * 1.2);
+    // the split graph is part of the picture: a camera framed on the body alone leaves half of
+    // it outside the frustum, which is what "where are the organs" looked like
+    organNodes.forEach(o => { right = Math.max(right, o.node.position.x + 0.55); });
   }
+  const spanW = Math.max(width * 1.1, right - left);
+  const spanH = 1.8;
+  const cx = (left + right) / 2;
   // the panel sits over the canvas, so the scene is fitted into the strip to its right instead of
   // being centred on the window (which pushed the leftmost layer behind the panel)
   const panelL = state.collapsed ? 28 : 236, panelR = state.sel ? 320 : 0;
   const visW = Math.max(320, innerWidth - panelL - panelR);
   const grow = innerWidth / visW;
-  let d = fitDistance(spanW * grow, spanH);
-  // a split scene is a body and a handful of nodes: if the fit asks for a stadium-sized camera,
-  // the span is wrong, and the picture the user gets is a tiny frozen blob
-  if (organNodes.length) d = Math.min(d, 9);
+  const d = fitDistance(spanW * grow, spanH);
   const dx = ((panelL + visW / 2) / innerWidth - 0.5) * spanW * grow;
   // once the layers are on the ring the camera has to look slightly down, or a ring seen edge-on
   // is just a pile of overlapping bodies
@@ -2186,34 +2344,29 @@ function layout() {
   // somewhere, must not snap the view back to the overview
   // the selection is not part of this: opening the panel must not move the camera the user has
   // just zoomed
-  /* When organs are split the picture is the body AND the six nodes beside it. Framing it from
-     the layer slots — which know nothing about where the graph solved — left half of it outside
-     the frustum. The frame is the union of what is actually on screen. */
-  if (organNodes.length) {          // only a split graph redefines the frame; analyses alone do not
-    const b = new THREE.Box3();
-    if (bodyBox) b.union(bodyBox);
-    organNodes.forEach(o => b.expandByPoint(o.node.position));
-    ANALYSES.forEach(a => { if (a.node && a.node.visible) b.expandByPoint(a.node.position); });
-    if (!b.isEmpty()) {
-      const sz = b.getSize(new THREE.Vector3()), ct = b.getCenter(new THREE.Vector3());
-      spanW = Math.max(sz.x, 1.8); spanH = Math.max(sz.y, 1.8);
-      cx = ct.x;
-    }
-  }
-
   const camKeyNow = [...state.out].sort().join("+") + "|" + [...state.nodeOut].sort().join(",") + "|" + graph + "|" + state.collapsed;
   if (camKeyNow !== camKey) {
     camKey = camKeyNow;
-    // the frame is already the union of what is on screen, so it can be trusted: clamping it here
-    // is what pushed the rightmost nodes out of the frustum and left "empty" space where organs were
-    const dd = Math.max(d, 4.2);   // never closer than this: the body has to fit with its head
+    // the split frames itself, in 3D; everything else is fitted from the slots as it always was
+    const split = organNodes.length ? splitFrame(elev) : null;
+    if (split) {
+      camWant.target.copy(split.centre);
+      camWant.pos.copy(split.centre).addScaledVector(split.dir, split.d);
+    } else {
+      // the frame is already the union of what is on screen, so it can be trusted: clamping it here
+      // is what pushed the rightmost nodes out of the frustum and left "empty" space where organs were
+      const dd = Math.max(d, 4.2);   // never closer than this: the body has to fit with its head
 
-    camWant.pos.set(cx - dx, dd * elev, dd);
-    camWant.target.set(cx - dx, 0, 0);
+      camWant.pos.set(cx - dx, dd * elev, dd);
+      camWant.target.set(cx - dx, 0, 0);
+    }
     camAnim = true;
     camUntil = performance.now() + 1400;
   }
 }
+
+/* the split is on: six systems and the set are the picture, and layout() frames all of it */
+function splitOn(id) { return id === "organs" && organNodes.length > 0; }
 
 /* selecting changes the width the scene has to live in (the panel takes 320 px), so the frame is
    recomputed once, after the panel is in place — this is why nodes used to end up under the panel */
@@ -2221,7 +2374,9 @@ function select(id) {
   selectInner(id);
   camKey = "";
   layout();
-  const o = id ? objectForSel(id) : null;
+  // focusing the set here flew the camera to the set's own 3.6-unit box and left five of the six
+  // systems outside the frustum (HANDOVER LIST OF PROBLEMS 2): the split must not undo its frame
+  const o = splitOn(id) ? null : (id ? objectForSel(id) : null);
   if (o) focusOn(o);          // the panel changes the frame; the node itself is what we look at
 }
 
@@ -2296,7 +2451,7 @@ document.querySelectorAll("#sex button").forEach(b => b.onclick = () => {
 });
 document.getElementById("collapse").onclick = e => {
   state.collapsed = !state.collapsed;
-  document.getElementById("legend").classList.toggle("collapsed", state.collapsed);
+  document.getElementById("leftCol").classList.toggle("collapsed", state.collapsed);
   e.currentTarget.textContent = state.collapsed ? "▶" : "◀";
   e.currentTarget.title = state.collapsed ? "expand" : "collapse";
 };
@@ -2338,26 +2493,34 @@ function toAnalyses(nodes) {
     delta: Number.isFinite(Number(n.delta)) ? Number(n.delta) : null,
     evidence: Math.max(0, Math.min(100, Number(n.evidence ?? 50))),
     confidence: Math.max(0, Math.min(100, Number(n.confidence ?? 50))),
-    at: n.date ? new Date(n.date) : null,
+    at: n.date ? dayOf(n.date) : null,
     node: null, line: null
   })).filter(a => a.at && !isNaN(+a.at));
 }
 
 let TL_META = (KGDATA && KGDATA.meta) || {};
-let BIRTH = TL_META.birth ? new Date(TL_META.birth) : null;
+let BIRTH = TL_META.birth ? dayOf(TL_META.birth) : null;
 if (BIRTH && isNaN(+BIRTH)) BIRTH = null;
 let LE_BY_SEX = TL_META.life_expectancy || { male: 74, female: 80 };
 let ANALYSES = toAnalyses(KGDATA && KGDATA.nodes);
+/* every dated record of the document, whatever its kind: the left list reads this, the ruler and
+   the marks keep reading ANALYSES, because a diagnosis has no value to paint a sphere with */
+let DOC_NODES = (KGDATA && KGDATA.nodes) || [];
+/* the relations, untouched: the main view reads `contradicts`, `treated_by` and `advised` from
+   them instead of inventing a link the document does not have */
+let DOC_EDGES = (KGDATA && KGDATA.edges) || [];
 
 /* One document in, one view out: the demo and an embedded graph are the same shape, so the
    panel, the ruler and the marks do not care which of the two arrived. */
 function applyDocument(doc) {
   const meta = (doc && doc.meta) || {};
-  const birth = meta.birth ? new Date(meta.birth) : null;
+  const birth = meta.birth ? dayOf(meta.birth) : null;
   TL_META = meta;
   BIRTH = birth && !isNaN(+birth) ? birth : null;
   LE_BY_SEX = meta.life_expectancy || { male: 74, female: 80 };
   ANALYSES = toAnalyses(doc && doc.nodes);
+  DOC_NODES = (doc && doc.nodes) || [];
+  DOC_EDGES = (doc && doc.edges) || [];
 }
 
 /* The demo is an artifact fetched on demand, not part of the page: a reader who never asks for
@@ -2377,6 +2540,7 @@ async function loadDemo() {
     buildLegend();          // the analyses list is part of the legend; a document that arrived is listed
     buildTimeline();
     buildAnalyses();
+    buildStateList();       // the left list is read from the document, and the today row is remade
     paintFade();
     demoState = "loaded";
     if (btn) btn.textContent = "demo loaded";
@@ -2434,13 +2598,61 @@ const ageAt = d => (+d - +BIRTH) / (365.25 * 864e5);
 const TL = { track: document.getElementById("tlTrack"), card: document.getElementById("tlCard"),
              winFrom: null, winTo: null, xw0: 0, xw1: 0, stepY: 7, stepM: 9, endYear: 0 };
 
+/* The ruler is a navigator, not a scroller. A wheel on the strip must not move the date and
+   must not scroll the row: the only inputs are a click on a point and the four player buttons. */
+document.getElementById("tl").addEventListener("wheel", e => { e.preventDefault(); }, { passive: false });
+
 function monthDiff(a, b) { return (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()); }
+/* A record's date is a calendar day, not an instant: "2019-04-12" read as UTC midnight is a
+   different day either side of Greenwich, and the ruler would then mark a tick one day off.
+   Everything the timeline dates is parsed and printed in the reader's own calendar. */
+function dayOf(value) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  return new Date(value);
+}
+function iso(d) { return new Date(+d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
+/* a label at either end of the row would be half outside the strip and clipped: keep the text on it */
+function labelX(x, width) { return Math.max(16, Math.min(width - 16, x)); }
 function xOf(d) {
   if (+d < +TL.winFrom) return (+d - +BIRTH) / (365.25 * 864e5) * TL.stepY;
   if (+d <= +TL.winTo) return TL.xw0 + monthDiff(TL.winFrom, d) * TL.stepM;
   return TL.xw1 + (+d - +TL.winTo) / (365.25 * 864e5) * TL.stepY;
 }
-function iso(d) { return d.toISOString().slice(0, 10); }
+
+/* One way to move the timeline: everything that selects a date goes through here, so the
+   projection, the marker, the readout and the ruler cannot disagree about which day it is. */
+function selectDate(d, id) {
+  if (!d || isNaN(+d)) return;
+  state.date = iso(d);
+  state.event = id || null;     // a date picked on the ruler marks no single record, only its day
+  paintFade();
+  buildTimeline();          // ends in refreshPick: the marker and the readout follow the date
+}
+
+/* The player (widget 6): four buttons that step between events, never between ticks. start and
+   end land on the first and last event; prev and next land on the nearest event on either side of
+   whatever date the timeline is pointing at — a click on the strip, an earlier step, a document. */
+function tlStep(where) {
+  const times = ANALYSES.map(a => +a.at);
+  const from = state.date ? +dayOf(state.date) : NaN;
+  const at = TimelineStep.step(times, from, where);
+  if (at !== null) selectDate(new Date(at));
+}
+document.querySelectorAll("#tlPlayer button").forEach(b => {
+  b.addEventListener("click", () => tlStep(b.dataset.step));
+});
+
+/* the date the player is standing on, and whether it can move at all */
+function tlReadout() {
+  const playable = ANALYSES.length > 0;
+  document.querySelectorAll("#tlPlayer button").forEach(b => { b.disabled = !playable; });
+  const out = document.getElementById("tlDate");
+  if (!out) return;
+  if (!state.date) { out.textContent = playable ? "" : "no records"; return; }
+  const yrs = BIRTH ? Math.floor(ageAt(dayOf(state.date))) : null;
+  out.textContent = state.date + (yrs !== null && yrs >= 0 ? " · " + yrs + " y" : "");
+}
 
 function buildTimeline() {
   const T = TL.track;
@@ -2455,22 +2667,27 @@ function buildTimeline() {
     TL.winFrom = TL.winTo = null;
     TL.xw0 = TL.xw1 = TL.stepY = 0;
     TL.endYear = 0;
+    tlReadout();
     return;
   }
   const now = new Date();
-  const wf = new Date(now.getFullYear() - 2, now.getMonth(), 1);
+  /* ±2 years of months around today, the rest of the ruler in years. If the reader is younger
+     than the window, the window starts at birth: the ruler never draws time before a life. */
+  const wfRaw = new Date(now.getFullYear() - 2, now.getMonth(), 1);
+  const wf = +wfRaw < +BIRTH ? new Date(BIRTH.getFullYear(), BIRTH.getMonth(), 1) : wfRaw;
   const wt = new Date(now.getFullYear() + 2, now.getMonth() + 1, 0);
   const W = Math.max(560, window.innerWidth - 244 - 14);
   const months = monthDiff(wf, wt) + 1;
   TL.winFrom = wf; TL.winTo = wt;
   TL.stepM = Math.max(4, Math.min(12, Math.floor((W * 0.42) / months)));
-  TL.xw0 = monthDiff(BIRTH, wf) * 0;                 // set below from the year run
-  const yearsBefore = (+wf - +BIRTH) / (365.25 * 864e5);
-  const yearsAfter = 100 - ageAt(wt);
+  const yearsBefore = Math.max(0, (+wf - +BIRTH) / (365.25 * 864e5));
+  /* the horizon is 40 years past today, whatever the birth year: a forecast needs a future
+     to sit in, and a ruler that stops at birth+40 would have none for anyone over 40 */
+  TL.endYear = now.getFullYear() + 40;
+  const yearsAfter = Math.max(0, (+new Date(TL.endYear, 0, 1) - +wt) / (365.25 * 864e5));
   TL.stepY = Math.max(3.2, (W - months * TL.stepM) / Math.max(1, yearsBefore + yearsAfter));
   TL.xw0 = yearsBefore * TL.stepY;
   TL.xw1 = TL.xw0 + months * TL.stepM;
-  TL.endYear = Math.max(BIRTH.getFullYear() + 100, now.getFullYear() + 40);
 
   const base = document.createElement("div"); base.className = "base"; T.appendChild(base);
   const band = document.createElement("div"); band.className = "band";
@@ -2490,7 +2707,7 @@ function buildTimeline() {
         if (xOf(new Date(mid)) < x) lo = mid; else hi = mid;
       }
       const d = new Date((lo + hi) / 2); d.setDate(1);
-      state.date = iso(d); paintFade(); refreshPick(); buildTimeline();
+      selectDate(d);
     });
   }
 
@@ -2513,11 +2730,11 @@ function buildTimeline() {
     if (+d > Date.now()) el.style.background = riskColour(annualRisk(ageAt(d)));
     el.addEventListener("mouseenter", e => tlCard(e, d, hits));
     el.addEventListener("mouseleave", () => { TL.card.hidden = true; });
-    el.addEventListener("click", () => { state.date = iso(d); paintFade(); refreshPick(); });
+    el.addEventListener("click", () => { selectDate(d); });
     if (label) {
       const l = document.createElement("div");
       l.className = "lbl" + (big ? " big" : "");
-      l.style.left = xOf(d).toFixed(1) + "px"; l.textContent = label;
+      l.style.left = labelX(xOf(d), T.clientWidth).toFixed(1) + "px"; l.textContent = label;
       T.appendChild(l);
     }
     T.appendChild(el);
@@ -2531,15 +2748,17 @@ function buildTimeline() {
     el.className = "tick" + (y % 5 === 0 ? " y5" : "") + (hits.length ? " has" : "");
     el.style.left = xOf(d).toFixed(1) + "px";
     el._date = d; el._hits = hits;
+    // the future is painted by the risk at that age; the past keeps the grey of a record
+    if (+d > +now) el.style.background = riskColour(annualRisk(ageAt(d)));
     el.addEventListener("mouseenter", e => tlCard(e, d, hits));
     el.addEventListener("mouseleave", () => { TL.card.hidden = true; });
-    el.addEventListener("click", () => { state.date = iso(d); paintFade(); refreshPick(); });
+    el.addEventListener("click", () => { selectDate(d); });
     T.appendChild(el);
     const every = Math.max(5, Math.ceil(26 / Math.max(1, TL.stepY)));   // a label needs ~26 px
     if (y % every === 0 || y === now.getFullYear()) {
       const l = document.createElement("div");
       l.className = "lbl" + (y === now.getFullYear() ? " big" : "");
-      l.style.left = xOf(d).toFixed(1) + "px"; l.textContent = y;
+      l.style.left = labelX(xOf(d), T.clientWidth).toFixed(1) + "px"; l.textContent = y;
       T.appendChild(l);
     }
   }
@@ -2547,15 +2766,6 @@ function buildTimeline() {
     const d = new Date(wf.getFullYear(), wf.getMonth() + i, 1);
     if (+d < +BIRTH) continue;
     tick(d, "m", d.getMonth() === 0 ? String(d.getFullYear()) : null, false);
-  }
-
-  // the future, painted by the risk at that age
-  for (let y = now.getFullYear(); y <= TL.endYear; y++) {
-    const d = new Date(y, 0, 1);
-    if (+d <= +now) continue;
-    const c = riskColour(annualRisk(ageAt(d)));
-    const el = [...T.children].find(e => e._date && +e._date === +d);
-    if (el) el.style.background = c;
   }
 
   const nw = document.createElement("div"); nw.className = "now";
@@ -2567,7 +2777,7 @@ function refreshPick() {
   // the marker sits on the tick nearest the chosen date: a document dated April must light 2019,
   // not vanish because no tick carries that exact day
   if (!state.date) state.date = iso(new Date());
-  const want = Date.parse(state.date);
+  const want = +dayOf(state.date);
   let best = null, bestD = Infinity;
   [...TL.track.children].forEach(el => {
     if (!el._date) { el.classList.remove("pick"); return; }
@@ -2576,6 +2786,343 @@ function refreshPick() {
     el.classList.remove("pick");
   });
   if (best) best.classList.add("pick");
+  tlReadout();            // the date readout and the player's enabled state follow the marker
+  markStateRow();         // the left list marks the record standing on the chosen date
+  renderMain();           // the centre shows that record, in the layout its event type owns
+}
+
+/* ---- the left list: what was known then, one row per record (widget 7)
+   The order, the annual marker and the today row are `StateList`'s rules, not the page's; the page
+   only decides what a row looks like and what a click does. */
+let STATE_ROWS = [];
+
+function buildStateList() {
+  const box = document.getElementById("stateRows");
+  if (!box) return;
+  STATE_ROWS = StateList.rows(DOC_NODES, iso(new Date()));
+  box.innerHTML = "";
+  STATE_ROWS.forEach(row => {
+    const el = document.createElement("div");
+    el.className = "srow";
+    el.dataset.record = row.id;
+    el.dataset.date = row.date;
+    el.dataset.kind = row.kind;
+    const d = document.createElement("div");
+    d.className = "d"; d.textContent = row.date + " · " + row.title;
+    const t = document.createElement("div");
+    t.className = "t"; t.textContent = row.note;
+    el.appendChild(d); el.appendChild(t);
+    el.addEventListener("click", () => {
+      state.mainHidden = false;              // picking a record opens its view again
+      selectDate(dayOf(row.date), row.id);   // the ruler moves to that record's day...
+      centreRow(el);                          // ...and the row stays in the middle of the list
+    });
+    box.appendChild(el);
+  });
+  markStateRow();
+  renderMain();
+}
+
+/* widget 8: exactly one row is marked. Picking a record marks that record; a date chosen on the
+   ruler marks the record that carries that date. A generated row (today, annual) can be marked
+   too — it is in the list, so the reader can stand on it. */
+function markStateRow() {
+  const box = document.getElementById("stateRows");
+  if (!box) return;
+  let marked = false;
+  [...box.children].forEach(el => {
+    const hit = state.event ? el.dataset.record === state.event
+                            : (!marked && !!state.date && el.dataset.date === state.date);
+    if (hit) marked = true;
+    el.classList.toggle("on", hit);
+  });
+}
+
+/* clicking a row centres it: the list scrolls so the row sits in the middle of the panel, not at
+   its edge. The panel is the only scroll box; the page itself never scrolls. */
+function centreRow(el) {
+  const box = document.getElementById("stateRows");
+  if (!box || !el) return;
+  const b = box.getBoundingClientRect(), r = el.getBoundingClientRect();
+  box.scrollTop += (r.top - b.top) - (b.height - r.height) / 2;
+}
+
+/* ---- the main view: one view per event type, picked by the event (widget 9)
+   The rules — which view, what a marker row is, what a warning means, what belongs to a note —
+   live in `MainView` (lib/main-view.js), pure and tested. This half only decides what it looks
+   like. Nothing here writes to the document, and nothing invents a value the document lacks. */
+function docById(id) {
+  const key = String(id);
+  return DOC_NODES.find(n => n && String(n.id) === key) || null;
+}
+function mk(tag, cls, text) {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (text !== undefined && text !== null) el.textContent = String(text);
+  return el;
+}
+const MARK_GLYPH = { check: "\u26a0", danger: "\u2620", red: "!", amber: "!" };
+const MARK_WORD = {
+  check: "yellow triangle: check before acting",
+  danger: "skull: dangerous, do not act",
+  red: "red !: known side effect, or we do not trust the generator",
+  amber: "yellow !: plausible but unverified"
+};
+function markIcon(kind) {
+  if (!kind || !MARK_GLYPH[kind]) return null;
+  const s = mk("span", "mk " + kind, MARK_GLYPH[kind]);
+  s.title = MARK_WORD[kind];
+  s.dataset.mark = kind;
+  return s;
+}
+function sourceLine(label, value) {
+  const row = mk("div", "mrow");
+  row.appendChild(mk("span", "mrl", label));
+  row.appendChild(mk("span", "mrv", value));
+  return row;
+}
+function linkEl(text, href) {
+  const a = mk("a", "mlink", text);
+  a.href = href;
+  a.target = "_blank";
+  a.rel = "noreferrer";
+  return a;
+}
+/* widget 13: a link that opens the item in this view. Hovering it highlights the matching row in
+   the left list — one widget, one number, one behaviour. A linked document that never became a
+   row in the list still has a file behind it, so it opens that instead of pretending to be a
+   record; an item with neither is a relation the reader cannot act on, and it says so. */
+function linkedList(node, context) {
+  const items = MainView.linked(node, context);
+  if (!items.length) return mk("div", "mgap", "nothing else in this document points at it");
+  const box = mk("div", "mlink-list");
+  const rowOf = id => document.querySelector('#stateRows .srow[data-record="' +
+    (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+  items.forEach(item => {
+    const target = docById(item.id);
+    const isRow = STATE_ROWS.some(r => r.id === item.id);
+    const href = target && (target.scan || target.link);
+    let el;
+    if (isRow) {
+      el = mk("button");
+      el.dataset.link = item.id;
+      el.addEventListener("click", () => openLinked(item));
+      el.addEventListener("mouseenter", () => { const r = rowOf(item.id); if (r) r.classList.add("hl"); });
+      el.addEventListener("mouseleave", () => { const r = rowOf(item.id); if (r) r.classList.remove("hl"); });
+    } else if (href) {
+      el = linkEl("", href);
+      el.dataset.link = item.id;
+      el.className = "mlink row-link";
+    } else {
+      el = mk("span", "mrow nolink");
+      el.title = "this item is in the document but has no record and no file to open";
+    }
+    el.appendChild(mk("span", "mlrel", item.rel || "linked"));
+    el.appendChild(mk("span", "mlname", item.label));
+    el.appendChild(mk("span", "mldate", item.date));
+    box.appendChild(el);
+  });
+  return box;
+}
+/* A linked item is opened the same way a row is: the ruler moves to its day and it becomes the
+   record in the middle. An item the document never dated cannot be opened — it has nowhere to
+   stand on a timeline — so it says so instead of pretending. */
+function openLinked(item) {
+  if (!item || !item.date) return;
+  state.mainHidden = false;
+  selectDate(dayOf(item.date), item.id);
+}
+
+function renderAnalysis(body, node, row, context) {
+  body.appendChild(mk("h2", "mtitle", (node && (node.label || node.id)) || row.note));
+  const sub = [row.date, node && (node.panel || node.organ)].filter(Boolean);
+  body.appendChild(mk("div", "msub", sub.join(" · ")));
+
+  /* widget 10: the whole panel as a table. A lipid panel is four rows, a single test is one. */
+  const markers = MainView.markers(node);
+  if (!markers.length) {
+    body.appendChild(mk("p", "mno", "no number on this record — there is nothing to put in a table"));
+  } else {
+    const table = mk("table", "mtab");
+    const head = mk("thead");
+    const hr = mk("tr");
+    ["marker", "value", "reference", "flag"].forEach(h => hr.appendChild(mk("th", "", h)));
+    head.appendChild(hr);
+    table.appendChild(head);
+    const tbody = mk("tbody");
+    markers.forEach(m => {
+      const tr = mk("tr");
+      tr.dataset.marker = m.name;
+      const name = mk("td", "mk-name", m.name);
+      if (m.code) name.appendChild(mk("span", "mcode", m.code));
+      tr.appendChild(name);
+      tr.appendChild(mk("td", "mk-value" + (m.out ? " out" : ""),
+                        m.value + (m.unit ? " " + m.unit : "")));
+      tr.appendChild(mk("td", "mk-ref", m.reference || "—"));
+      const flag = mk("td", "mk-flag");
+      if (m.from === "lab") {
+        flag.appendChild(mk("span", "flab", m.flag));
+      } else if (m.from === "range") {
+        const word = m.ref && m.ref[1] !== null && m.value > m.ref[1] ? "above range" : "below range";
+        const f = mk("span", "frange", word);
+        f.title = "the lab printed no flag; this is the page's reading of the value against the reference";
+        flag.appendChild(f);
+      }
+      tr.appendChild(flag);
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    body.appendChild(table);
+  }
+
+  /* widget 11: where the numbers came from — and every field that is missing, said out loud */
+  body.appendChild(mk("div", "msec", "where it came from"));
+  const source = MainView.sourceOf(node, docById);
+  body.appendChild(sourceLine("lab", source.lab || "—"));
+  if (source.address) body.appendChild(sourceLine("address", source.address));
+  if (source.document) {
+    body.appendChild(sourceLine("document", source.document.label +
+      (source.document.confirmed ? "" : " · not confirmed")));
+  }
+  if (source.link) body.appendChild(linkEl("open the original scan", source.link));
+  if (source.gaps.length) body.appendChild(mk("div", "mgap", "missing: " + source.gaps.join(" · ")));
+
+  /* widget 12: what the numbers mean in human terms */
+  const meaning = MainView.meaning(node);
+  body.appendChild(mk("div", "msec", "what it means"));
+  body.appendChild(meaning ? mk("p", "mtext", meaning)
+                           : mk("p", "mno", "nobody has written down what this means yet"));
+
+  body.appendChild(mk("div", "msec", "linked items"));
+  body.appendChild(linkedList(node, context));
+}
+
+function renderDiagnosis(body, node, row, context) {
+  const verdict = MainView.verdict(node, context);
+  body.appendChild(mk("h2", "mtitle", (node && (node.label || node.id)) || row.note));
+  body.appendChild(mk("div", "msub", row.date + " · " +
+    (verdict.official ? "a doctor's note" : "a generated note") +
+    (node && node.status ? " · " + node.status : "")));
+
+  /* widget 14: the verdict. Two kinds that never mix: an official note, or a generated one. */
+  const head = mk("div", "mverdict" + (verdict.generated ? " gen" : ""));
+  if (verdict.badge) head.appendChild(mk("span", "mbadge", verdict.badge));
+  const mark = markIcon(verdict.warning === "danger" ? "danger" : verdict.warning === "check" ? "check" : "");
+  if (mark) head.appendChild(mark);
+  if (verdict.official) {
+    if (verdict.doctor) head.appendChild(sourceLine("doctor", verdict.doctor));
+    if (verdict.clinic) head.appendChild(sourceLine("clinic", verdict.clinic));
+  }
+  const officialLinks = verdict.links;
+  officialLinks.forEach(l => head.appendChild(linkEl(l.title, l.href)));
+  if (verdict.why.length) head.appendChild(mk("div", "mwhy", verdict.why.join(" · ")));
+  body.appendChild(head);
+  body.appendChild(verdict.text ? mk("p", "mtext", verdict.text)
+                                : mk("p", "mno", "the note carries no text"));
+
+  /* widget 15: what was decided — separately, and each line can carry a warning */
+  body.appendChild(mk("div", "msec", "what was decided"));
+  const decided = MainView.assignments(node, context);
+  const groups = MainView.groups.filter(g => decided[g].length);
+  if (!groups.length) {
+    body.appendChild(mk("div", "mgap", "nothing was decided in this note"));
+  }
+  groups.forEach(group => {
+    body.appendChild(mk("div", "mgroup", group));
+    decided[group].forEach(item => {
+      const line = mk("div", "mrow assignment");
+      line.dataset.assignment = item.id;
+      const g = mk("span", "mrl", item.date);
+      line.appendChild(g);
+      const v = mk("span", "mrv");
+      v.appendChild(mk("span", "mlabel", item.label));
+      if (item.detail) v.appendChild(mk("span", "mdetail", item.detail));
+      if (!item.confirmed) v.appendChild(mk("span", "mbadge", "not confirmed"));
+      line.appendChild(v);
+      const icon = markIcon(item.tone);
+      if (icon) line.appendChild(icon);
+      body.appendChild(line);
+    });
+  });
+
+  body.appendChild(mk("div", "msec", "linked items"));
+  body.appendChild(linkedList(node, context));
+}
+
+function summaryBlock(body, title, lines, empty, note) {
+  body.appendChild(mk("div", "msec", title));
+  if (lines.length) {
+    lines.forEach(line => body.appendChild(mk("div", "mrow summary", line)));
+  } else {
+    body.appendChild(mk("div", "mno", note || empty));
+  }
+}
+
+function renderSummary(body, row, node, context) {
+  const summary = MainView.summaryOf(row, node, context);
+  body.appendChild(mk("h2", "mtitle", node ? (node.label || node.id) : row.title));
+  body.appendChild(mk("div", "msub", (summary.period || row.date) +
+    (summary.generated ? " · computed at launch, not stored" : " · stored in the document")));
+  if (node && node.confirmed !== true) body.appendChild(mk("span", "mbadge", "not confirmed"));
+
+  /* widgets 16, 17, 18. A summary reports; it carries no links and no assignments, so this view
+     has none to draw — and that is the acceptance, not an omission. */
+  summaryBlock(body, "what was planned", summary.planned, "nothing was planned in this period");
+  summaryBlock(body, "what was done", summary.done, "nothing was done in this period");
+  summaryBlock(body, "went to plan", summary.held, "", "nothing held");
+  summaryBlock(body, "went to hell", summary.dropped, "", "nothing was dropped");
+  if (summary.note) body.appendChild(mk("div", "mgap", summary.note));
+}
+
+/* A record that is not a state — a decision, a visit, a drug, a document — gets its own facts,
+   never a panel or a verdict it does not have. */
+function renderRecord(body, node, row, context) {
+  body.appendChild(mk("h2", "mtitle", node ? (node.label || node.id) : row.note));
+  const sub = [row.date, row.kind];
+  if (node && node.status) sub.push(node.status);
+  body.appendChild(mk("div", "msub", sub.join(" · ")));
+  if (node && node.confirmed !== true) body.appendChild(mk("span", "mbadge", "not confirmed"));
+
+  const text = node && (node.text || node.summary || node.desc);
+  if (text) body.appendChild(mk("p", "mtext", text));
+
+  if (node) {
+    /* a record is not a lab report: it carries the document that holds it, never a lab's address */
+    body.appendChild(mk("div", "msec", "where it came from"));
+    const doc = node.source ? docById(node.source) : null;
+    if (doc) {
+      body.appendChild(sourceLine("document", String(doc.label || doc.id)));
+      const href = doc.link || doc.scan;
+      if (href) body.appendChild(linkEl("open the document", href));
+    } else if (node.source) {
+      body.appendChild(sourceLine("document", String(node.source)));
+      body.appendChild(mk("div", "mgap", "the document it names is not in this file"));
+    } else {
+      body.appendChild(mk("div", "mgap", "no document is named for this record"));
+    }
+    body.appendChild(mk("div", "msec", "linked items"));
+    body.appendChild(linkedList(node, context));
+  }
+}
+
+function renderMain() {
+  const box = document.getElementById("main");
+  const body = document.getElementById("mainBody");
+  if (!box || !body) return;
+  const row = state.event ? STATE_ROWS.find(r => r.id === state.event) : null;
+  if (!row || state.mainHidden) { box.hidden = true; return; }
+  const node = docById(row.id);
+  const view = MainView.viewOf(row, node);
+  const context = { nodes: DOC_NODES, edges: DOC_EDGES, byId: docById, today: iso(new Date()) };
+  body.innerHTML = "";
+  if (view === "analysis") renderAnalysis(body, node, row, context);
+  else if (view === "diagnosis") renderDiagnosis(body, node, row, context);
+  else if (view === "summary") renderSummary(body, row, node, context);
+  else renderRecord(body, node, row, context);
+  document.getElementById("mainKicker").textContent = row.date + " · " + view;
+  box.hidden = false;
+  box.dataset.view = view;
+  box.dataset.record = row.id;
 }
 
 function tlCard(e, d, hits) {
@@ -2689,7 +3236,7 @@ function anchorFor(a) {
 
 function fadeFor(a) {
   if (!state.date) return 1;
-  const yrs = Math.abs((+new Date(state.date) - +a.at) / (365.25 * 864e5));
+  const yrs = Math.abs((+dayOf(state.date) - +a.at) / (365.25 * 864e5));
   return Math.max(0.07, Math.exp(-yrs / 2));
 }
 
@@ -2800,6 +3347,7 @@ const loadDemoBtn = document.getElementById("loadDemo");
 if (loadDemoBtn) loadDemoBtn.onclick = loadDemo;
 
 buildLegend();
+buildStateList();       // today's summary is made here, at launch, and never stored
 tick();
 boot();
 
@@ -2821,6 +3369,53 @@ window.__setSkin = () => layout();   // kept for the test scripts; the shell is 
 window.__collapse = () => document.getElementById("collapse").click();
 window.__demoState = () => demoState;          // absent | loading | loaded
 window.__analyses = () => ANALYSES.map(a => a.id);
+window.__tl = () => ({ date: state.date, endYear: TL.endYear,
+                       winFrom: TL.winFrom ? iso(TL.winFrom) : null,
+                       winTo: TL.winTo ? iso(TL.winTo) : null });
+window.__tlStep = where => { tlStep(where); return state.date; };
+window.__tlAt = (clientX) => {          // the strip's own pointer path, for the acceptance run
+  const r = TL.track.getBoundingClientRect();
+  document.getElementById("tl").dispatchEvent(new PointerEvent("pointerdown",
+    { bubbles: true, clientX: r.left + clientX }));
+  return state.date;
+};
+window.__today = () => iso(new Date());
+window.__records = () => STATE_ROWS.map(r => ({ id: r.id, kind: r.kind, date: r.date,
+                                                 note: r.note, stored: r.stored }));
+window.__selectRecord = id => {           // the row's own click path, for the acceptance run
+  const el = [...document.querySelectorAll("#stateRows .srow")].find(x => x.dataset.record === id);
+  if (!el) return null;
+  el.click();
+  const box = document.getElementById("stateRows");
+  return { date: state.date, marked: el.classList.contains("on"), scrollTop: box.scrollTop,
+           index: [...box.children].indexOf(el), rows: box.children.length };
+};
+/* the main view as data, for the acceptance run: what the page actually drew, not what it meant */
+window.__mainView = () => {
+  const box = document.getElementById("main");
+  const body = document.getElementById("mainBody");
+  if (!box || box.hidden || !body) return null;
+  const title = body.querySelector(".mtitle");
+  return {
+    view: box.dataset.view || "",
+    record: box.dataset.record || "",
+    title: title ? title.textContent : "",
+    kicker: document.getElementById("mainKicker").textContent,
+    sections: [...body.querySelectorAll(".msec")].map(s => s.textContent),
+    rows: [...body.querySelectorAll("table.mtab tbody tr")].map(tr =>
+      [...tr.children].map(td => td.textContent)),
+    marks: [...body.querySelectorAll(".mk")].map(m => m.dataset.mark + " · " + m.title),
+    badges: [...body.querySelectorAll(".mbadge")].map(b => b.textContent),
+    links: [...body.querySelectorAll(".mlink-list [data-link]")].map(b => b.dataset.link),
+    assignments: [...body.querySelectorAll(".mrow.assignment")].map(a => ({
+      id: a.dataset.assignment,
+      mark: a.querySelector(".mk") ? a.querySelector(".mk").dataset.mark : "",
+      text: a.textContent
+    })),
+    text: body.innerText
+  };
+};
+window.__mainClose = () => { document.getElementById("mainClose").click(); return Boolean(state.mainHidden); };
 </script>
 </body>
 </html>

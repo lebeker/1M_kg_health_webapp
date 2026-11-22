@@ -50,6 +50,10 @@ jobs:
         run: bun run test
       - name: contract fixtures
         run: bun run test:contract
+      # the split is a user gesture in the viewer (six systems, six edges, all framed): its
+      # regression runs against a local server the harness starts itself, so CI needs no browser
+      - name: split regression
+        run: bun run test:split
       - name: build
         run: bun run build
 
