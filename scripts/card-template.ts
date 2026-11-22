@@ -20,8 +20,8 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { readCard } from './e2e/card'
-import { appSurface } from './e2e/gate'
+import { type PageKind, readCard } from './e2e/card'
+import { appSurface, pagesFor } from './e2e/gate'
 
 export type CardDraft = {
   jira: string
@@ -35,9 +35,22 @@ export type CardDraft = {
   plan?: string
 }
 
+/**
+ * The `page:` line a stamped block needs, or `''` when it need none.
+ *
+ * The harness reads an absent field as `graph`, which is the page a receipt has always been
+ * evidence of — so a graph-only card keeps the block it has always had, byte for byte. A card
+ * whose paths move the columns page has to say so, because a stamped `body/` card used to ask
+ * for the graph page and fail on its own claim with nothing but CI's refusal to explain it.
+ */
+function pageLine(pages: PageKind[]): string {
+  if (!pages.includes('case')) return ''
+  return `page: ${pages.includes('graph') ? 'both' : 'case'}`
+}
+
 /** The block the harness reads, and the one a reviewer reads the claim from. */
-export function e2eBlock(e2e: { prompt: string; expect: string[] }): string {
-  return ['## e2e', `prompt: ${e2e.prompt}`, `expect: ${e2e.expect.join(', ')}`].join('\n')
+export function e2eBlock(e2e: { prompt: string; expect: string[] }, pages: PageKind[] = []): string {
+  return ['## e2e', pageLine(pages), `prompt: ${e2e.prompt}`, `expect: ${e2e.expect.join(', ')}`].filter((line) => line !== '').join('\n')
 }
 
 /** The card body, in the shape the board and the harness both understand. */
@@ -51,7 +64,7 @@ export function renderCard(draft: CardDraft): string {
       ...(surface.length > 0 ? surface.map((hit) => `- ${hit.path} — ${hit.area}`) : ['- none: this card does not touch the product, so it runs no e2e']),
     ].join('\n'),
   ]
-  if (surface.length > 0) sections.push(e2eBlock(draft.e2e))
+  if (surface.length > 0) sections.push(e2eBlock(draft.e2e, pagesFor(draft.paths)))
   if (draft.dependsOn && draft.dependsOn.length > 0) sections.push(['## Depends on', ...draft.dependsOn.map((dep) => `- ${dep}`)].join('\n'))
   if (draft.size) sections.push(['## Size', draft.size].join('\n'))
   sections.push(`Commit trailer: \`Task: ${draft.jira}\`.`)
@@ -137,8 +150,12 @@ function insertAfterSection(body: string, name: string, chunk: string): string {
  */
 export function stampBody(body: string, e2e: { prompt: string; expect: string[] }, paths: string[]): string {
   if (/^##\s*e2e\s*$/im.test(body)) throw new Error('it already carries an `## e2e` block; edit it instead of stamping a second one')
-  const block = e2eBlock(e2e)
-  if (surfacePaths(body) !== null) return insertAfterSection(body, 'surface', block)
+  const declared = surfacePaths(body)
+  // The pages come from what the card says it touches — its own `## surface` section when it has
+  // one, the `--path` list when it does not. Stamping a `body/` card without `page: case` asks
+  // the harness for the graph page, which is the mismatch the field exists to prevent.
+  const block = e2eBlock(e2e, pagesFor(declared ?? paths))
+  if (declared !== null) return insertAfterSection(body, 'surface', block)
   const surface = appSurface(paths)
   if (surface.length === 0) {
     throw new Error(

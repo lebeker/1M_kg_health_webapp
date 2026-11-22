@@ -27,7 +27,7 @@
 import { execFileSync } from 'node:child_process'
 import { appendFileSync } from 'node:fs'
 import { PAGE_KINDS, type PageKind } from './card'
-import { appSurface, pagesFor } from './gate'
+import { appSurface, pageField, pagesFor } from './gate'
 import { E2E_STATUS_CONTEXT } from './status'
 
 export type StatusEntry = { context?: string; state?: string; description?: string; created_at?: string }
@@ -102,12 +102,16 @@ export function decide(input: { event: string; files: string[]; status: { state:
     // does not cover a diff that moves the graph view.
     const missing = needed.filter((kind) => (named === null ? kind === 'case' : !named.includes(kind)))
     if (missing.length > 0) {
+      // The advice names the pages this diff moves: a two-page diff that has a columns receipt is
+      // told `page: both`, not `page: case` (which it already satisfies) and not `page: graph`
+      // (which would drop the columns capture the diff still needs).
+      const advice = pageField(needed)
       return {
         required: true,
         ok: false,
         message: `the e2e receipt on this head is green but it is not evidence of ${missing
           .map((kind) => (kind === 'case' ? 'the columns page (dist/demo.html)' : 'the graph page (dist/graph.html)'))
-          .join(' and ')}, and this diff moves it — ${moved.join('; ')}. ${named === null ? 'The receipt names no page, so it was a graph-page run.' : `The receipt names ${named.join('+')} only.`} Run e2e against this head with \`page: case\` in the card's ## e2e block.`,
+          .join(' and ')}, and this diff moves ${missing.length > 1 ? 'them' : 'it'} — ${moved.join('; ')}. ${named === null ? 'The receipt names no page, so it was a graph-page run.' : `The receipt names ${named.join('+')} only.`} Run e2e against this head with \`page: ${advice}\` in the card's ## e2e block.`,
       }
     }
     return { required: true, ok: true, message: `e2e run recorded against this head: ${input.status.description || '(no description)'}` }

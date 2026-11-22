@@ -252,6 +252,21 @@ function pageSentence(kind: PageKind): string {
 }
 
 /**
+ * The value a card's `page:` line has to carry to ask for exactly these pages. One page names
+ * itself; both pages are `both`, because that is the only token that means the pair.
+ *
+ * It exists because the refusal used to end with a fixed `page: case` sentence whatever was
+ * missing: a worker whose run captured the columns page and not the graph page was told to add
+ * the field it already had. The advice has to be derived from the gap, not from the gate's
+ * history of caring about one page.
+ */
+export function pageField(kinds: PageKind[]): string {
+  const wanted = PAGE_KINDS.filter((kind) => kinds.includes(kind))
+  if (wanted.length === PAGE_KINDS.length) return 'both'
+  return wanted[0] ?? ''
+}
+
+/**
  * The gate. `ok` only for a clean, passing, policy-complete run against exactly `commit` that
  * captured every page the card (or the caller) needs.
  *
@@ -299,12 +314,18 @@ export function gateFor(commit: string, outDir: string = DEFAULT_OUT, required: 
   }
   if (wrongPage) {
     const captured = wrongPage.run.pages.length > 0 ? wrongPage.run.pages.map(pageSentence).join(' and ') : 'no page at all'
+    const missing = wrongPage.missing
+    const missingText = missing.map(pageSentence).join(' and ')
+    // What the card has to ask for to pass this gate: the caller's requirement plus the page that
+    // gap is actually about. A two-page requirement missing only the graph capture is `both` —
+    // `graph` would let the next run drop the columns capture that is also required.
+    const advice = pageField([...new Set([...required, ...missing])])
     return {
       ok: false,
       run: wrongPage.run,
-      reason: `the run for ${wanted.slice(0, 7)} captured ${captured} and not ${wrongPage.missing
-        .map(pageSentence)
-        .join(' and ')}, so it is not evidence of this claim — a card asks for the columns page with \`page: case\` in its ## e2e block, and the receipt has to have opened it`,
+      reason: `the run for ${wanted.slice(0, 7)} captured ${captured} and not ${missingText}, so it is not evidence of this claim — the card has to ask for ${
+        advice === 'both' ? 'both pages' : 'that page'
+      } with \`page: ${advice}\` in its ## e2e block, and the receipt has to have opened ${advice === 'both' ? 'both' : 'it'}`,
     }
   }
   const run = green[0]
