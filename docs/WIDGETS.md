@@ -94,7 +94,7 @@ the core:
 |---|---|---|
 | 19 | Panel header | "forecast and recommendations", with the selected date and, on a past record, today |
 | 20 | Forecast | one number in years, in one state per column; labelled as the page's own projection, not a promise. An interval is shown only when the document publishes one — this baseline publishes none, so there is no interval row rather than an invented band |
-| 21 | What moves it | drivers with +/− deltas, the same tracks on both columns, one scale |
+| 21 | What moves it | the factors the estimate is explained by — LDL, blood pressure, age, statin, smoking, steps — each with what the document records and the record it came from, in both states. A measurement that is not one of those factors is not a driver; a factor whose record carries no effect size shows a dash, never `+0.0` (owner audit, 2026-11-22: the list was showing ALT, blood count, HbA1c and fasting glucose at +0.0) |
 | 22 | Recommended on this date | what was advised, with the source document and its status on that date |
 | 23 | What we do not know | explicit list of missing data and model blind spots; a gap that has since closed reads as known in the now column |
 | 24 | On what grounds | the baseline, the model, and how many records stand behind the number on each date |

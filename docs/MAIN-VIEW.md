@@ -112,8 +112,18 @@ number it became instead of against a memory of it. On today's record there is o
 
 The panel's forecast is the page's own projection in years — the life-expectancy table moved by
 each record's `delta`, or by `evidence` when the record has no explicit delta — and it says so. It
-does not publish an interval for this baseline, so it shows none rather than inventing one. Its
-`recommended on this date` rows are the `advised` edges into the record, each carrying the advising
+does not publish an interval for this baseline, so it shows none rather than inventing one.
+
+`what moves it` (21) lists the factors the projection is explained by, not the measurement tracks:
+LDL, blood pressure, age, statin, smoking, steps, each in the document's own words (`3.6 mmol/L`,
+`149/90 mm[Hg]`, `since 2016-10-11`) and each carrying the record it came from with its link. A lab
+panel is not a factor: ALT, blood count, HbA1c and fasting glucose were being listed at `+0.0`, which
+read as "weighed and came out empty" in the column that is supposed to say how much each thing moved
+the number (owner audit, 2026-11-22). A record that carries no effect size now shows a dash and the
+section says why; a record that carries one keeps its row and its sign, even when it is not one of
+the six factors, so the rows still add up to the change above them.
+
+Its `recommended on this date` rows are the `advised` edges into the record, each carrying the advising
 document and the advised item's status on that date; the `now` column carries the later advice and
 the status today. Missing data stays visible: `what we do not know` lists the gaps at each date, and
 a gap that has been filled since reads as known in the paled column only.

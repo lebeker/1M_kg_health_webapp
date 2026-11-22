@@ -58,15 +58,27 @@
     var e = num(node && node.evidence);
     return e === null ? 50 : Math.max(0, Math.min(100, e));
   }
-  /* What a record does to the estimate, or null when it cannot move it. An explicit `delta` is the
-     document's own number and works on any kind — a drug the note started carries its effect there.
-     Without one, only a measurement can move the projection, and only through `evidence`. */
-  function effectOf(node) {
+  /* The effect a record *records*, or null when it records none. `delta` is the document's own
+     number; `evidence` is the page's own 0..100 weight, and only a record that carries one has an
+     effect through it. A record with neither has no effect — it is not an effect of zero. Printing
+     one in the same column as a real number claims the record was weighed and came out empty, which
+     is how eight lab panels ended up in "what moves it" at +0.0. */
+  function recordedEffect(node) {
     if (!node) return null;
     var explicit = num(node.delta);
     if (explicit !== null) return explicit;
-    if (!isMark(node)) return null;
-    return Math.max(-2, Math.min(2, (evidenceOf(node) - 50) / 25));
+    var e = num(node.evidence);
+    if (e === null) return null;
+    return Math.max(-2, Math.min(2, (Math.max(0, Math.min(100, e)) - 50) / 25));
+  }
+  /* What the projection is moved by: a recorded effect, or — for a measurement that records none —
+     the neutral zero the page's own arithmetic has always used, so the forecast number itself does
+     not move. The two questions are different: the forecast asks "how many years", the panel asks
+     "which record weighed on it", and a record that records nothing cannot answer the second. */
+  function effectOf(node) {
+    var recorded = recordedEffect(node);
+    if (recorded !== null) return recorded;
+    return isMark(node) ? 0 : null;
   }
   function trackOf(node) {
     return String((node && (node.track || node.id)) || "");
@@ -117,44 +129,220 @@
     };
   }
 
-  /* The track rows, aligned so a reader can hold the two states against each other: same track,
-     then's value on the left, now's on the right. A track that appeared after the selected date
-     has no then value; a track whose newest record changed shows both. */
-  function moveRows(then, now) {
-    var seen = {}, out = [];
-    then.drivers.concat(now.drivers).forEach(function (d) { seen[d.track] = true; });
-    Object.keys(seen).forEach(function (track) {
-      var was = then.drivers.filter(function (d) { return d.track === track; })[0] || null;
-      var is = now.drivers.filter(function (d) { return d.track === track; })[0] || null;
-      out.push({
-        key: track,
-        label: (is || was).label,
-        then: was ? { delta: was.delta, date: was.date } : null,
-        now: is ? { delta: is.delta, date: is.date } : null
+  /* ---- the factors: what the estimate is explained by, read as a reader names it -----------------
+     The owner's list (wireframes v11/v13; audit 2026-11-22): LDL, blood pressure, age, statin,
+     smoking, steps. A lab panel is not on it. ALT, blood count, HbA1c and fasting glucose are
+     measurements: none of them is a factor the projection reads, and listing them here — at +0.0 —
+     said "this moved the estimate by nothing" in the same column as a number that did, while the
+     four things that can move it were absent.
+
+     A factor row is drawn only when the document says something about that factor, and it carries
+     what the document says (`value`), the record it says it in (`source`, with the record's link),
+     and the effect that record records — null, not zero, when it records none. A factor the
+     document is silent about is not a row here: it is a gap, and widget 23 already lists it. */
+
+  function markers(node) {
+    return node && Array.isArray(node.values) ? node.values : [];
+  }
+  function markerNamed(node, re) {
+    var hit = null;
+    markers(node).forEach(function (m) {
+      if (!hit && m && re.test(String(m.name || ""))) hit = m;
+    });
+    return hit;
+  }
+  function markerText(m, node) {
+    if (m) return String(m.value) + (m.unit ? " " + m.unit : "");
+    var v = num(node && node.value);
+    return v === null ? "" : String(v) + (node.unit ? " " + node.unit : "");
+  }
+  /* The newest record dated on or before `asOf` that `test` accepts, or null. Same rule as the
+     projection: a record without a date cannot stand on a date. */
+  function newest(nodes, asOf, test) {
+    var best = null;
+    (nodes || []).forEach(function (node) {
+      if (!node || !test(node)) return;
+      var at = dateOf(node);
+      if (!at || at > asOf) return;
+      if (!best || at > best.at) best = { at: at, node: node };
+    });
+    return best;
+  }
+  function factorRow(key, labelText, value, hit, byId) {
+    var node = hit ? hit.node : null;
+    return {
+      key: key,
+      label: labelText,
+      value: value,
+      cause: label(node) || labelText,
+      record: node ? String(node.id) : "",
+      date: hit ? hit.at : "",
+      delta: recordedEffect(node),
+      source: node ? sourceOf(node, byId) : { label: "", link: "" }
+    };
+  }
+  /* Whole years at a date, from the profile's birth year — the same reading `src/profile.ts` makes
+     and the same one the page prints: a document carries a year, so an age is never in months. */
+  function ageYears(meta, asOf) {
+    var m = /^(\d{4})/.exec(String(asOf || ""));
+    var source = meta || {};
+    var year = num(source.profile && source.profile.year_of_birth);
+    if (year === null) {
+      var birth = /^(\d{4})/.exec(String(source.birth || ""));
+      year = birth ? Number(birth[1]) : null;
+    }
+    if (year === null || !m) return null;
+    return Number(m[1]) - year;
+  }
+  function ldlRow(nodes, asOf, byId) {
+    var hit = newest(nodes, asOf, function (n) {
+      if (!isMark(n)) return false;
+      return !!markerNamed(n, /\bldl\b/i) || /\bldl\b/i.test(label(n));
+    });
+    if (!hit) return null;
+    var m = markerNamed(hit.node, /\bldl\b/i);
+    return factorRow("ldl", "LDL", m ? markerText(m, hit.node) : markerText(null, hit.node), hit, byId);
+  }
+  function bpRow(nodes, asOf, byId) {
+    var hit = newest(nodes, asOf, function (n) {
+      if (!isMark(n)) return false;
+      return !!markerNamed(n, /systolic/i) || /blood pressure|blood-pressure/i.test(label(n) + " " + trackOf(n));
+    });
+    if (!hit) return null;
+    var sys = markerNamed(hit.node, /systolic/i);
+    var dia = markerNamed(hit.node, /diastolic/i);
+    var value = sys && dia
+      ? String(sys.value) + "/" + String(dia.value) + (sys.unit ? " " + sys.unit : "")
+      : markerText(null, hit.node);
+    return factorRow("blood-pressure", "blood pressure", value, hit, byId);
+  }
+  function ageRow(nodes, asOf, byId, meta) {
+    var age = ageYears(meta, asOf);
+    if (age === null) return null;
+    return {
+      key: "age",
+      label: "age",
+      value: String(age),
+      cause: "age",
+      record: "",
+      date: asOf,
+      delta: null,
+      source: { label: "profile", link: "" }
+    };
+  }
+  function statinRow(nodes, asOf, byId) {
+    var hit = newest(nodes, asOf, function (n) {
+      return String(n.kind || "") === "medication" && /statin/i.test(label(n));
+    });
+    if (!hit) return null;
+    return factorRow("statin", "statin", statusAt(hit.node, asOf), hit, byId);
+  }
+  function smokingRow(nodes, asOf, byId) {
+    var hit = newest(nodes, asOf, function (n) {
+      /* A document that mentions smoking is not a smoking status: only a condition or a
+         measurement can say what he does. */
+      if (String(n.kind || "") !== "condition" && !isMark(n)) return false;
+      return /smok|tobacco/i.test([label(n), n.summary, n.name].filter(Boolean).join(" "));
+    });
+    if (!hit) return null;
+    return factorRow("smoking", "smoking", "recorded", hit, byId);
+  }
+  function stepsRow(nodes, asOf, byId) {
+    var hit = newest(nodes, asOf, function (n) {
+      if (!isMark(n)) return false;
+      return !!markerNamed(n, /step|walk/i) || /step count|steps a day|activity/i.test(label(n));
+    });
+    if (!hit) return null;
+    var m = markerNamed(hit.node, /step|walk/i);
+    return factorRow("steps", "steps", m ? markerText(m, hit.node) : markerText(null, hit.node), hit, byId);
+  }
+  var FACTORS = [ldlRow, bpRow, ageRow, statinRow, smokingRow, stepsRow];
+
+  /* Every row "what moves it" draws at one date. The factors first, then every other record that
+     records an effect and is not one of those records — so the rows still add up to the change, and
+     a record that moved the number is never silently missing from the list that explains it. A
+     record that records no effect is never a row here. */
+  function explainAt(nodes, asOf, byId, meta) {
+    var rows = [];
+    FACTORS.forEach(function (read) {
+      var row = read(nodes, asOf, byId, meta);
+      if (row) rows.push(row);
+    });
+    var covered = {};
+    rows.forEach(function (row) { if (row.record) covered[row.record] = true; });
+    var latest = latestByTrack(nodes, asOf);
+    Object.keys(latest).forEach(function (track) {
+      var hit = latest[track];
+      if (covered[String(hit.node.id)]) return;
+      var delta = recordedEffect(hit.node);
+      if (delta === null || Math.abs(delta) < 1e-12) return;
+      rows.push({
+        key: "effect:" + track,
+        label: label(hit.node),
+        value: markerText(null, hit.node),
+        cause: label(hit.node),
+        record: String(hit.node.id),
+        date: hit.at,
+        delta: delta,
+        source: sourceOf(hit.node, byId)
       });
     });
+    return rows;
+  }
+
+  /* The rows, aligned so a reader can hold the two states against each other: same factor, then's
+     value on the left, now's on the right. A factor the document only speaks about after the
+     selected date has no then value; one it stopped speaking about has no now value. Rows that move
+     the number come first, largest first; the rows that carry no recorded effect follow, in the
+     owner's factor order, so the list reads "here is what weighs, and here is what the record says
+     about the rest" rather than sorting a zero in among the effects. */
+  function cellOf(row) {
+    return row
+      ? { delta: row.delta, date: row.date, value: row.value, source: row.source }
+      : null;
+  }
+  function moveRows(thenRows, nowRows) {
+    var seen = {}, out = [];
+    thenRows.concat(nowRows).forEach(function (row) { seen[row.key] = true; });
+    Object.keys(seen).forEach(function (key) {
+      var was = thenRows.filter(function (r) { return r.key === key; })[0] || null;
+      var is = nowRows.filter(function (r) { return r.key === key; })[0] || null;
+      var hit = is || was;
+      out.push({
+        key: key,
+        label: hit.label,
+        value: hit.value,
+        then: cellOf(was),
+        now: cellOf(is)
+      });
+    });
+    var weigh = function (row) {
+      var d = row.now && row.now.delta != null ? row.now.delta
+            : row.then && row.then.delta != null ? row.then.delta : 0;
+      return Math.abs(d);
+    };
     out.sort(function (a, b) {
-      var da = a.now ? Math.abs(a.now.delta) : 0;
-      var db = b.now ? Math.abs(b.now.delta) : 0;
-      return db - da || (a.label < b.label ? -1 : a.label > b.label ? 1 : 0);
+      return weigh(b) - weigh(a) || (a.label < b.label ? -1 : a.label > b.label ? 1 : 0);
     });
     return out;
   }
 
   /* The record(s) that moved the estimate between the two dates: the card's "and +3.6 of it —
-     the statin we recommended in 2021" needs a name, not just a number. Every track whose
-     contribution changed is named, largest first, so the sentence reconciles with the total. */
-  function moversBetween(then, now) {
+     the statin we recommended in 2021" needs a name, not just a number. Every row whose recorded
+     effect changed is named, largest first, so the sentence reconciles with the total. */
+  function moversBetween(thenRows, nowRows) {
     var out = [];
     var seen = {};
-    then.drivers.concat(now.drivers).forEach(function (d) { seen[d.track] = true; });
-    Object.keys(seen).forEach(function (track) {
-      var was = then.drivers.filter(function (d) { return d.track === track; })[0] || null;
-      var is = now.drivers.filter(function (d) { return d.track === track; })[0] || null;
-      var change = (is ? is.delta : 0) - (was ? was.delta : 0);
+    thenRows.concat(nowRows).forEach(function (row) { seen[row.key] = true; });
+    Object.keys(seen).forEach(function (key) {
+      var was = thenRows.filter(function (r) { return r.key === key; })[0] || null;
+      var is = nowRows.filter(function (r) { return r.key === key; })[0] || null;
+      var before = was && was.delta != null ? was.delta : 0;
+      var after = is && is.delta != null ? is.delta : 0;
+      var change = after - before;
       if (Math.abs(change) < 0.049) return;
       var hit = is || was;
-      out.push({ change: change, label: hit.label, date: hit.date, track: track });
+      out.push({ change: change, label: hit.cause || hit.label, date: hit.date, key: key });
     });
     out.sort(function (a, b) {
       return Math.abs(b.change) - Math.abs(a.change) ||
@@ -164,7 +352,7 @@
   }
 
   /* Two clauses, the shape the owner asked for: the total movement, then what moved it. */
-  function deltaWords(then, now, asOf) {
+  function deltaWords(then, now, thenRows, nowRows, asOf) {
     if (!then.available || !now.available) {
       return { total: "cannot compare \u2014 no record on that date", because: "" };
     }
@@ -172,7 +360,7 @@
     if (Math.abs(change) < 0.05) {
       return { total: "no change since " + asOf, because: "nothing after " + asOf + " moved the estimate" };
     }
-    var movers = moversBetween(then, now);
+    var movers = moversBetween(thenRows, nowRows);
     return {
       total: signed(change) + " years since " + asOf,
       because: movers.length
@@ -295,6 +483,12 @@
         test: function (n) { return hasText(n, /family\s*history|family_history/i) || n.family_history != null; } },
       { key: "smoking", text: "no smoking record",
         test: function (n) { return n.smoking != null || n.pack_years != null || hasText(n, /smok|tobacco/i); } },
+      /* The owner's sixth factor, and the one a kg/1-health document has no record kind for: steps
+         live in the profile's knobs (widget 30), not in a dated event. It is named here rather than
+         silently absent from widget 21, so the reader can see that the factor exists and that this
+         record does not carry it. */
+      { key: "steps", text: "no step count \u2014 a document carries no activity record",
+        test: function (n) { return n.steps != null || hasText(n, /step count|steps a day|walks? \d/i); } },
       { key: "vaccines", text: "no vaccination records",
         test: function (n) { return hasText(n, /vaccin|immunis|immuniz/i); } },
       { key: "sleep", text: "no sleep data \u2014 the model does not read it", blind: true,
@@ -378,8 +572,15 @@
        on the selected date and "recorded <date>" now. */
     var gapRows = gaps(nodes, thenOn, past ? nowOn : thenOn);
 
+    /* "What moves it" is drawn from the factors and from the records that record an effect, not
+       from the measurement tracks: a lab panel that records no effect cannot move a life
+       expectancy, and listing it at +0.0 said it had been weighed and came out empty. */
+    var meta = opts.meta || {};
+    var thenRows = explainAt(nodes, thenOn, byId, meta);
+    var nowRows = past ? explainAt(nodes, nowOn, byId, meta) : thenRows;
+
     var delta = past
-      ? deltaWords(thenForecast, nowForecast, asOf)
+      ? deltaWords(thenForecast, nowForecast, thenRows, nowRows, asOf)
       : { total: "", because: "" };
 
     return {
@@ -399,7 +600,13 @@
           delta: delta,
           note: "the page's own projection \u2014 no interval is published for this baseline \u00b7 not a promise"
         },
-        moves: { rows: moveRows(thenForecast, nowForecast) },
+        moves: {
+          rows: moveRows(thenRows, nowRows),
+          /* Said once, under the rows, only when nothing in this document records an effect: a
+             kg/1-health document carries facts and its forecasts, and the panel must not let an
+             all-dash column read as "we checked and nothing weighs". */
+          note: moveNote(thenRows, nowRows)
+        },
         recommended: { rows: recommendedRows(thenAdvice, nowAdvice) },
         unknown: { rows: gapRows },
         grounds: { rows: groundsRows(thenForecast, nowForecast, leBySex, sex) }
@@ -407,9 +614,21 @@
     };
   }
 
+  /* One sentence for the empty-effect case, and none when a row carries a number: a note that
+     always says "no effect recorded" would become furniture and stop being read. */
+  function moveNote(thenRows, nowRows) {
+    var weighs = thenRows.concat(nowRows).filter(function (row) {
+      return row.delta !== null && Math.abs(row.delta) >= 0.049;
+    });
+    if (weighs.length) return "";
+    return "no record here carries an effect size \u2014 the rows are what the document says about " +
+      "each factor, not a number nobody published";
+  }
+
   root.RightPanel = Object.freeze({
     build: build,
     forecastAt: forecastAt,
+    explainAt: explainAt,
     adviceAt: adviceAt,
     statusAt: statusAt,
     latestByTrack: latestByTrack,
