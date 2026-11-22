@@ -1,0 +1,4 @@
+{
+  "note": "on_statin is a string, not a boolean. The forecast is unknown, not met and not unmet: the fact is there and it is not the right kind.",
+  "on_statin": "yes"
+}
