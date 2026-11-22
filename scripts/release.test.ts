@@ -45,16 +45,16 @@ const git = (args: string[]) =>
 const app = json<{ id: string; title: string }>('app.json')
 const pkg = json<{ name: string; version: string; description: string }>('package.json')
 
-/** The models `body/index.html` actually fetches: the layer rows plus the loose `loadFile` calls. */
+/**
+ * The models `body/index.html` actually fetches: since T28 `boot()` loads exactly the 3D layer's
+ * table (`ANATOMY_FILES`) and nothing else — the body's other four systems are not fetched at all,
+ * so the file list is the table, not the layer list.
+ */
 function shippedModels(): string[] {
-  const layers = page.slice(page.indexOf('const LAYERS = ['), page.indexOf('const state = {'))
-  const rows = [...layers.matchAll(/\{ id:"([a-z-]+)"[^\n]*/g)]
-    .filter((m) => !m[0].includes('filesBySex'))
+  const table = page.slice(page.indexOf('const ANATOMY_FILES = {'), page.indexOf('const ANATOMY_BYTES = {'))
+  const files = [...table.matchAll(/\["[a-z]+", "([a-z0-9-]+)", (?:null|"[a-z]+")\]/g)]
     .map((m) => m[1])
-  // `loadFile(id, file, variant?)` — the file is the second argument, and a layer without an
-  // explicit `files` list loads a GLB named after its id.
-  const loose = [...page.matchAll(/loadFile\(\s*"[a-z-]+",\s*"([a-z0-9-]+)"/g)].map((m) => m[1])
-  return [...new Set([...rows, ...loose])].sort()
+  return [...new Set(files)].sort()
 }
 
 /**
@@ -251,12 +251,16 @@ describe('attribution: the credits travel with the models', () => {
 describe('models: content the page loads, artefacts beside it', () => {
   const models = shippedModels()
 
-  test('the page loads sixteen models, and they are the published set', () => {
+  test('the page loads the ten files of the 3D layer, and they are the published set', () => {
     expect(models).toEqual([
-      'bones', 'cardio', 'cardio-female', 'heart', 'lymphoid', 'muscles', 'nervous',
-      'nervous-female', 'organs', 'reproductive-female', 'reproductive-male', 'skin',
+      'bones', 'heart', 'organs', 'reproductive-female', 'reproductive-male', 'skin',
       'skin-female2', 'skinbits-female', 'skinbits2', 'spleen',
     ])
+    // T28: the other six files of the atlas — muscles, the two cardio meshes, the two nervous
+    // systems and the lymphoid set — are the body's detail, not part of the map, and the page no
+    // longer asks for one of them
+    for (const other of ['muscles', 'cardio', 'cardio-female', 'nervous', 'nervous-female', 'lymphoid'])
+      expect(models).not.toContain(other)
   })
 
   test('every loaded model exists, is tracked, and is not ignored', () => {

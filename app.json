@@ -71,6 +71,24 @@
     "pubmed": "the only free source of the numbers behind a prognosis: hazard ratios with a confidence interval, so a prediction cites something instead of guessing",
     "a web-search tool": "guidelines (ESC, USPSTF) live in PDFs on society sites, not in an index — a search finds the document, nothing else will"
   },
+  "models": {
+    "layer": "3d",
+    "what": "the shell, the skeleton and the organs — the three layers that say where a node sits on the map",
+    "note": "Not part of the app file, and never downloaded implicitly: the 3D layer is off in the page until the reader answers its question. A skill that fetches these must ask before downloading and must name the size it is about to spend. The rest of the atlas (muscles, vessels, nerves, lymph) is not part of the map and is not listed here.",
+    "base": "https://raw.githubusercontent.com/lebeker/1M_kg_health_webapp/main/body/models/",
+    "files": [
+      { "file": "skin.glb", "bytes": 6386448, "sex": "male" },
+      { "file": "skinbits2.glb", "bytes": 604592, "sex": "male" },
+      { "file": "skin-female2.glb", "bytes": 9065612, "sex": "female" },
+      { "file": "skinbits-female.glb", "bytes": 28052, "sex": "female" },
+      { "file": "bones.glb", "bytes": 1781396, "sex": "both" },
+      { "file": "organs.glb", "bytes": 6316276, "sex": "both" },
+      { "file": "heart.glb", "bytes": 1026920, "sex": "both" },
+      { "file": "spleen.glb", "bytes": 178980, "sex": "both" },
+      { "file": "reproductive-male.glb", "bytes": 331816, "sex": "male" },
+      { "file": "reproductive-female.glb", "bytes": 2173784, "sex": "female" }
+    ]
+  },
   "kinds": [
     {
       "kind": "condition",

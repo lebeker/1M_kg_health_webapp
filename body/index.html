@@ -250,6 +250,21 @@
   body:not(.graph-open) .legend,
   body:not(.graph-open) .hint { display:none; }
   .gnote { color:var(--mut); font-size:11.5px; letter-spacing:.02em; }
+
+  /* widget 1, T28: the 3D layer is a toggle inside the graph view, and it is off until the reader
+     says yes. With it off the view draws the documents' marks and nothing else: the anatomy is a
+     layer of the map, not the map, and no model is fetched before the question is answered. */
+  #layer3d { padding:5px 10px; }
+  #layer3d[aria-pressed="true"] { color:#dbe6f2; border-color:#3f5570; background:#1b2532; }
+  body.graph-open:not(.anatomy-open) #leftCol { display:none; }   /* nothing to take out of a body that is not there */
+  #layerAsk { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:21;
+    width:min(440px, calc(100vw - 40px)); background:var(--panel); border:1px solid var(--line);
+    border-radius:10px; padding:16px 18px; box-shadow:0 18px 48px #0009; }
+  #layerAsk[hidden] { display:none; }
+  #layerAsk .aq { font-size:14px; margin-bottom:7px; }
+  #layerAsk p { color:var(--mut); margin:0 0 14px; font-size:12.5px; line-height:1.5; }
+  #layerAsk .abtns { display:flex; gap:8px; justify-content:flex-end; }
+  #layerAsk button.yes { background:#1f3247; border-color:#3f5570; color:#e6edf3; }
 </style>
 </head>
 <body>
@@ -275,6 +290,17 @@
   </div>
 </div>
 
+<!-- T28: the question the card asks for. It names the layers and the exact size, it is answered by
+     a click, and "not now" leaves the page with no model requested at all. -->
+<div id="layerAsk" hidden role="dialog" aria-modal="false" aria-labelledby="layerAskTitle">
+  <div class="aq" id="layerAskTitle">Load the 3D layer?</div>
+  <p id="layerAskText"></p>
+  <div class="abtns">
+    <button id="layerNo" title="not now — nothing is downloaded">not now</button>
+    <button id="layerYes" class="yes" title="download the models once">load</button>
+  </div>
+</div>
+
 <div class="bar">
   <!-- widget 1: one button, the graph in a view of its own. It is never part of the main flow. -->
   <button id="openGraph" class="only-main" title="open graph — the body and its nodes, read-only"
@@ -293,6 +319,10 @@
   <button id="graphBack" class="only-graph" title="back — returns to the selected date">← back</button>
   <b class="only-graph">graph</b>
   <span class="gnote only-graph">read-only · this view draws kg.json and never writes it</span>
+  <!-- T28: the anatomy is a layer of this view, and it is off until the reader agrees to the
+       download. The button asks; it never fetches anything by itself. -->
+  <button id="layer3d" class="only-graph" aria-pressed="false"
+          title="3D layer — show where organs and diagnoses live">3D layer · off</button>
 
   <span class="spacer"></span>
   <div class="player only-main" id="tlPlayer" role="group" aria-label="timeline player">
@@ -364,6 +394,33 @@ const LAYERS = [
     about:"Every organ the atlas has, as one tree: systems, the organs inside them, and the meshes at the leaves. Split it to get the systems; every row in the list has its own eye." }
 ];
 
+/* T28 — the 3D layer. Three of the atlas's layers are what says WHERE a node lives: the shell
+   (his skin or hers), the skeleton every other layer is fitted to, and the organs the graph's
+   nodes are made of. The other four — muscles, vessels, nerves, lymph — are the body's own detail
+   and are not part of the map, so the map never downloads them. The sizes are the bytes on disk
+   and the question states their sum to the reader, which means the number in the question is the
+   number the browser fetches; `scripts/graph-view.test.ts` holds these bytes to the files. */
+const ANATOMY_3D = ["skin", "bones", "organs"];
+const ANATOMY_FILES = {
+  male: [["skin", "skin", null], ["skin", "skinbits2", "male"], ["bones", "bones", null],
+         ["organs", "organs", null], ["organs", "heart", null], ["organs", "spleen", null],
+         ["organs", "reproductive-male", "male"]],
+  female: [["skin", "skin-female2", "female"], ["skin", "skinbits-female", "female"],
+           ["bones", "bones", null], ["organs", "organs", null], ["organs", "heart", null],
+           ["organs", "spleen", null], ["organs", "reproductive-female", "female"]]
+};
+const ANATOMY_BYTES = {
+  "skin.glb": 6386448, "skinbits2.glb": 604592, "skin-female2.glb": 9065612,
+  "skinbits-female.glb": 28052, "bones.glb": 1781396, "organs.glb": 6316276,
+  "heart.glb": 1026920, "spleen.glb": 178980, "reproductive-male.glb": 331816,
+  "reproductive-female.glb": 2173784
+};
+function anatomyFiles(sex) { return ANATOMY_FILES[sex] || ANATOMY_FILES.male; }
+function anatomyBytes(sex) {
+  return anatomyFiles(sex).reduce((n, f) => n + (ANATOMY_BYTES[f[1] + ".glb"] || 0), 0);
+}
+function megabytes(bytes) { return (bytes / 1e6).toFixed(1) + " MB"; }
+
 const state = {
   sex:"male", collapsed:false, hidden:new Set(), sel:null,
   out:new Set(),            // layers taken out of the body; at the start every layer is collapsed
@@ -375,7 +432,8 @@ const state = {
   date:null,                // the day the timeline is pointing at: analyses fade with distance
   event:null,               // the record the reader picked in the left list, if any
   mainHidden:false,         // ✕ on the main view: closing it is not a deselection
-  graph:false               // the graph view (widget 1): a view of its own, never the main flow
+  graph:false,              // the graph view (widget 1): a view of its own, never the main flow
+  anatomy3d:false           // the 3D layer inside that view (T28): off until the reader asks for it
 };
 const EYE_OUT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
 const SHELL_OPACITY = 0.45;
@@ -563,31 +621,13 @@ async function boot() {
   Object.keys(counts).forEach(k => delete counts[k]);
   loadedFiles.clear();
   failedFiles.length = 0;
-  const jobs = [];
+  /* T28: boot() loads the 3D layer and nothing else — the shell, the skeleton and the organs for
+     this sex. It is called when the reader has answered the question, never at launch and never by
+     opening the graph view: what is not needed to place a node is not downloaded. */
+  const jobs = anatomyFiles(state.sex).map(([id, file, variant]) => loadFile(id, file, variant || null));
   loadTotal = 0; loadDone = 0;
-  LAYERS.forEach(l => {
-    if (l.filesBySex) return;
-    (l.files || [l.id]).forEach(f => jobs.push(loadFile(l.id, f)));
-  });
-  jobs.push(loadFile("skin", "skinbits2", "male"));        // atlas teeth + nails: his head
-  jobs.push(loadFile("skin", "skinbits-female", "female")); // her nails only — the atlas teeth are
-                                                            // cut for another skull and pierced her lips
-  jobs.push(loadFile("skin", "skin-female2", "female"));   // v2: Blender Studio base mesh, fitted to the bones
-  jobs.push(loadFile("skin", "skin", "male"));   // the hair island IS the male head shell: stripping it
-                                                 // left half a head, so the male keeps skin.glb whole
-  jobs.push(loadFile("organs", "reproductive-female", "female"));   // the tract belongs to the set
-  jobs.push(loadFile("organs", "reproductive-male", "male"));
-  jobs.push(loadFile("cardio", "cardio", "male"));
-  jobs.push(loadFile("cardio", "cardio-female", "female"));
-  jobs.push(loadFile("nervous", "nervous", "male"));
-  jobs.push(loadFile("nervous", "nervous-female", "female"));
-  jobs.push(loadFile("organs", "heart"));     // the atlas keeps the heart in the cardio collection,
-                                              // exported with its 17 parts so it can be a node of its own
-  jobs.push(loadFile("organs", "spleen"));    // the spleen, thymus and tonsils live in the atlas's
-                                              // lymphoid collection, so the organs export missed them
-  // models/heart.glb is kept for a later "heart" node, but the graph's centre is the organs set      // the graph's centre: the atlas keeps it inside the
-                                              // merged cardio mesh, so it is exported on its own
   loadTotal = jobs.length;
+  anatomyLoadedSex = state.sex;
   bootUI("organs", 0);
   await Promise.all(jobs);
   normalise();
@@ -651,6 +691,12 @@ function sectionRow(title, open, onToggle) {
   return h;
 }
 
+/* T28: the list offers the layers that are in the scene. Before the 3D layer is loaded nothing is
+   in it, and the list is not on screen at all (the graph view hides it while the layer is off). */
+function shownLayers() {
+  return LAYERS.filter(l => !l.graphOnly && (!viewerStarted || !!groups[l.id]));
+}
+
 function buildLegend() {
   const rows = document.getElementById("rows");
   rows.innerHTML = "";
@@ -661,14 +707,14 @@ function buildLegend() {
     br.dataset.layer = "body";
     const bodyOpen = state.bodyOpen !== false;      // the body starts expanded
     br.innerHTML = `<span class="chev">${bodyOpen ? "▾" : "▸"}</span><span class="dot" style="background:#c98d94"></span>` +
-      `<span class="nm">body</span><span class="cnt">${LAYERS.filter(l => !l.graphOnly).length}</span><span class="chev blank"></span>`;
+      `<span class="nm">body</span><span class="cnt">${shownLayers().length}</span><span class="chev blank"></span>`;
     br.onclick = e => {
       if (e.target.closest(".chev")) { state.bodyOpen = !bodyOpen; buildLegend(); return; }
       select("body");
     };
     rows.appendChild(br);
   }
-  if (state.layersOpen && state.bodyOpen !== false) LAYERS.filter(l => !l.graphOnly).forEach(l => {
+  if (state.layersOpen && state.bodyOpen !== false) shownLayers().forEach(l => {
     const isOrgans = l.id === "organs";
     const isOut = state.out.has(l.id);
     const row = document.createElement("div");
@@ -838,7 +884,7 @@ function selectInner(id) {
   if (id === "body") {
     panel.hidden = false;
     document.getElementById("npTitle").textContent = "body";
-    document.getElementById("npSub").textContent = "the whole atlas body · " + LAYERS.filter(l => !l.graphOnly).length + " layers";
+    document.getElementById("npSub").textContent = "the whole atlas body · " + shownLayers().length + " layers";
     document.getElementById("npDesc").textContent =
       "Every layer of the model as one node. Select it to frame the whole body, or open a layer below to work with one system.";
     document.getElementById("npActs").innerHTML = "";
@@ -1080,6 +1126,16 @@ function toggle(id) {
 }
 
 function applySex() {
+  /* T28: the 3D layer was downloaded for one body. A switch to the other body loads its files the
+     same lazy way — the question is not asked again, because the reader already said yes to the
+     layer; what changes is which shell and which tract are fetched. boot() clears the old groups
+     before it fetches, so everything below waits for it: it ends in applySex() with the new body's
+     groups in place. */
+  if (viewerStarted && anatomyLoadedSex && anatomyLoadedSex !== state.sex) {
+    document.querySelectorAll("#sex button").forEach(b => b.classList.toggle("on", b.dataset.sex === state.sex));
+    boot();
+    return;
+  }
   Object.values(groups).forEach(gr => {
     if (!gr || !gr.userData.variants) return;
     Object.entries(gr.userData.variants).forEach(([sex, obj]) => {
@@ -2075,7 +2131,7 @@ function ensureLinks() {
       linkObjs[t] = o;
     }
     o.userData.list = list;
-    o.visible = !state.edgeOff.has(t);
+    o.visible = state.anatomy3d && !state.edgeOff.has(t);
   });
 }
 
@@ -2096,8 +2152,10 @@ function updateLinks() {
 }
 
 function applyEdgeState() {
-  if (edges) edges.visible = !state.edgeOff.has("tree");
-  Object.entries(linkObjs).forEach(([t, o]) => { o.visible = !state.edgeOff.has(t); });
+  // T28: the edges join organ nodes, and the nodes live in the 3D layer — with the layer off the
+  // map has no organ graph to join, so the lines stay with it instead of floating on their own
+  if (edges) edges.visible = state.anatomy3d && !state.edgeOff.has("tree");
+  Object.entries(linkObjs).forEach(([t, o]) => { o.visible = state.anatomy3d && !state.edgeOff.has(t); });
 }
 
 function ensureEdges() {
@@ -2270,6 +2328,9 @@ function splitFrame(elev) {
 function layout() {
   // the ghost's visibility belongs to syncOrgans(); layout only places things
   if (!bodyBox) return;
+  // T28: a sex switch clears the groups and refetches them; until the new body lands there is
+  // nothing to place, and buildOrganNodes/disposeOrganNodes would reach into a group that is gone
+  if (!groups.organs) return;
   const width = bodyBox.getSize(new THREE.Vector3()).x;
   const graph = state.organsOut;
 
@@ -2307,7 +2368,10 @@ function layout() {
 
   LAYERS.forEach(l => {
     if (l.graphOnly) return;
+    /* T28: only the 3D layer's layers are in the scene at all — the body's other four systems are
+       not downloaded and have no group or target, so there is nothing to place or frame for them */
     const t = targets[l.id];
+    if (!t) return;
     const s = slot[l.id];
     // an eye that is on means the layer stands outside the body, at its own size
     if (s) t.p.set(s.x, -(layerMid[l.id] ? layerMid[l.id].y : 0), s.z);
@@ -3401,6 +3465,17 @@ function tick() {
   });
   // whatever changed an eye, the picture follows the same rule; it is 138 parent checks, not work
   syncOrgans();
+  /* T28: with the 3D layer off the anatomy is off the screen; the documents' marks stay, because
+     they are the map's nodes and the body is a layer of the map, not the map */
+  if (!state.anatomy3d) {
+    Object.values(groups).forEach(g => { if (g) g.visible = false; });
+    if (organRoot) organRoot.visible = false;
+    if (bodyGhost) bodyGhost.visible = false;
+    if (edges) edges.visible = false;
+    Object.values(linkObjs).forEach(o => { o.visible = false; });
+  } else if (organRoot) {
+    organRoot.visible = true;
+  }
   // a document is a mark on the map, not an organ: keep it a constant, small size on screen
   if (analysisRoot) {
     ANALYSES.forEach(a => {
@@ -3443,21 +3518,92 @@ function tick() {
   controls.update();
   renderer.render(scene, camera);
 }
-/* ============================================================== the graph view (widget 1, T27)
+/* ============================================================== the graph view (widget 1, T27/T28)
    The graph is a tool, not the product. It is one view, behind one button, drawn by this page's own
-   viewer: the body, its nodes, the documents as marks. It renders the document and has no write
-   path — nothing in it can add, connect or delete a node — and the main flow never opens it, never
-   needs it, and never waits for its 35 MB of models. Closing it changes nothing: the document, the
-   selected date and the record the reader stood on are exactly where they were. */
+   viewer: the documents as marks, and — as a second, separate layer — the body that says where a
+   mark sits. It renders the document and has no write path — nothing in it can add, connect or
+   delete a node — and the main flow never opens it, never needs it, and never waits for a model.
+
+   T28: the 3D layer is off by default and is asked for by name and by size. Opening the view is a
+   local operation: it builds the marks from the document the page already holds and frames them.
+   The anatomy is the only thing that fetches a model, and it fetches after a click that says yes.
+
+   Closing it changes nothing: the document, the selected date and the record the reader stood on
+   are exactly where they were. */
 let viewerStarted = false;
+let anatomyLoadedSex = null;
+
+function set3dButton() {
+  const b = document.getElementById("layer3d");
+  if (b) {
+    b.setAttribute("aria-pressed", state.anatomy3d ? "true" : "false");
+    b.textContent = state.anatomy3d ? "3D layer · on" : "3D layer · off";
+    b.title = state.anatomy3d
+      ? "3D layer — the shell, the skeleton and the organs are on"
+      : "3D layer — show where organs and diagnoses live (" + megabytes(anatomyBytes(state.sex)) + ")";
+  }
+  const hint = document.querySelector(".hint");
+  if (hint) hint.textContent = state.anatomy3d
+    ? "drag to orbit · scroll to zoom · double-click a node to frame it"
+    : viewerStarted
+      ? "the 3D layer is off · its models are already here, so turning it back on costs nothing"
+      : "the 3D layer is off · nothing is downloaded until it is loaded";
+}
+
+/* the question: it names the size of this body's 3D layer, and the yes button carries the same
+   number, so what a reader agrees to and what the browser fetches cannot drift apart */
+function askLayer3d(show) {
+  const panel = document.getElementById("layerAsk");
+  if (!panel) return;
+  if (show) {
+    const bytes = anatomyBytes(state.sex);
+    document.getElementById("layerAskText").textContent =
+      "The shell, the skeleton and the organs — that is what shows where a node sits. " +
+      megabytes(bytes) + " of models, downloaded once" +
+      (state.sex === "female" ? ", for her body" : "") +
+      ". Nothing is downloaded until you say yes.";
+    document.getElementById("layerYes").textContent = "load " + megabytes(bytes);
+  }
+  panel.hidden = !show;
+}
 
 function startViewer() {
-  // the models load the first time the reader asks for the graph, not at launch
+  // the models load when the reader has asked for the 3D layer, and at no other time
   if (viewerStarted) return;
   viewerStarted = true;
+  state.anatomy3d = true;
+  document.body.classList.add("anatomy-open");
+  set3dButton();
   const bootEl = document.getElementById("boot");
-  if (bootEl) bootEl.hidden = false;
+  if (bootEl) { bootEl.hidden = false; bootEl.classList.remove("done"); }
   boot();
+}
+
+function setAnatomy3d(on) {
+  state.anatomy3d = !!on && viewerStarted;
+  document.body.classList.toggle("anatomy-open", state.anatomy3d);
+  set3dButton();
+  if (state.anatomy3d) layout(); else buildLegend();
+}
+
+/* what the map draws before any model arrives: the documents' own marks, framed on themselves */
+function frameGraph() {
+  if (bodyBox) { layout(); return; }
+  const box = new THREE.Box3();
+  if (analysisRoot) analysisRoot.children.forEach(n => box.expandByObject(n));
+  if (box.isEmpty()) box.setFromCenterAndSize(setCentre(), new THREE.Vector3(1.2, 1.2, 0.6));
+  const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
+  camWant.target.copy(c);
+  camWant.pos.set(c.x, c.y, c.z + Math.max(2.8, fitDistance(Math.max(s.x, 1.1), Math.max(s.y, 1.1))));
+  camAnim = true;
+  camUntil = performance.now() + 1200;
+}
+
+function openGraphView() {
+  // nothing here touches the network: the marks come out of the document the page already holds
+  if (!analysisRoot) { buildAnalyses(); paintFade(); }
+  frameGraph();
+  set3dButton();
 }
 
 function setGraphView(open) {
@@ -3466,17 +3612,26 @@ function setGraphView(open) {
   const btn = document.getElementById("openGraph");
   if (btn) btn.setAttribute("aria-pressed", state.graph ? "true" : "false");
   if (state.graph) {
-    startViewer();
+    openGraphView();
     if (state.sel && bodyBox) layout();   // a selection made last time still frames its node
   } else {
     // back returns to the selected date: the ruler's marker, the marked row and the centre view are
-    // rebuilt from state.date, which the graph view never touches
+    // rebuilt from state.date, which the graph view never touches. It also closes the question.
+    askLayer3d(false);
     refreshPick();
   }
 }
 
 document.getElementById("openGraph").onclick = () => setGraphView(true);
 document.getElementById("graphBack").onclick = () => setGraphView(false);
+document.getElementById("layer3d").onclick = () => {
+  // on: ask, unless this page has already paid for the models; off: hide them, keep them
+  if (state.anatomy3d) { setAnatomy3d(false); return; }
+  if (viewerStarted) { setAnatomy3d(true); return; }
+  askLayer3d(true);
+};
+document.getElementById("layerYes").onclick = () => { askLayer3d(false); startViewer(); };
+document.getElementById("layerNo").onclick = () => askLayer3d(false);
 
 const loadDemoBtn = document.getElementById("loadDemo");
 if (loadDemoBtn) loadDemoBtn.onclick = loadDemo;
@@ -3505,11 +3660,19 @@ window.__setSkin = () => layout();   // kept for the test scripts; the shell is 
 window.__collapse = () => document.getElementById("collapse").click();
 window.__demoState = () => demoState;          // absent | loading | loaded
 /* T27: the graph view as data, for the acceptance run. Opening it must not move the date or the
-   record, and nothing inside it may write the document. */
-window.__graph = () => ({ open: state.graph, started: viewerStarted, date: state.date, event: state.event,
+   record, and nothing inside it may write the document.
+   T28: `anatomy` is the 3D layer, `asked` is whether its question is on screen, and `models` counts
+   the files boot() has planned — the point being that opening the view leaves it at zero. */
+window.__graph = () => ({ open: state.graph, started: viewerStarted, anatomy: state.anatomy3d,
+                          asked: !document.getElementById("layerAsk").hidden,
+                          bytes: anatomyBytes(state.sex), date: state.date, event: state.event,
                           sel: state.sel, models: loadTotal });
 window.__openGraph = () => { setGraphView(true); return state.graph; };
 window.__closeGraph = () => { setGraphView(false); return state.graph; };
+window.__ask3d = () => { askLayer3d(true); return { shown: !document.getElementById("layerAsk").hidden,
+                                                   text: document.getElementById("layerAsk").innerText }; };
+window.__load3d = () => { document.getElementById("layerYes").click(); return viewerStarted; };
+window.__set3d = v => { setAnatomy3d(!!v); return state.anatomy3d; };
 window.__analyses = () => ANALYSES.map(a => a.id);
 window.__tl = () => ({ date: state.date, endYear: TL.endYear,
                        winFrom: TL.winFrom ? iso(TL.winFrom) : null,
