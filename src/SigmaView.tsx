@@ -311,9 +311,14 @@ export default function SigmaView({
     let occludersAt = 0
     let chase: ReturnType<typeof setTimeout> | null = null
     let chases = 0
-    const chromeOver = () => {
+    // What is over the map, as elements, so their geometry can be watched. `chromeOver` only runs
+    // during a draw, and folding the legend asks for no draw — the names then keep the placement
+    // they had against a legend that is no longer that size, and opening it again leaves one of
+    // them hanging out of the legend's edge, which reads as a label escaping the frame. Watching
+    // the panels closes that hole at the source instead of hoping something redraws.
+    const chromeEls = () => {
       const box = el.getBoundingClientRect()
-      const found: { x0: number; y0: number; x1: number; y1: number }[] = []
+      const found: HTMLElement[] = []
       if (!box.width || !box.height) return found
       let node: HTMLElement | null = el
       for (let depth = 0; depth < 3 && node?.parentElement; depth += 1) {
@@ -326,16 +331,24 @@ export default function SigmaView({
           if (r.right <= box.left || r.left >= box.right || r.bottom <= box.top || r.top >= box.bottom) {
             continue
           }
-          found.push({
-            x0: r.left - box.left,
-            y0: r.top - box.top,
-            x1: r.right - box.left,
-            y1: r.bottom - box.top,
-          })
+          found.push(child)
         }
         node = parent
       }
       return found
+    }
+    const chromeOver = () => {
+      const box = el.getBoundingClientRect()
+      if (!box.width || !box.height) return []
+      return chromeEls().map((child) => {
+        const r = child.getBoundingClientRect()
+        return {
+          x0: r.left - box.left,
+          y0: r.top - box.top,
+          x1: r.right - box.left,
+          y1: r.bottom - box.top,
+        }
+      })
     }
     const chromeKey = (list: { x0: number; y0: number; x1: number; y1: number }[]) =>
       list.map((o) => `${Math.round(o.x0)},${Math.round(o.y0)},${Math.round(o.x1)},${Math.round(o.y1)}`).join('|')
@@ -349,6 +362,43 @@ export default function SigmaView({
       canvas.style.width = `${w}px`
       canvas.style.height = `${h}px`
     }
+
+    // The panels over the map are watched rather than polled. A legend that folds, a node panel
+    // that opens or closes and a change of what lives inside them are all events, and any of them
+    // can change which pixels a name is allowed to touch — the 200 ms cycle below only runs while
+    // something is already drawing, so on its own it cannot notice a panel that moved and nothing
+    // else asked for a frame.
+    let chromeFrame: ReturnType<typeof setTimeout> | null = null
+    const redrawForChrome = () => {
+      if (chromeFrame) return
+      chromeFrame = setTimeout(() => {
+        chromeFrame = null
+        // Make the next draw re-measure the walls rather than reuse the cycle's copy.
+        occludersAt = 0
+        drawRef.current()
+      }, 60)
+    }
+    const watchedChrome = new Set<HTMLElement>()
+    const chromeRo = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(redrawForChrome)
+    const watchChrome = () => {
+      if (!chromeRo) return
+      for (const node of chromeEls()) {
+        if (watchedChrome.has(node)) continue
+        watchedChrome.add(node)
+        chromeRo.observe(node)
+      }
+    }
+    // A panel that arrives is a new element to observe; one that folds keeps its element and only
+    // changes size, which the ResizeObserver already reports.
+    const chromeMo =
+      typeof MutationObserver === 'undefined'
+        ? null
+        : new MutationObserver(() => {
+            watchChrome()
+            redrawForChrome()
+          })
+    watchChrome()
+    if (chromeMo && el.parentElement) chromeMo.observe(el.parentElement, { childList: true, subtree: true })
 
     const draw = () => {
       if (!ctx) return
@@ -636,6 +686,9 @@ export default function SigmaView({
       // Stop watching before the instance goes: a resize reported after `kill()` is a callback
       // on a dead renderer, and sigma answers it by throwing at a container it can no longer size.
       ro.disconnect()
+      chromeRo?.disconnect()
+      chromeMo?.disconnect()
+      if (chromeFrame) clearTimeout(chromeFrame)
       el.removeEventListener('mousemove', onMove)
       el.removeEventListener('mouseleave', onLeave)
       if (hoverFrame) cancelAnimationFrame(hoverFrame)
