@@ -28,8 +28,8 @@ three things is true — then it is yellow, and the title says which:
 
 1. `no_alternative: true` — there is nothing else to do;
 2. the note it hangs off is a **real** diagnosis — kind `condition`, status `active` or `resolved`,
-   confirmed **and** written by a doctor (`origin: "doctor"`). A suspected or generated diagnosis
-   is not one;
+   and an official note (`origin: "doctor"`, or `confirmed` with a doctor or a clinic named and no
+   `origin` at all). A suspected or generated diagnosis is not one;
 3. `applied: true` and `helped: true` — the reader used it and it helped.
 
 A known side effect is red and stays red: the escape rule is about model advice, not about danger.
