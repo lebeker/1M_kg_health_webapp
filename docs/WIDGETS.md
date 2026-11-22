@@ -11,7 +11,6 @@ Look at the wireframes in `docs/`:
 | `wireframe-health-v11-analysis.svg` | main view = analysis (lipid panel), right panel candidate |
 | `wireframe-health-v11b-diagnosis.svg` | main view = diagnosis, right panel candidate |
 | `wireframe-health-v11c-summary.svg` | main view = summary, right panel candidate |
-| `wireframe-health-v12-past-ghost.svg` | past date selected: right panel as a dimmed ghost copy (rejected 2026-11-22) |
 | `wireframe-health-v13-past-then-now.svg` | past date selected: the right panel with both states — solid then, paled now |
 
 All three share the same header, timeline and left column. Only column 2 changes.
