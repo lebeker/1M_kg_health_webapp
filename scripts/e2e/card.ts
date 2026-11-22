@@ -51,17 +51,31 @@ function quote(value: string): string {
   return `'${value.replace(/'/g, "''")}'`
 }
 
-function readKanbanCard(ref: string): Card {
-  const db = boardDb()
-  const where = TASK_ID.test(ref)
+function whereClause(ref: string): string {
+  return TASK_ID.test(ref)
     ? `id = ${quote(ref)}`
     : `id = (select id from tasks where title like ${quote(`${ref.toUpperCase()} —%`)} or title like ${quote(`${ref.toUpperCase()} -%`)} limit 1)`
-  const rows = sqliteJson(db, `select id, title, body from tasks where ${where}`)
+}
+
+function readKanbanCard(ref: string): Card {
+  const db = boardDb()
+  const rows = sqliteJson(db, `select id, title, body from tasks where ${whereClause(ref)}`)
   const row = rows[0]
   if (!row) {
     throw new Error(`no card '${ref}' on the board at ${db}`)
   }
   return { ...parseCard(String(row.body ?? ''), String(row.title ?? '')), id: String(row.id), source: 'kanban' }
+}
+
+/**
+ * Where the card sits on the board right now — `running`, `review`, `ready`, … — or `null` for a
+ * card that is a file. The harness reads it before it moves anything: a failure reopens a card
+ * that is waiting in `review`, and it does not try to move one a live worker is holding.
+ */
+export function cardStatus(ref: string): string | null {
+  if (!TASK_ID.test(ref) && !JIRA_KEY.test(ref)) return null
+  const rows = sqliteJson(boardDb(), `select status from tasks where ${whereClause(ref)}`)
+  return rows[0] ? String(rows[0].status ?? '') : null
 }
 
 function readFileCard(path: string): Card {

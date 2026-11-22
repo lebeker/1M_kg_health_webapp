@@ -79,6 +79,12 @@ model is not a check. So CI is the deterministic half of the loop, and the evide
 screenshot, a DOM and a `kg.json` in the card's own evidence directory, tied to the commit under
 review — not a green tick.
 
+**And G3 is not optional.** A passing run posts one `e2e` commit status on the exact head it built;
+`scripts/e2e/ci-gate.ts` runs inside the required `verify` check and fails a pull request whose diff
+moves the app surface without that receipt. A product branch without a run therefore cannot merge,
+and a card cannot honestly be called done. The surface is a path list (`appSurface()`), not a card's
+prose, because prose is what made the gate optional. `docs/E2E-GATE.md` is the contract.
+
 ## 3. Agentic e2e (G3)
 
 Not a unit test and not a screenshot diff: a fresh agent, no memory of the work, is asked to use the

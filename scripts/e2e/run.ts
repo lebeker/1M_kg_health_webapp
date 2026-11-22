@@ -17,8 +17,10 @@
  *     visible text, a sha256 over the live DOM, and a screenshot;
  *  5. replays that same `kg.json` inside the branch build, captures it the same way, and runs
  *     the acceptance scripts (`bun run verify`, the kg/1 contract over the agent's document);
- *  6. writes `report.json` next to the screenshots; on failure comments on the card with the
- *     screenshots and both transcripts attached, and exits 1.
+ *  6. writes `report.json` next to the screenshots and posts one `e2e` commit status on the head
+ *     it built, so CI can require the receipt; on a pass the numbers and the artifacts are
+ *     attached to the card, on a failure the card gets the transcripts, a red status and leaves
+ *     `review`; exits 1.
  *
  * The card's claim is the only thing that decides pass or fail. "It rendered" is not a claim.
  */
@@ -28,12 +30,13 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { homedir } from 'node:os'
 import { basename, join, resolve, sep } from 'node:path'
 import { capturePages, describeValues, type PageCapture } from './capture'
-import { type Card, missingPromptHelp, readCard } from './card'
+import { type Card, cardStatus, missingPromptHelp, readCard } from './card'
 import { findArtifacts, keepRoomCopy, prepareCleanRoom, runAgent } from './cleanroom'
 import type { ToolCall } from './hermes'
 import { inject } from './inject'
 import { worktreeState } from './git-state'
 import { captureScopeViolations, hostAppCalls, outsideRoomCalls } from './policy'
+import { onRemote, postStatus } from './status'
 
 type Check = { name: string; ok: boolean; detail: string; hard?: boolean }
 
@@ -56,6 +59,10 @@ type Options = {
   comment: boolean
   keepRoom: boolean
   timeoutMs: number
+  /** Post the `e2e` commit status that CI reads. Off only for a probe run. */
+  status: boolean
+  /** On failure, move the card out of `review` (or block it) instead of leaving it to merge. */
+  returnCard: boolean
 }
 
 function parseArgs(argv: string[]): Options {
@@ -71,6 +78,8 @@ function parseArgs(argv: string[]): Options {
     comment: true,
     keepRoom: false,
     timeoutMs: 15 * 60_000,
+    status: true,
+    returnCard: true,
   }
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]
@@ -104,6 +113,12 @@ function parseArgs(argv: string[]): Options {
         break
       case '--no-comment':
         options.comment = false
+        break
+      case '--no-status':
+        options.status = false
+        break
+      case '--no-return-card':
+        options.returnCard = false
         break
       case '--skip-verify':
         options.skipVerify = true
@@ -154,6 +169,8 @@ function printHelp() {
   --skip-build         reuse dist/index.html from an earlier build
   --skip-verify        do not run \`bun run verify\`
   --no-comment         never comment on the card, even on failure
+  --no-status          do not post the \`e2e\` commit status CI reads
+  --no-return-card     on failure, leave the card where it is (do not reopen or block it)
   --keep-room          copy the clean room into the evidence directory`)
 }
 
@@ -288,17 +305,107 @@ function printChecks(checks: Check[]) {
   }
 }
 
-function commentOnCard(taskId: string, body: string, files: string[]) {
+function kanban(args: string[]): { ok: boolean; output: string } {
   const binary = process.env.HERMES_BIN ?? 'hermes'
   const env = { ...process.env }
   delete env.HERMES_KANBAN_TASK
-  const comment = spawnSync(binary, ['kanban', 'comment', taskId, body], { encoding: 'utf8', env })
-  if (comment.status !== 0) console.error(`could not comment on ${taskId}: ${comment.stderr || comment.stdout}`)
+  const result = spawnSync(binary, ['kanban', ...args], { encoding: 'utf8', env })
+  return { ok: result.status === 0, output: `${result.stdout ?? ''}${result.stderr ?? ''}`.trim() }
+}
+
+function commentOnCard(taskId: string, body: string, files: string[]) {
+  const comment = kanban(['comment', taskId, body])
+  if (!comment.ok) console.error(`could not comment on ${taskId}: ${comment.output}`)
   for (const path of files) {
     if (!existsSync(path)) continue
-    const attach = spawnSync(binary, ['kanban', 'attach', taskId, path, '--name', basename(path)], { encoding: 'utf8', env })
-    if (attach.status !== 0) console.error(`could not attach ${path}: ${attach.stderr || attach.stdout}`)
+    const attach = kanban(['attach', taskId, path, '--name', basename(path)])
+    if (!attach.ok) console.error(`could not attach ${path}: ${attach.output}`)
   }
+}
+
+/**
+ * A red run leaves the card where it cannot merge: `review` goes back to the implementer, and a
+ * card a live worker is holding is blocked for a human rather than quietly left alone. The one
+ * thing a failed run never does is move a card toward `done` — `docs/DELIVERY-LOOP.md` §3, and
+ * the red `e2e` status it posts is what makes that true even if a worker ignores this.
+ */
+function returnCard(taskId: string, reason: string): string {
+  const status = cardStatus(taskId)
+  if (status === null) return 'file card — nothing to move'
+  if (status === 'review') {
+    const reopened = kanban(['reopen-review', taskId, '--reason', reason])
+    return reopened.ok ? 'card reopened from review to ready' : `could not reopen the card: ${reopened.output}`
+  }
+  if (status === 'running') {
+    const blocked = kanban(['block', taskId, '--kind', 'transient', reason])
+    return blocked.ok ? 'card blocked as transient while its worker still holds it' : `could not block the card: ${blocked.output}`
+  }
+  return `card is ${status}; left where it is`
+}
+
+/** `N nodes / M edges` as the page itself printed them, or the document's own count. */
+function pageCounts(capture: PageCapture, document: KgDocument): string {
+  const header = String((capture.values as PageValues).header ?? '')
+  const match = header.match(/(\d+)\s+nodes?\D+(\d+)\s+edges?/i)
+  if (match) return `${match[1]} nodes / ${match[2]} edges`
+  return `${document.nodes?.length ?? 0} nodes / ${document.edges?.length ?? 0} edges (document; no header read)`
+}
+
+function checkDetail(checks: Check[], name: string): string {
+  const check = checks.find((candidate) => candidate.name === name)
+  if (!check) return 'missing'
+  return `${check.ok ? 'ok' : 'FAILED'} — ${check.detail}`
+}
+
+/**
+ * What the card carries when the run passes. The reviewer should not have to open a directory to
+ * know whether the run happened or what it saw, so the numbers are in the comment and the
+ * artifacts are attached beside it.
+ */
+function evidenceBody(input: {
+  card: Card
+  branch: string
+  commit: string
+  dirty: boolean
+  evidence: string
+  document: KgDocument
+  captures: PageCapture[]
+  checks: Check[]
+  receipt: string
+}): string {
+  const lines = [
+    `G3 agentic e2e PASS — ${input.card.id} "${input.card.title}"`,
+    '',
+    `run: ${input.evidence}`,
+    `branch ${input.branch} @ ${input.commit.slice(0, 7)} (${input.dirty ? 'dirty worktree — not commit-bound' : 'clean tree'})`,
+    '',
+    'replay counts:',
+    ...input.captures.map((capture) => `- ${capture.label}: ${pageCounts(capture, input.document)}`),
+    '',
+    'DOM:',
+    ...input.captures.map((capture) => {
+      const values = capture.values as PageValues
+      return `- ${capture.label}: ${Number(values.domBytes ?? 0)} bytes, sha256 ${String(values.domSha256 ?? '')}`
+    }),
+    '',
+    'screenshots:',
+    ...input.captures.map((capture) => `- ${capture.label}: ${capture.screenshot || '(none)'}`),
+    '',
+    'claim:',
+    ...input.captures.flatMap((capture) => {
+      const values = capture.values as PageValues
+      const claim = Array.isArray(values.claim) ? values.claim : []
+      if (claim.length === 0) return [`- ${capture.label}: the card states no expected text`]
+      return claim.map((hit) => `- ${capture.label}: ${hit.found ? 'visible' : 'NOT visible'} — "${hit.needle}"`)
+    }),
+    '',
+    `policy.no-host-apps: ${checkDetail(input.checks, 'policy.no-host-apps')}`,
+    `policy.stays-in-room: ${checkDetail(input.checks, 'policy.stays-in-room')}`,
+    `capture.browser-only: ${checkDetail(input.checks, 'capture.browser-only')}`,
+    '',
+    `receipt: ${input.receipt}`,
+  ]
+  return lines.join('\n')
 }
 
 async function main() {
@@ -463,12 +570,46 @@ async function main() {
   }
   writeFileSync(join(evidence, 'report.json'), `${JSON.stringify(report, null, 2)}\n`)
 
+  /**
+   * The receipt. Posted only from here, only for the commit that was built: this is what
+   * `.github/workflows/verify.yml` requires on a product pull request, and a green receipt is the
+   * only thing that lets `verify` pass without a run. A run that did not build the commit has no
+   * business posting anything, so a dirty tree or a commit the remote has never seen is reported
+   * rather than stamped.
+   */
+  const receipt = (() => {
+    if (!options.status) return 'not posted (--no-status)'
+    if (dirty) return 'not posted — the worktree was dirty, so this run is not evidence of the commit'
+    if (!onRemote(worktree, commit)) return `not posted — ${commit.slice(0, 7)} is not on origin, so it has no pull request`
+    const state = failed.length === 0 ? 'success' : 'failure'
+    const what = failed.length === 0 ? 'PASS' : `${failed.length} failed: ${failed.map((check) => check.name).slice(0, 3).join(', ')}`
+    const posted = postStatus({
+      worktree,
+      sha: commit,
+      state,
+      description: `G3 ${what} — ${basename(evidence)}${failed.length === 0 ? ` — ${card.id}` : ''}`,
+    })
+    if (!posted.ok) return `NOT posted: ${posted.output.split('\n').slice(0, 2).join(' ')}`
+    return `e2e=${state} posted on ${commit.slice(0, 7)} (${basename(evidence)})`
+  })()
+  writeFileSync(join(evidence, 'status.txt'), `${receipt}\n`)
+  console.log(`status  ${receipt}`)
+
   console.log()
   printChecks(checks)
   console.log()
   if (failed.length === 0) {
     console.log(`PASS  ${card.id} — ${checks.length} checks, evidence in ${evidence}`)
     for (const capture of captures) console.log(`      ${capture.label}: ${describeValues(capture.values)} — ${capture.screenshot}`)
+    if (options.comment && card.source === 'kanban') {
+      const files = [
+        join(evidence, 'report.json'),
+        join(evidence, 'card.json'),
+        ...captures.map((page) => page.screenshot).filter(Boolean),
+        ...captures.map((page) => join(evidence, `${page.label}.values.json`)).filter((path) => existsSync(path)),
+      ]
+      commentOnCard(card.id, evidenceBody({ card, branch, commit, dirty, evidence, document, captures, checks, receipt }), files)
+    }
     process.exit(0)
   }
 
@@ -479,6 +620,7 @@ async function main() {
     '',
     `Prompt: "${card.prompt}"`,
     `Build: ${branch} @ ${commit.slice(0, 7)}${dirty ? ' (dirty worktree — not commit-bound)' : ''}; evidence: ${evidence}`,
+    `Receipt: ${receipt}`,
   ].join('\n')
   console.error(`FAIL  ${card.id} — ${failed.length} of ${checks.length} checks\n${message}`)
   if (options.comment && card.source === 'kanban') {
@@ -489,6 +631,10 @@ async function main() {
       join(evidence, 'report.json'),
     ]
     commentOnCard(card.id, message, files)
+    if (options.returnCard) {
+      const moved = returnCard(card.id, `G3 agentic e2e failed on ${commit.slice(0, 7)}: ${failed.map((check) => check.name).slice(0, 4).join(', ')} — evidence in ${evidence}`)
+      console.error(`card    ${moved}`)
+    }
   }
   process.exit(1)
 }
