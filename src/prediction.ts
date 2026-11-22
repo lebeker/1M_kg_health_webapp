@@ -31,8 +31,11 @@
  *   delta_median  what the estimate of this scale would move by, in that scale's unit, once the
  *                 condition is met. Median, not mean, and not a range: the interval belongs to the
  *                 paper the source names, not to this field.
- *   source        the citation or the document the forecast came from. Required: a forecast that
- *                 cannot be traced is a rumour with a date on it.
+ *   source        the id of the `document` node in this document that the forecast came from — the
+ *                 same field, and the same rule, as every other node's `source`. The citation itself
+ *                 (a PMID, a DOI, a URL) belongs to that document, which is what carries a date and
+ *                 an address a reader can open. Required: a forecast that cannot be traced is a
+ *                 rumour with a date on it.
  *   confidence    0..1, the trust in the delta.
  *
  * What this file deliberately does not do: read the document (that is `scripts/lib/kg-contract.ts`,
@@ -52,7 +55,7 @@ import { type Facts, type Predicate, type SkipReason, conditionProblems, evaluat
  */
 export const PREDICTION_FIELDS = ['target', 'horizon', 'condition', 'delta_median', 'source', 'confidence'] as const
 
-/** One loaded prediction. Exactly the six fields of the card plus the id and the label it is read by. */
+/** One loaded prediction: the six fields of the card, plus the id the row is read by. */
 export type Prediction = {
   id: string
   target: string

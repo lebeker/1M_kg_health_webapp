@@ -131,7 +131,7 @@ for, in a form a program can decide:
 | `horizon` | the date the forecast is about | without it the timeline cannot place the projection; a prediction carries **no** `when` — its date is the horizon, and the day it was made is the date printed on its document |
 | `condition` | the predicate that has to be met | it is the only thing that may let the number move; a forecast with no condition moves the estimate the day it is written |
 | `delta_median` | the change it would make, in the unit of the scale it adjusts | a number with no size is not a forecast |
-| `source` | the document or citation it came from | required on every kind but the document, and a forecast is no exception |
+| `source` | the id of a `document` node in this document — the paper, note or discharge letter the forecast came from, which is where the citation (PMID, DOI, URL) belongs | required on every kind but the document, and a forecast is no exception |
 | `confidence` | 0..1 | the reader has to know how much to trust the delta |
 
 The condition is **a predicate over the facts**, in the same vocabulary as a rule's `when`
@@ -144,7 +144,11 @@ The condition is **a predicate over the facts**, in the same vocabulary as a rul
 ```
 
 One comparison is `{fact, op, value}`; `all`, `any` and `not` compose them; `op` is one of
-`eq ne lt le gt ge in exists`. A condition is about facts — `age`, `on_statin`, `ldl_cholesterol` —
+`eq ne lt le gt ge in exists`. The shape of `value` follows the operator, and the schema decides it
+operator by operator exactly as `src/rules.ts` does: the six comparisons take one value — a number, a
+string or `true`/`false` — `in` takes a non-empty list of them, and `exists` takes **no** value at all
+because it asks only whether the fact is known. A document cannot pass the gate with a condition the
+loader would then refuse. A condition is about facts — `age`, `on_statin`, `ldl_cholesterol` —
 never about dates: dates live on nodes, and a condition that carried one would be the second kind
 of time this contract exists to prevent.
 

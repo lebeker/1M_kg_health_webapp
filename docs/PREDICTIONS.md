@@ -29,7 +29,7 @@ confidence; does not affect the estimate until its condition is met.* This is th
 | `horizon` | the date the forecast is about | it is the only date the node has — see "not an event" below |
 | `condition` | the predicate that has to be met before the delta may count | without it the number moves the day the document is written |
 | `delta_median` | the change it would make, in the unit of the scale it adjusts | a forecast with no size is a mood |
-| `source` | the document or citation | a number nobody can trace is a rumour with a date on it |
+| `source` | the id of a `document` node in this document — the paper, note or letter the forecast came from | a number nobody can trace is a rumour with a date on it |
 | `confidence` | 0..1 | the reader has to know how much to trust the delta |
 
 `src/prediction.ts` (`PREDICTION_FIELDS`) and the schema's `$defs.node[prediction].required` are the
@@ -65,7 +65,11 @@ schema's `$defs.predicate`, evaluated by `src/rules.ts`:
                       { "not": { "fact": "current_smoker", "op": "eq", "value": true } } ] } ] }
 ```
 
-`op` is one of `eq ne lt le gt ge in exists`; `all`, `any` and `not` compose comparisons. A condition
+`op` is one of `eq ne lt le gt ge in exists`; `all`, `any` and `not` compose comparisons. `value`
+follows the operator: one value for the six comparisons, a non-empty list for `in`, and nothing at all
+for `exists`, which asks only whether the fact is known. The schema and `conditionProblems` decide
+that shape the same way, so a condition that passes `bun run test:contract` is one the loader reads —
+`scripts/kg-contract.test.ts` pins both readers against one table of shapes. A condition
 is about facts — `age`, `on_statin`, `ldl_cholesterol` — never about dates. Dates live on nodes, and a
 condition with a date in it would be the second kind of time this contract warns about.
 
@@ -130,17 +134,24 @@ call.
   negation over an unknown fact and the "any file order, same number" check.
 - `bun run test:contract` — five invalid fixtures (`prediction-without-condition`, `prediction-with-when`,
   `prediction-target-not-in-document`, `prediction-horizon-before-its-document`,
-  `prediction-condition-as-prose`) that must be rejected, and the two valid documents that now carry
-  a full forecast (`health-man-65.json`, `health-prediction.json`).
+  `prediction-condition-as-prose`) that must be rejected, the two valid documents that now carry a
+  full forecast (`health-man-65.json`, `health-prediction.json`), and one table of condition shapes
+  that the schema and `conditionProblems` both have to accept, and one they both have to refuse —
+  so the gate's condition language cannot drift away from the loader's.
 - `bun run verify` — everything above plus lint, types, the branch-name self-test and the build.
 
 ## What comes next
 
 - **T19, five built-in strategies** (SCRUM-30): statin/LDL, smoking, colonoscopy, HbA1c, blood
-  pressure — each with a PMID and an interval, which is what `source` and `delta_median` are shaped
-  for.
+  pressure — each with a PMID and an interval. The PMID and the interval do not go in the
+  prediction: `source` is the id of a `document` node, so a strategy writes (or reuses) the `document`
+  node that carries the citation and its date, and points `source` at it; `delta_median` carries only
+  the median change, because the published interval belongs to the document the strategy cites, not
+  to this field.
 - **T22, the `add-prediction` skill** (SCRUM-33): PubMed → HR + CI → cohort check → node, refusing
-  without a PMID, and the forecast stays `not confirmed` until a human reads it.
+  without a PMID — recorded on the `document` node it writes next to the prediction, which is the
+  only place in this contract a PMID can live — and the forecast stays `not confirmed` until a human
+  reads it.
 - **The history.** When a condition is met, the estimate moves and the history has to say which
   prediction moved it (the plan's P1 snapshot work, T08/T13, still parked). The gate already returns
   the `applied` rows that make that sentence writable.

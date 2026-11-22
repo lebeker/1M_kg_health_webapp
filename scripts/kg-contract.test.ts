@@ -13,6 +13,7 @@ import {
   validateKg,
 } from './lib/kg-contract'
 import { PREDICTION_FIELDS } from '../src/prediction'
+import { conditionProblems } from '../src/rules'
 
 const FIXTURES = 'tests/fixtures/kg'
 const read = (rel: string): unknown => JSON.parse(readFileSync(join(FIXTURES, rel), 'utf8'))
@@ -363,6 +364,12 @@ describe('a prediction is a simulation, not a fact', () => {
     ['condition in prose', (doc) => (pred(doc).condition = 'if he takes a statin'), 'must be an object'],
     ['empty condition object', (doc) => (pred(doc).condition = {}), 'missing "fact"'],
     ['condition with an unknown operator', (doc) => (pred(doc).condition = { fact: 'x', op: 'roughly' }), 'must be one of: eq'],
+    // The value of a comparison is decided by its operator, in the schema and in the engine alike.
+    ['condition that is an `exists` with a value', (doc) => (pred(doc).condition = { fact: 'on_statin', op: 'exists', value: 1 }), 'exists takes no value'],
+    ['condition that gives a comparison a list', (doc) => (pred(doc).condition = { fact: 'ldl_cholesterol', op: 'eq', value: [1, 2] }), 'must be a number'],
+    ['condition that names an operator and no value', (doc) => (pred(doc).condition = { fact: 'ldl_cholesterol', op: 'eq' }), 'missing "value"'],
+    ['condition that is an `in` with a single value', (doc) => (pred(doc).condition = { fact: 'ldl_cholesterol', op: 'in', value: 5 }), 'must be an array'],
+    ['condition that is an `in` with an empty list', (doc) => (pred(doc).condition = { fact: 'ldl_cholesterol', op: 'in', value: [] }), 'at least 1 item'],
     ['delta_median as a string', (doc) => (pred(doc).delta_median = 'a bit'), 'must be a number'],
     ['confidence above 1', (doc) => (pred(doc).confidence = 1.4), 'must be at most 1'],
   ]
@@ -393,6 +400,63 @@ describe('a prediction is a simulation, not a fact', () => {
     }
     expect(validateKg(doc)).toEqual([])
   })
+
+  /**
+   * The failure this table exists for: a document that passes `bun run test:contract` and then makes
+   * `loadPredictions` throw. The schema's `$defs.predicate` and the engine's `conditionProblems` are
+   * one language read by two readers, so every shape has to get the same answer from both — an
+   * `exists` carries no value, `in` takes a list and only `in` does, and a comparison needs a value.
+   * Each row is one shape; a row that changes side fails the test that names it. The fourth column is
+   * what the reader is told on the schema's side as well (`null` where the schema names the missing
+   * shape rather than the operator's error) — the two voices differ in wording, never in verdict.
+   */
+  const withCondition = (condition: unknown): ReturnType<typeof forecast> => {
+    const doc = forecast()
+    pred(doc).condition = condition
+    return doc
+  }
+
+  const acceptedByBoth: Array<[string, unknown]> = [
+    ['eq with a boolean', { fact: 'on_statin', op: 'eq', value: true }],
+    ['gt with a number', { fact: 'age', op: 'gt', value: 40 }],
+    ['ne with a string', { fact: 'sex', op: 'ne', value: 'male' }],
+    ['in with a list of mixed scalars', { fact: 'sex', op: 'in', value: ['male', 'female', 1, true] }],
+    ['exists with no value', { fact: 'on_statin', op: 'exists' }],
+    ['a group of groups', { all: [{ any: [{ fact: 'a', op: 'exists' }] }, { not: { fact: 'b', op: 'le', value: 2 } }] }],
+  ]
+
+  const refusedByBoth: Array<[string, unknown, string, string | null]> = [
+    ['exists that carries a value', { fact: 'on_statin', op: 'exists', value: 1 }, 'exists takes no value', 'exists takes no value'],
+    ['a comparison given a list', { fact: 'sex', op: 'eq', value: ['male'] }, 'must be a number', 'must be a number'],
+    ['a comparison with no value', { fact: 'sex', op: 'eq' }, 'must be a number', 'missing "value"'],
+    ['a comparison with a null value', { fact: 'sex', op: 'eq', value: null }, 'must be a number', 'must be a number'],
+    ['in given a single value', { fact: 'sex', op: 'in', value: 'male' }, 'in takes a non-empty list', 'must be an array'],
+    ['in with no value', { fact: 'sex', op: 'in' }, 'in takes a non-empty list', 'missing "value"'],
+    ['in with an empty list', { fact: 'sex', op: 'in', value: [] }, 'in takes a non-empty list', 'at least 1 item'],
+    ['in with an object in the list', { fact: 'sex', op: 'in', value: [{ sex: 'male' }] }, 'in takes a non-empty list', 'must be a number'],
+    ['a leaf key that is not fact, op or value', { fact: 'age', op: 'eq', value: 40, weight: 2 }, 'unknown key "weight"', 'not part of the contract'],
+    ['an empty fact name', { fact: '', op: 'eq', value: 1 }, 'a comparison names one fact', 'must not be empty'],
+    ['an empty all', { all: [] }, 'can never fire', null],
+    ['an empty any', { any: [] }, 'can never fire', null],
+  ]
+
+  for (const [name, condition] of acceptedByBoth) {
+    test(`the schema and the engine both accept ${name}`, () => {
+      expect(conditionProblems(condition, '$.condition')).toEqual([])
+      expect(validateKg(withCondition(condition))).toEqual([])
+    })
+  }
+
+  for (const [name, condition, engineSays, schemaSays] of refusedByBoth) {
+    test(`the schema and the engine both refuse ${name}`, () => {
+      expect(conditionProblems(condition, '$.condition').join(' | ')).toContain(engineSays)
+      const issues = validateKg(withCondition(condition))
+      expect(issues.length).toBeGreaterThan(0)
+      if (schemaSays !== null) {
+        expect(issues.map((issue) => issue.message).join(' | ')).toContain(schemaSays)
+      }
+    })
+  }
 
   test('an interval document date is compared by the day it starts', () => {
     const doc = forecast()
