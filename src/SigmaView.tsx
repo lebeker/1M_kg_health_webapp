@@ -9,6 +9,8 @@ import {
   createEdgeArrowProgram,
 } from 'sigma/rendering'
 import { type Halo, type Kg, edgeDash, edgePx, edgeShape, pxSize, relationOf } from './kg'
+import { type LabelCandidate, placeLabels } from './labelFit'
+import { fitBox } from './fit'
 
 type Props = {
   kg: Kg
@@ -84,6 +86,14 @@ const SHAPES: Record<string, unknown> = {
 /** The ramp the calibration walks: node counts it shows, and holds, for a few frames each. */
 const RAMP = [200, 400, 800, 1500, 2500, 4000, 6000, 9000, 13000, 18000, 25000]
 
+/** Air between the drawing and the frame after a fit, in px. */
+const FIT_MARGIN = 20
+
+/** One font for every name the 2D view draws: standing labels and the hover tooltip. */
+const LABEL_FONT = '12px ui-sans-serif, system-ui, -apple-system, sans-serif'
+/** The height of one such line, in px: the box a label reserves. */
+const LABEL_LINE = 14
+
 /** The two palettes the canvas has to know about. Everything else reads a CSS variable. */
 const CANVAS = {
   dark: {
@@ -91,6 +101,7 @@ const CANVAS = {
     edge: '#525c6b',
     dim: '#333842',
     dash: 'rgba(96,106,124,0.75)',
+    label: '#c7ccd6',
     tipBg: 'rgba(16,19,25,0.94)',
     tipFg: '#e3e9f4',
     tipLine: 'rgba(130,150,180,0.35)',
@@ -100,6 +111,7 @@ const CANVAS = {
     edge: '#b9c0cc',
     dim: '#cdd3dc',
     dash: 'rgba(150,160,175,0.95)',
+    label: '#1b1f27',
     tipBg: 'rgba(255,255,255,0.97)',
     tipFg: '#1b1f27',
     tipLine: '#d0d6e0',
@@ -133,6 +145,9 @@ export default function SigmaView({
   const onFirstFrameRef = useRef(onFirstFrame)
   onFirstFrameRef.current = onFirstFrame
   const sigma = useRef<Sigma | null>(null)
+  /** The container size the camera was last fitted in, so a fit made against a zero-width host
+   * can be redone the moment the host has a size. */
+  const fitAt = useRef({ width: 0, height: 0 })
   const selRef = useRef<string | null>(selected)
   /** The node under the pointer: its name is the only label 2D draws, and only then. */
   const hoverNodeRef = useRef<string | null>(null)
@@ -153,20 +168,48 @@ export default function SigmaView({
   halosOnRef.current = halosOn !== false
   hiddenRef.current = hidden ?? new Set()
 
-  // Fit, then back off a little: sigma's reset fits node centres, so a big circle or a
-  // label at the edge of the frame ends up half outside it.
-  // The first frame is the final one: an animated reset means every reload passes through a
-  // different in-between state, and a reader refreshing the page sees the map rotate and some
+  // Fit, and this is a measurement rather than sigma's `animatedReset`: that call sets the camera
+  // to the middle of sigma's normalized unit square, which on a 1280x497 canvas left the drawing
+  // in the middle 40% of the width with the height half unused — and the old 1.15 backoff took
+  // another 13% off the top. fit.ts unions the circles that are actually drawn and says how much
+  // the picture has to grow for that box to touch the frame, less a margin, on its tightest axis.
+  // The first frame is the final one: an animated fit means every reload passes through a
+  // different in-between state, and a reader refreshing the page sees the map move while some
   // labels and hairlines come and go. A fit someone presses stays animated; a fit on load is
   // instant.
-  const fitCamera = (cam: ReturnType<Sigma['getCamera']>, animate = false) => {
-    const back = () => {
-      const state = cam.getState()
-      cam.setState({ ...state, ratio: state.ratio * 1.15 })
-    }
-    // Duration 0 on load: the same end state, reached without a visible zoom that a refresh can
-    // catch halfway. A press of "fit" keeps the ease because the reader asked to watch it.
-    cam.animatedReset({ duration: animate ? 320 : 0 }).then(back).catch(() => {})
+  const fitCamera = (s: Sigma, animate = false) => {
+    const dims = s.getDimensions()
+    if (!dims.width || !dims.height) return
+    const g = s.getGraph()
+    if (!g.order) return
+    const cam = s.getCamera()
+    const ratio0 = cam.getState().ratio || 1
+    // Render once before measuring. `graphToViewport` answers from the matrix the last render
+    // built, and between renders the camera and the container both move — the panel opening is
+    // 240 px of container and the focus animation is a ratio in flight. A fit computed from that
+    // matrix is a fit of a picture that is no longer on screen; a measured fresh one is the
+    // picture the reader is looking at.
+    s.refresh()
+    const points: { x: number; y: number; r: number }[] = []
+    g.forEachNode((id, a) => {
+      if (hiddenRef.current.has(id) || calRef.current.has(id)) return
+      if (typeof a.x !== 'number' || typeof a.y !== 'number') return
+      const shown = s.getNodeDisplayData(id) as { size?: number } | undefined
+      const at = s.graphToViewport({ x: a.x, y: a.y })
+      // The radius sigma paints is `size / 2 / ratio` px.
+      points.push({ x: at.x, y: at.y, r: (shown?.size ?? 4) / (2 * ratio0) })
+    })
+    const box = fitBox(points, dims, FIT_MARGIN)
+    if (!box) return
+    // The camera lives in sigma's normalized space, and its ratio is the inverse of the growth:
+    // a smaller ratio is closer in.
+    const atCentre = s.viewportToGraph({ x: box.cx, y: box.cy }, {})
+    const centre = normalizer(g)(atCentre.x, atCentre.y)
+    const ratio = box.zoom > 0 ? ratio0 / box.zoom : ratio0
+    const target = { x: centre.x, y: centre.y, ratio, angle: 0 }
+    fitAt.current = { width: dims.width, height: dims.height }
+    if (animate) cam.animate(target, { duration: 320 }).catch(() => {})
+    else cam.setState(target)
   }
 
   useEffect(() => {
@@ -185,11 +228,12 @@ export default function SigmaView({
       // sigma draws its own hover pill (white, centred) unless told not to: the tooltip below is
       // the one this app owns, and two names for one node is one too many.
       defaultDrawNodeHover: () => {},
-      // `Infinity` renders none — the hover pill below is then the only name on the map. With
-      // labels "on", sigma draws them all and the hover pill steps aside.
-      labelRenderedSizeThreshold: labels === 'on' ? 0 : Number.POSITIVE_INFINITY,
-      labelDensity: 1,
-      labelGridCellSize: 70,
+      // Sigma never draws a standing label here. Its label pass keeps the first `labelDensity`
+      // candidates in each 70 px cell without ever measuring one, so on a real record the
+      // sentences in the dense cluster were drawn on top of each other. Both modes that show a
+      // name draw it in the overlay below: hover as a tooltip, "on" through labelFit.ts, which
+      // measures the boxes and drops what cannot be placed.
+      labelRenderedSizeThreshold: Number.POSITIVE_INFINITY,
       labelSize: 12,
       minCameraRatio: 0.01,
       maxCameraRatio: 20,
@@ -235,7 +279,7 @@ export default function SigmaView({
     // the other shapes a document may name by hand, which sigma does not register at all.
     const reg = instance as unknown as { registerEdgeProgram: (t: string, p: unknown) => void }
     for (const [name, program] of Object.entries(SHAPES)) reg.registerEdgeProgram(name, program)
-    fitCamera(instance.getCamera())
+    fitCamera(instance)
 
     // ── the overlay ────────────────────────────────────────────────────────────────────────
     // What the GL pipeline cannot do, drawn in 2D on top of it: dashes and dots (any pattern,
@@ -246,6 +290,69 @@ export default function SigmaView({
     el.appendChild(canvas)
     const ctx = canvas.getContext('2d')
 
+    // Measuring is the expensive half of placing a name, and a record repeats its words ("City
+    // Lab" appears in half the labels): measure each distinct string once per mounted view.
+    const widths = new Map<string, number>()
+    const measureLabel = (text: string) => {
+      const known = widths.get(text)
+      if (known !== undefined) return known
+      const w = ctx ? ctx.measureText(text).width : text.length * 7
+      widths.set(text, w)
+      return w
+    }
+
+    // What the page has painted over the canvas — the legend, the node panel — in canvas px. A
+    // name under the legend is a name nobody can read, so the label pass treats these as walls.
+    // Re-measured on a short cycle rather than every frame (reading rects forces layout), and a
+    // change in what is over the map buys one redraw: the first frame is drawn under the
+    // "laying out" sheet, and names placed against that sheet would be missing until the reader
+    // happened to touch the map.
+    let occluders: { x0: number; y0: number; x1: number; y1: number }[] = []
+    let occludersAt = 0
+    let chase: ReturnType<typeof setTimeout> | null = null
+    let chases = 0
+    // What is over the map, as elements, so their geometry can be watched. `chromeOver` only runs
+    // during a draw, and folding the legend asks for no draw — the names then keep the placement
+    // they had against a legend that is no longer that size, and opening it again leaves one of
+    // them hanging out of the legend's edge, which reads as a label escaping the frame. Watching
+    // the panels closes that hole at the source instead of hoping something redraws.
+    const chromeEls = () => {
+      const box = el.getBoundingClientRect()
+      const found: HTMLElement[] = []
+      if (!box.width || !box.height) return found
+      let node: HTMLElement | null = el
+      for (let depth = 0; depth < 3 && node?.parentElement; depth += 1) {
+        const parent: HTMLElement = node.parentElement
+        for (const child of Array.from(parent.children)) {
+          // The canvas itself, and any wrapper of it, is what is being drawn on, not over.
+          if (child === node || !(child instanceof HTMLElement) || child.contains(el)) continue
+          const r = child.getBoundingClientRect()
+          if (r.width < 4 || r.height < 4) continue
+          if (r.right <= box.left || r.left >= box.right || r.bottom <= box.top || r.top >= box.bottom) {
+            continue
+          }
+          found.push(child)
+        }
+        node = parent
+      }
+      return found
+    }
+    const chromeOver = () => {
+      const box = el.getBoundingClientRect()
+      if (!box.width || !box.height) return []
+      return chromeEls().map((child) => {
+        const r = child.getBoundingClientRect()
+        return {
+          x0: r.left - box.left,
+          y0: r.top - box.top,
+          x1: r.right - box.left,
+          y1: r.bottom - box.top,
+        }
+      })
+    }
+    const chromeKey = (list: { x0: number; y0: number; x1: number; y1: number }[]) =>
+      list.map((o) => `${Math.round(o.x0)},${Math.round(o.y0)},${Math.round(o.x1)},${Math.round(o.y1)}`).join('|')
+
     const sizeCanvas = () => {
       const dpr = window.devicePixelRatio || 1
       const w = el.clientWidth
@@ -255,6 +362,43 @@ export default function SigmaView({
       canvas.style.width = `${w}px`
       canvas.style.height = `${h}px`
     }
+
+    // The panels over the map are watched rather than polled. A legend that folds, a node panel
+    // that opens or closes and a change of what lives inside them are all events, and any of them
+    // can change which pixels a name is allowed to touch — the 200 ms cycle below only runs while
+    // something is already drawing, so on its own it cannot notice a panel that moved and nothing
+    // else asked for a frame.
+    let chromeFrame: ReturnType<typeof setTimeout> | null = null
+    const redrawForChrome = () => {
+      if (chromeFrame) return
+      chromeFrame = setTimeout(() => {
+        chromeFrame = null
+        // Make the next draw re-measure the walls rather than reuse the cycle's copy.
+        occludersAt = 0
+        drawRef.current()
+      }, 60)
+    }
+    const watchedChrome = new Set<HTMLElement>()
+    const chromeRo = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(redrawForChrome)
+    const watchChrome = () => {
+      if (!chromeRo) return
+      for (const node of chromeEls()) {
+        if (watchedChrome.has(node)) continue
+        watchedChrome.add(node)
+        chromeRo.observe(node)
+      }
+    }
+    // A panel that arrives is a new element to observe; one that folds keeps its element and only
+    // changes size, which the ResizeObserver already reports.
+    const chromeMo =
+      typeof MutationObserver === 'undefined'
+        ? null
+        : new MutationObserver(() => {
+            watchChrome()
+            redrawForChrome()
+          })
+    watchChrome()
+    if (chromeMo && el.parentElement) chromeMo.observe(el.parentElement, { childList: true, subtree: true })
 
     const draw = () => {
       if (!ctx) return
@@ -359,6 +503,73 @@ export default function SigmaView({
         })
       }
 
+      // Names, when the reader asked for them. Each one is measured and checked against what is
+      // already on the canvas (labelFit.ts): a name that would land on another name, on a node,
+      // or off the frame is dropped, because a second layer of grey text over grey text explains
+      // nothing. Weight decides who is asked first, so the node the map is about keeps its name.
+      if (labels === 'on') {
+        const sel = selRef.current
+        const candidates: LabelCandidate[] = []
+        kg.graph.forEachNode((id, a) => {
+          if (!visible(id)) return
+          // With something selected the rest of the map is dimmed and unsaid; a standing name
+          // there would undo the selection.
+          const text = sel && id !== sel ? '' : String(a.label ?? '')
+          if (!text) return
+          const p = at(a.x as number, a.y as number)
+          candidates.push({
+            id,
+            x: p.x,
+            y: p.y,
+            r: radius(id),
+            text,
+            priority: id === sel ? Number.MAX_SAFE_INTEGER : typeof a.weight === 'number' ? a.weight : 0,
+          })
+        })
+        ctx.save()
+        ctx.font = LABEL_FONT
+        if (Date.now() - occludersAt > 200) {
+          const next = chromeOver()
+          if (chromeKey(next) !== chromeKey(occluders)) {
+            // Something was put over the map, or taken off it. One redraw after the dust settles
+            // is enough to place the names against what is actually there.
+            if (chase) clearTimeout(chase)
+            if (chases < 5) {
+              chases += 1
+              chase = setTimeout(() => {
+                chase = null
+                drawRef.current()
+              }, 240)
+            }
+          } else {
+            chases = 0
+          }
+          occluders = next
+          occludersAt = Date.now()
+        }
+        const placed = placeLabels(candidates, {
+          width: canvas.width / dpr,
+          height: canvas.height / dpr,
+          measure: measureLabel,
+          gap: 5,
+          edge: 2,
+          lineHeight: LABEL_LINE,
+          occluders,
+        })
+        ctx.textBaseline = 'middle'
+        ctx.fillStyle = CANVAS[theme].label
+        for (const l of placed) ctx.fillText(l.text, l.x, Math.round(l.y) + 0.5)
+        ctx.restore()
+        // What was drawn, on the element: a reviewer can tell "labels on" from "labels on with
+        // nothing colliding" without counting pixels. The placed boxes are the handle a test
+        // reads: "no two of these overlap" is a claim about numbers, not about a screenshot.
+        el.setAttribute('data-labels-drawn', String(placed.length))
+        ;(el as unknown as { __labels__?: typeof placed }).__labels__ = placed
+      } else if (el.hasAttribute('data-labels-drawn')) {
+        el.removeAttribute('data-labels-drawn')
+        ;(el as unknown as { __labels__?: unknown[] }).__labels__ = []
+      }
+
       // The name of whatever the reader is pointing at. Drawn here, not by sigma, because a
       // label that follows the cursor has to escape the label-density rule that governs the map.
       const pointed = hoverNodeRef.current
@@ -368,7 +579,7 @@ export default function SigmaView({
           const p = point(pointed)
           const r = radius(pointed)
           ctx.save()
-          ctx.font = '12px ui-sans-serif, system-ui, -apple-system, sans-serif'
+          ctx.font = LABEL_FONT
           ctx.textBaseline = 'middle'
           const padX = 7
           const padY = 5
@@ -458,6 +669,11 @@ export default function SigmaView({
       if (!el.clientWidth || !el.clientHeight) return
       sizeCanvas()
       safeResize()
+      // A fit made while the host had no size (the 3D toggle unmounts this view, and the graph
+      // view can be opened before the layout has run) is a fit of nothing: redo it the moment the
+      // host is real. Once a real fit exists the camera is the reader's, and a resize leaves it
+      // alone.
+      if (fitAt.current.width < 8 || fitAt.current.height < 8) fitCamera(instance)
       draw()
     })
     ro.observe(el)
@@ -470,9 +686,13 @@ export default function SigmaView({
       // Stop watching before the instance goes: a resize reported after `kill()` is a callback
       // on a dead renderer, and sigma answers it by throwing at a container it can no longer size.
       ro.disconnect()
+      chromeRo?.disconnect()
+      chromeMo?.disconnect()
+      if (chromeFrame) clearTimeout(chromeFrame)
       el.removeEventListener('mousemove', onMove)
       el.removeEventListener('mouseleave', onLeave)
       if (hoverFrame) cancelAnimationFrame(hoverFrame)
+      if (chase) clearTimeout(chase)
       canvas.remove()
       sigma.current = null
       drawRef.current = () => {}
@@ -587,7 +807,7 @@ export default function SigmaView({
     } catch (err) {
       console.warn('sigma resize failed:', err)
     }
-    fitCamera(s.getCamera(), fitSignal > 0)
+    fitCamera(s, fitSignal > 0)
   }, [fitSignal, insetRight])
 
   // Follow a connection: put that node in the middle. The canvas is already narrower than the
@@ -635,8 +855,9 @@ export default function SigmaView({
       // how many rings are on screen, not how many nodes wear them — and none when they are off
       data-rings={halosOn === false ? 0 : [...(halos?.values() ?? [])].reduce((n, k) => n + k.length, 0)}
       data-halos={halosOn === false ? 'off' : 'on'}
-      // Names are drawn on hover, not standing: a field map's labels are sentences.
-      data-labels="tooltip"
+      // What mode the names are in — "on" draws them standing (labelFit.ts decides which ones
+      // fit), "hover" a tooltip under the pointer, "off" neither.
+      data-labels={labels}
       style={insetRight ? { width: `calc(100% - ${insetRight}px)` } : undefined}
     >
       {progress ? (
