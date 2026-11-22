@@ -2484,7 +2484,8 @@ const KGDATA = (() => {
    no analyses, an empty ruler — never somebody else's labs as the default start.
 
    Neither path is user data. Nothing on this page writes to storage, so loading the demo leaves
-   an empty record of the reader's own (the seed of T23). */
+   an empty record of the reader's own. `scripts/demo-user.test.ts` (T23) runs this load against
+   the artifact in a clean workspace and holds that: no key written, no profile taken. */
 
 /* Which nodes get a mark on the ruler and a row in the legend: something with a number and an
    organ. In the health contract that is an `observation` — one value, or a panel in `values` —

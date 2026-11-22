@@ -5,7 +5,9 @@ file when the reader presses **load demo**; a clean start is an empty page and a
 
 It is deliberately an artifact and not part of the page: somebody else's lab results must never
 be what a new reader sees first. Nothing here is saved — the page has no write path — so loading
-the demo leaves a clean reader with an empty record of their own (the seed of card T23).
+the demo leaves a clean reader with an empty record of their own. `scripts/demo-user.test.ts`
+(T23) runs the page's own `loadDemo` against this file in a clean stub workspace and holds
+that: no key written, no profile taken, nothing to clean up afterwards.
 
 The path is page-relative (`demo/graph.json` from `body/index.html`), so the page works from its
 own directory on any static host — GitHub Pages, `python3 -m http.server` at the repo root —
@@ -64,4 +66,5 @@ Two things the event model deliberately cannot carry here, so they are not faked
 ```
 bun scripts/validate-kg-fixtures.ts body/demo/graph.json   # the contract, over this file
 bun test scripts/demo-artifact.test.ts                    # the counts, the span, the page's grip on it
+bun test scripts/demo-user.test.ts                        # loading it writes nothing (T23)
 ```
