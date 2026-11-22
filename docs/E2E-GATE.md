@@ -33,7 +33,7 @@ own entry document, and the builder that writes the demo artifact.
 | `body/` | the page: header, timeline, columns, centre, right panel, the anatomy models it loads, the demo build and its artifact |
 | `src/` | the graph view and the node panel |
 | `index.html` | the graph page's entry document, which the viewer mounts into |
-| `scripts/build-demo.ts` | the demo build: the builder that writes `body/demo.html` |
+| `scripts/build-demo.ts` | the case build: the builder that writes `dist/demo.html` |
 | `app.json` | the demo build: the app manifest |
 | `package.json`, the lockfile, `vite.config.*`, `tsconfig.json` | the build itself |
 

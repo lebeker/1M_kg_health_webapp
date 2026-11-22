@@ -97,10 +97,12 @@ The shipped viewer inlines the document:
 
 because a page opened from `file://` cannot `fetch()` a sidecar. Whatever produces the final page
 replaces that text and changes nothing else. `body/index.html` is that template, placeholder included,
-and never fetches a document. The demo is an artifact built from `body/demo/kg_demo.json`:
-`bun scripts/build-demo.ts` writes the invented case (`meta.demo: true`) into the placeholder and
-produces `body/demo.html`. A renderer does the same for the reader's own document; that page draws
-what it was handed, so a document with no records still starts empty.
+and never fetches a document. The case page is an artifact built from `kg_demo.json`:
+`bun run build:demo` writes that document into the placeholder and produces `dist/demo.html`, with the
+page's own `lib/` beside it so it opens from `file://`. Nothing about the page changes with the data —
+same head, same scripts, same styles — and a renderer does the same for the reader's own document.
+With a document in hand the page opens on its latest record; with no document it has no record to
+open and the centre stays closed, so the template still starts empty.
 
 The right panel (widgets 19–25) and the drift view are parked, so no score or forecast an engine
 computes is drawn yet: the ruler shades future years with the page's own `annualRisk(age)`, which is not

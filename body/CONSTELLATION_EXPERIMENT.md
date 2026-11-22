@@ -106,7 +106,7 @@ With no embedded graph, `fixture.js` supplies the heart, left ventricle, right a
 valve, hypertension, ECG, echocardiogram, beta-blocker and cardiologist. The heart initially has
 8 adjacent records. A retinopathy example links the eye to a condition shared with the heart's
 hypertension neighbourhood. Organ anchors are added from the manifest. Fixture records are
-explicitly demonstration data, not a patient's history or treatment recommendations.
+explicitly example data, not a patient's history or treatment recommendations.
 
 ## Async store interface
 
@@ -131,9 +131,9 @@ self-links, and deduplicate identical `(from, to, kind)` triples. Writing storag
 publishing the updated state. A full or unavailable store causes the edit to reject visibly;
 failed atomic creation never leaves an orphan node behind.
 
-Storage uses `health-map:kg1:v1:demo` for the fixture and a deterministic source-specific key
+Storage uses `health-map:kg1:v1:fixture` for the fixture and a deterministic source-specific key
 for each embedded graph. It survives reloads on the same browser origin. No graph is uploaded.
-Reset demo edits by removing that one key from browser storage. Changes on another origin or
+Reset example edits by removing that one key from browser storage. Changes on another origin or
 another device are separate; there is no synchronisation or multi-user conflict handling yet.
 
 **Add a connection** opens the editor. Choose a name, type, relation, target record, and note,

@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'bun:test'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
 /**
  * T23 — demo ≠ user, on the template/artifact split (T01).
  *
- * Somebody else's labs must never end up in the reader's own record. The demo is an artifact built
- * from `body/demo/kg_demo.json`; the template a reader's page is rendered from carries only the
- * `#kg-graph` placeholder. Neither has a write path, so opening the demo cannot put anything into a
- * profile — but that is a claim about code, and a claim about code is worth exactly the check that
- * runs it.
+ * Somebody else's labs must never end up in the reader's own record. The case page is an artifact
+ * built from `kg_demo.json`; the template a reader's page is rendered from carries only the
+ * `#kg-graph` placeholder. Neither has a write path, so opening the built page cannot put anything
+ * into a profile — but that is a claim about code, and a claim about code is worth exactly the
+ * check that runs it.
  *
  * Two things are executed here, out of the page itself:
  *
@@ -25,10 +25,15 @@ import { readFileSync } from 'node:fs'
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 const template = read('body/index.html')
-const artifact = read('body/demo.html')
+const ARTIFACT = 'dist/demo.html'
+const artifactUrl = new URL(`../${ARTIFACT}`, import.meta.url)
+if (!existsSync(artifactUrl)) {
+  throw new Error(`${ARTIFACT} is missing — run \`bun run build:demo\` first (\`bun run verify\` does)`)
+}
+const artifact = readFileSync(artifactUrl, 'utf8')
 
 type Demo = {
-  meta?: { demo?: boolean; profile?: { sex?: string; year_of_birth?: number } }
+  meta?: { profile?: { sex?: string; year_of_birth?: number } }
   nodes: Array<Record<string, unknown>>
   edges: Array<Record<string, unknown>>
 }
@@ -124,7 +129,6 @@ type Snapshot = {
   edges: number
   birth: string | null
   profile: { sex?: string; year_of_birth?: number } | null
-  isDemo: boolean
 }
 
 /** `applyDocument` from the page, over any document, with a storage it is not supposed to touch. */
@@ -151,8 +155,7 @@ function applyIn(html: string, doc: unknown): { before: Snapshot; after: Snapsho
        : null;
      const snapshot = () => ({ analyses: ANALYSES.map(a => a.id), nodes: DOC_NODES.length,
                                edges: DOC_EDGES.length, birth: ymd(BIRTH),
-                               profile: (TL_META && TL_META.profile) || null,
-                               isDemo: Boolean(TL_META && TL_META.demo) });
+                               profile: (TL_META && TL_META.profile) || null });
      const before = snapshot();
      applyDocument(doc);
      return { before, after: snapshot() };`
@@ -195,7 +198,6 @@ describe('a clean workspace stays empty when the demo is loaded', () => {
     expect(run.before.edges).toBe(0)
     expect(run.before.birth).toBeNull()
     expect(run.before.profile).toBeNull()
-    expect(run.before.isDemo).toBe(false)
   })
 
   test('the artifact really loads its case: the document is in the view afterwards', () => {
@@ -203,7 +205,6 @@ describe('a clean workspace stays empty when the demo is loaded', () => {
     expect(run.after.nodes).toBe(demo.nodes.length)
     expect(run.after.edges).toBe(demo.edges.length)
     expect(run.after.analyses.length).toBe(27) // the measurement marks of the T21 case
-    expect(run.after.isDemo).toBe(true)
     expect(run.after.profile).toEqual(demo.meta?.profile as Snapshot['profile'])
     expect(run.after.birth).toBe('1961-01-01') // identity is meta.profile.year_of_birth
   })
@@ -223,7 +224,6 @@ describe('a clean workspace stays empty when the demo is loaded', () => {
     expect(run.after.analyses).toEqual([])
     expect(run.after.nodes).toBe(0)
     expect(run.after.birth).toBeNull()
-    expect(run.after.isDemo).toBe(false)
     expect(run.storage.writes).toEqual([])
   })
 })

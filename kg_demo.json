@@ -13,8 +13,7 @@
       "document": "#9a9a9a"
     },
     "profile": { "sex": "male", "year_of_birth": 1961, "name": "Andrei" },
-    "timezone": "Europe/Kyiv",
-    "demo": true
+    "timezone": "Europe/Kyiv"
   },
   "nodes": [
     {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { buildDemo } from './build-demo'
 import { validateKg } from './lib/kg-contract'
 
@@ -9,9 +9,10 @@ import { validateKg } from './lib/kg-contract'
  * A reader who opens the viewer must not start with somebody else's lab results. The template
  * (`body/index.html`) carries the `#kg-graph` placeholder and no document at all — no sample set,
  * no birth date, and no `fetch` that could pull one in at launch. The demo is built from
- * `body/demo/kg_demo.json` into `body/demo.html`, so the invented case exists in exactly two
+ * `body/index.html` into `dist/demo.html`, so the invented case exists in exactly two
  * places: the document and the artifact made from it. A page rendered for a reader carries that
- * reader's document and nothing else.
+ * reader's document and nothing else. `bun run verify` builds the artifact before it runs the
+ * suite, so the byte-for-byte check below is against real output and not a remembered copy.
  *
  * T21 — the demo case: a man of 65 with twenty years of records.
  *
@@ -36,16 +37,21 @@ import { validateKg } from './lib/kg-contract'
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 const page = read('body/index.html')
-const artifact = read('body/demo.html')
+const ARTIFACT = 'dist/demo.html'
+const artifactUrl = new URL(`../${ARTIFACT}`, import.meta.url)
+if (!existsSync(artifactUrl)) {
+  throw new Error(`${ARTIFACT} is missing — run \`bun run build:demo\` first (\`bun run verify\` does)`)
+}
+const artifact = readFileSync(artifactUrl, 'utf8')
 
 type Node = Record<string, unknown> & { id: string; kind: string; when?: unknown; source?: string }
 type Demo = {
-  meta?: { title?: string; app?: string; demo?: boolean; profile?: { sex?: string; year_of_birth?: number } }
+  meta?: { title?: string; app?: string; profile?: { sex?: string; year_of_birth?: number } }
   nodes?: Node[]
   edges?: Array<Record<string, unknown>>
 }
 
-const demo = JSON.parse(read('body/demo/kg_demo.json')) as Demo
+const demo = JSON.parse(read('kg_demo.json')) as Demo
 const nodes = demo.nodes ?? []
 
 /** The six kinds that are events (docs/DATA-CONTRACT.md §Node kinds); a summary and a prediction are not. */
@@ -144,7 +150,7 @@ describe('the template carries a placeholder, not a document', () => {
   })
 })
 
-describe('body/demo.html is the artifact, built from body/demo/kg_demo.json', () => {
+describe('dist/demo.html is the artifact, built from kg_demo.json', () => {
   test('it is exactly what the build produces from this template and this document', () => {
     // byte-for-byte: a hand-edited demo page fails here instead of drifting from its source
     expect(artifact).toBe(buildDemo(page, demo))
@@ -164,7 +170,7 @@ describe('body/demo.html is the artifact, built from body/demo/kg_demo.json', ()
   })
 })
 
-describe('body/demo/kg_demo.json is the case the card names', () => {
+describe('kg_demo.json is the case the card names', () => {
   test('it is a kg/1-health document, and the contract accepts every node of it', () => {
     expect(demo.meta?.app).toBe('health-viewer')
     // not a shape that looks close: the real gate, over the real document
@@ -172,7 +178,8 @@ describe('body/demo/kg_demo.json is the case the card names', () => {
   })
 
   test('it is one invented man, 65 in 2026, and it says so', () => {
-    expect(demo.meta?.demo).toBe(true)
+    // the honesty is in the document's own words, not in a flag the page would branch on
+    expect(demo.meta?.title).toContain('invented')
     expect(demo.meta?.profile?.sex).toBe('male')
     expect(demo.meta?.profile?.year_of_birth).toBe(1961)
     expect(2026 - Number(demo.meta?.profile?.year_of_birth)).toBe(65)

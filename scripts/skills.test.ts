@@ -32,7 +32,7 @@ import { SKILL_SCRIPTS, embeddedScript, scriptFile, skillFile } from './skills'
  */
 
 const ROOT = join(import.meta.dirname, '..')
-const DEMO = join(ROOT, 'body', 'demo', 'kg_demo.json')
+const DEMO = join(ROOT, 'kg_demo.json')
 const CACHE = join(ROOT, '.cache', 'skills-test')
 
 type MainViewMarker = {

@@ -51,7 +51,7 @@ cmd('Page.removeScriptToEvaluateOnNewDocument',identifier=identifier);cmd('Page.
 for _ in range(100):
  if js('window.__ready?.()'):break
  time.sleep(.1)
-# Final screenshots of the clean demonstration graph, after all test edits are deleted.
+# Final screenshots of the clean rendered graph, after all test edits are deleted.
 time.sleep(.6);shot('final-body');js("window.__setMode('out','organs')");time.sleep(.8);shot('final-layer');js("window.__openOrgan('heart')");time.sleep(.4);shot('final-heart')
 report['consoleErrors']=errors
 assert not errors,errors

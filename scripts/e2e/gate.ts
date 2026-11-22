@@ -64,7 +64,7 @@ export const APP_SURFACE: Array<[RegExp, string]> = [
   [/^body\//, 'the page: header, timeline, columns, centre, right panel, the models it loads and the demo build'],
   [/^src\//, 'the graph view and the node panel'],
   [/^index\.html$/, "the graph page's entry document, which the viewer mounts into"],
-  [/^scripts\/build-demo\.ts$/, 'the demo build: the builder that writes body/demo.html'],
+  [/^scripts\/build-demo\.ts$/, 'the case build: the builder that writes dist/demo.html'],
   [/^app\.json$/, 'the demo build: the app manifest'],
   [/^(?:package\.json|bun\.lockb?|vite\.config\.[cm]?[jt]s|tsconfig\.json)$/, 'the build itself'],
 ]

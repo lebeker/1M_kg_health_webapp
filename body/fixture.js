@@ -1,4 +1,4 @@
-// Demonstration records only; these are not a patient's clinical history.
+// Example records only; these are not a patient's clinical history.
 export const fixture = {
   schema: 'kg/1',
   meta: { app: 'health', title: 'Personal health map', props: {
@@ -15,7 +15,7 @@ export const fixture = {
     ['beta-blocker','protocol','Beta-blocker','capsule','Example protocol record; no treatment recommendation.'],
     ['cardiologist','specialist','Cardiologist','person','A specialist can connect findings across systems.'],
     ['retinopathy','condition','Retinopathy','eye','An example finding shared by an ophthalmologist.'],
-  ].map(([id,type,label,mesh,description])=>({id,type,label,level:type==='organ'?0:1,weight:1,props:{mesh,description,demo:true}})),
+  ].map(([id,type,label,mesh,description])=>({id,type,label,level:type==='organ'?0:1,weight:1,props:{mesh,description,example:true}})),
   edges: [
     ['heart','left-ventricle','has-part'],['heart','right-atrium','has-part'],['heart','aortic-valve','has-part'],
     ['heart','hypertension','sign-of'],['heart','ecg','measured-by'],['heart','echo','measured-by'],
