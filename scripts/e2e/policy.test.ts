@@ -274,8 +274,110 @@ describe('the guard reads a command, not the shape of a string', () => {
 
   test('does not let quoting hide a real place', () => {
     expect(outsideRoomCalls([call('terminal', { command: 'find "/" -maxdepth 1' })])).toHaveLength(1)
-    expect(outsideRoomCalls([call('terminal', { command: 'ls "$HOME"' })])).toHaveLength(1)
-    expect(outsideRoomCalls([call('terminal', { command: "grep -r 'x' /Volumes" })])).toHaveLength(1)
+    expect(outsideRoomCalls([call('terminal', { command: 'grep -r \'x\' /Volumes' })])).toHaveLength(1)
+    expect(outsideRoomCalls([call('terminal', { command: 'find "$HOME" -name kg.py' })])).toHaveLength(1)
+  })
+
+  test('reads one `..` and the harness HOME as the room, and `../..` as outside it', () => {
+    // `cleanroom.ts` builds the room as `<tmp>/kg-e2e-room-XXXX/` with `work/` and `home/` side by
+    // side, the agent stands in `work/`, and `hermes.ts` sets `env.HOME = home`. So one `..` is the
+    // room's own root — where the skill is installed on purpose — and `$HOME` is the room's home.
+    // Round 4's review measured 5 calls in recorded runs failing for this, all in-room.
+    const allowed = [
+      'ls ..',
+      'ls -a .. | head',
+      'ls -la .. ../kg ../kg/scripts',
+      'ls ../home/skills/kg | head',
+      'pwd; ls -la ../ 2>/dev/null; ls',
+      'cat ../kg/x',
+      'ls -la ~/skills/kg',
+      'mkdir -p "$HOME/cache/scratch"',
+    ]
+    for (const command of allowed) {
+      expect([command, outsideRoomCalls([call('terminal', { command })])]).toEqual([command, []])
+    }
+    // `../..` is `<tmp>`, above the room. `find` keeps the card's stricter reading: the card names
+    // `find ..` and `$HOME` as positives, so it is judged at every climb and on every home
+    // reference, which is the same distinction the pre-fix check drew.
+    const escapes = [
+      'ls ../..',
+      'ls ../../kg',
+      'cat ../../etc/hosts',
+      'find ../.. -name "*.json"',
+      'find ..',
+      'find ~ -maxdepth 3 -name "kg.py"',
+      'find $HOME -name kg.py',
+    ]
+    for (const command of escapes) {
+      expect([command, outsideRoomCalls([call('terminal', { command })]).length]).toEqual([command, 1])
+    }
+  })
+
+  test('judges the operands of the command an -exec tail or a shell string reaches', () => {
+    // The path commands used to be four search commands, so `-exec ls /` failed while
+    // `-exec rm -rf /` — the same walk, destructive instead of readable — passed. The command an
+    // `-exec`/`-execdir`/`-ok`/`-okdir` tail or a `sh -c` string reaches is judged the way a
+    // top-level command is. Reading operands this way also closes the bare `/` operand of `rm`,
+    // `cp`, `tar` and `du`, which the pre-fix check missed too.
+    const escapes = [
+      'find . -name x -exec rm -rf / \\;',
+      'find . -name x -exec rm / \\;',
+      'find . -name x -execdir rm / \\;',
+      'find . -name x -ok rm / \\;',
+      'find . -name x -okdir rm / \\;',
+      'find . -name x -exec chmod 777 / \\;',
+      'find . -name x -exec cp / kg/ \\;',
+      "find . -name x -exec sh -c 'rm /' \\;",
+      'rm -rf /',
+      'tar -cf - /',
+      'du -sh /',
+      'cp -r / kg/',
+    ]
+    for (const command of escapes) {
+      expect([command, outsideRoomCalls([call('terminal', { command })]).length]).toEqual([command, 1])
+    }
+    // A command whose operands are data is not judged: `echo` prints `2D / 3D`, and `-F`'s value
+    // in `awk -F /` is a field separator, not a place.
+    const allowed = [
+      'find . -name "*.py" -exec echo 2D / 3D {} \\;',
+      'find . -name "*.json" -exec grep -o "2D / 3D" {} \\;',
+      'find . -name "*.json" -exec ls {} \\;',
+      "awk -F / '{print $1}' file",
+      'rm -rf storage/tmp',
+      'cp kg/x.json storage/x.json',
+      'tar -czf out.tgz kg',
+      'mkdir -p storage/out',
+    ]
+    for (const command of allowed) {
+      expect([command, outsideRoomCalls([call('terminal', { command })])]).toEqual([command, []])
+    }
+  })
+
+  test('reads a program handed to an interpreter the first list did not name', () => {
+    // Round 4's review: the `system(`/`exec`/backtick scan was gated on a closed list of
+    // interpreters, so awk, lua, R and tclsh could hand a shell `ls /` and be unread. What is read
+    // is still the positions a program sits in — an option (`-e`), awk's first operand, or a
+    // herestring on stdin — and still only the strings the program hands to a shell.
+    const escapes = [
+      `awk 'BEGIN{system("ls /")}'`,
+      `gawk 'BEGIN{system("ls /")}'`,
+      `lua -e 'os.execute("ls /")'`,
+      `R -e 'system("ls /")'`,
+      `tclsh <<< 'exec ls /'`,
+    ]
+    for (const command of escapes) {
+      expect([command, outsideRoomCalls([call('terminal', { command })]).length]).toEqual([command, 1])
+    }
+    const allowed = [
+      "awk -F / '{print $1}' file",
+      "awk '$1 == \"x\" {print}' kg/table.tsv",
+      `lua -e 'print("a / b")'`,
+      'tclsh kg/script.tcl',
+      `python3 -c "import os; print(os.listdir('kg'))"`,
+    ]
+    for (const command of allowed) {
+      expect([command, outsideRoomCalls([call('terminal', { command })])]).toEqual([command, []])
+    }
   })
 
   test('reads a written file as data, not as a place the call acts on', () => {
