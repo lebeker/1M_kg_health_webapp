@@ -68,8 +68,8 @@ interval — the split is gone and both halves become untrustworthy.
 
 The health page (`body/index.html`) draws the body, the timeline, the records list and one main view
 per event type, and it starts empty: the template carries the `#kg-graph` placeholder, not a document.
-The demo is a build artifact (`body/demo.html`, from `body/demo/kg_demo.json`) — an invented man, 65,
-twenty years of records, labelled `meta.demo: true` — which passes the contract gate. Loading it writes
+The case page is a build artifact (`dist/demo.html`, from `kg_demo.json`) — an invented man, 65,
+twenty years of records, labelled in its own title — which passes the contract gate. Opening it writes
 nothing into a reader's own record (T21, T23). No `kg.json` of a real person ships in this repository:
 data lives beside the document, never in the template.
 

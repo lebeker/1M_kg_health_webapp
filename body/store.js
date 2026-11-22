@@ -27,7 +27,7 @@ export async function initStore(anchors=[]) {
   // Each embedded source has its own persisted namespace.
   let hash=2166136261;
   for(const c of JSON.stringify(source)) hash=Math.imul(hash^c.charCodeAt(0),16777619);
-  key=`health-map:kg1:v1:${embedded?(hash>>>0).toString(16):'demo'}`;
+  key=`health-map:kg1:v1:${embedded?(hash>>>0).toString(16):'fixture'}`;
   const saved=localStorage.getItem(key);
   if(saved) { try { graph=validate(JSON.parse(saved)); } catch { graph=clone(source); } }
   else graph=clone(source);

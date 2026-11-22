@@ -2,7 +2,7 @@
  * SCRUM-47 evidence page: the real body/index.html with one fixture written into its `#kg-graph`
  * placeholder, so the right panel can be photographed on a past record that carries effects.
  *
- * `body/demo/kg_demo.json` deliberately carries no `delta` or `evidence` (T21: certainty is not an
+ * `kg_demo.json` deliberately carries no `delta` or `evidence` (T21: certainty is not an
  * effect size), so its projection cannot move between two dates. The fixture in
  * `tests/fixtures/page/then-now.json` is the document that can, and the panel's model is the same
  * one the page runs. The output lands in `.cache/page-screenshot/` (gitignored) and is served by

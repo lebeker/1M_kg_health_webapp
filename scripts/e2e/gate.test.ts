@@ -179,7 +179,7 @@ describe('a run is evidence of one commit, not of the branch', () => {
 
 describe('the diff decides which branches need a run', () => {
   test('the surfaces the owner named are surface', () => {
-    for (const path of ['body/index.html', 'body/lib/x.js', 'body/demo/graph.json', 'src/App.tsx', 'app.json', 'body/tools/bundle.mjs']) {
+    for (const path of ['body/index.html', 'body/lib/x.js', 'body/fixture.js', 'src/App.tsx', 'app.json', 'body/tools/bundle.mjs']) {
       expect(needsE2e([path])).toBe(true)
     }
   })
@@ -187,8 +187,8 @@ describe('the diff decides which branches need a run', () => {
   test('the models the page renders, the graph page entry and the demo builder are surface too', () => {
     // Each of these was exempt before the first review round: the anatomy the centre and the
     // right panel are made of, the document the viewer mounts into, and the builder that emits
-    // the demo the page opens with. A pull request touching only one of them moved the product.
-    for (const path of ['body/models/heart.glb', 'body/models/bones.glb', 'index.html', 'scripts/build-demo.ts', 'body/demo.html']) {
+    // the case page. A pull request touching only one of them moved the product.
+    for (const path of ['body/models/heart.glb', 'body/models/bones.glb', 'index.html', 'scripts/build-demo.ts', 'body/constellation.html']) {
       expect(needsE2e([path])).toBe(true)
     }
     expect(appSurface(['body/models/heart.glb'])[0].area).toContain('centre')
@@ -196,13 +196,13 @@ describe('the diff decides which branches need a run', () => {
   })
 
   test('the allowlist is exactly the things that cannot move the product on their own', () => {
-    for (const path of ['body/shots/header.png', 'body/README.md', 'body/MODEL_REPAIR.md', 'body/demo/README.md', 'src/rules.test.ts', 'src/App.test.tsx']) {
+    for (const path of ['body/shots/header.png', 'body/README.md', 'body/MODEL_REPAIR.md', 'body/CONSTELLATION_EXPERIMENT.md', 'src/rules.test.ts', 'src/App.test.tsx']) {
       expect(needsE2e([path])).toBe(false)
     }
     for (const [pattern] of NOT_PRODUCT) expect(pattern.source.startsWith('^')).toBe(true)
     // A new file under body/ or src/ is surface until somebody says otherwise, which is the
     // direction the list has to fail in.
-    for (const path of ['body/new-thing.js', 'body/models/new.glb', 'src/new.ts', 'body/demo.html']) {
+    for (const path of ['body/new-thing.js', 'body/models/new.glb', 'src/new.ts', 'body/style.css']) {
       expect(needsE2e([path])).toBe(true)
     }
     // `body/shots/` is a directory allowlist, not a prefix free-for-all on the page's notes.

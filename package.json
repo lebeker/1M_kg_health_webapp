@@ -6,7 +6,7 @@
   "description": "Single-file React viewer for a kg/1-health document — the template half of the health map.",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && bun scripts/build-demo.ts",
     "build:local": "vite build",
     "build:multi": "KG_BUILD=multi vite build",
     "preview": "vite preview",
@@ -19,7 +19,7 @@
     "test:release": "bun test scripts/release.test.ts",
     "e2e": "bun scripts/e2e/run.ts",
     "rules": "bun scripts/rules.ts",
-    "verify": "bun run lint && bun run typecheck && bun run test && bun run test:contract && bun run test:branch-name && bun run test:split",
+    "verify": "bun run lint && bun run typecheck && bun run build:demo && bun run test && bun run test:contract && bun run test:branch-name && bun run test:split",
     "bundle": "node scripts/bundle.mjs",
     "build:demo": "bun scripts/build-demo.ts",
     "check:demo": "bun scripts/build-demo.ts --check",

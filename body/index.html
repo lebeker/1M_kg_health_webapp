@@ -434,10 +434,9 @@
 <div class="hint">drag to orbit · scroll to zoom · double-click a node to frame it</div>
 <div class="foot" id="foot"></div>
 
-<!-- T01: the document goes here, inlined, so the page works from file://. A renderer replaces the
-     text of this element and touches nothing else. The template keeps the placeholder; the demo is
-     an artifact built from body/demo/kg_demo.json (`bun scripts/build-demo.ts` -> body/demo.html),
-     never a file this page fetches. -->
+<!-- T01/SCRUM-51: the document goes here, inlined, so the page works from file://. A renderer
+     replaces the text of this element and touches nothing else. The template keeps the placeholder
+     and reads nothing else — no fetch, no sidecar, no launch path that could put a document in. -->
 <script id="kg-graph" type="application/json">__KG_GRAPH__</script>
 <script src="lib/three.min.js"></script>
 <script src="lib/GLTFLoader.js"></script>
@@ -2685,16 +2684,17 @@ const KGDATA = (() => {
 
 /* The template carries a placeholder, not a document (T01). Whoever emits the final page replaces
    the text of `<script id="kg-graph">` and touches nothing else: a real render writes the reader's
-   own kg/1 document, and the demo build writes the invented case. The page draws whatever it
-   finds and has no way to ask for another file — no fetch, no sidecar, no demo at launch. A
+   own kg/1 document. The page draws whatever it
+   finds and has no way to ask for another file — no fetch, no sidecar, no document at launch. A
    document with no records stays empty: no profile, no analyses, an empty ruler.
 
-   Nothing on this page writes to storage, so even the demo leaves an empty record of the reader's
-   own. `scripts/demo-user.test.ts` (T23) holds that: no key written, no profile taken. */
+   Nothing on this page writes to storage, so a page that arrives with a document in it is still a
+   view and never a record. `scripts/page-storage.test.ts` (T23) holds that: no key written, no
+   profile taken, not even a key read. */
 
 /* Which nodes get a mark on the ruler and a row in the legend: something with a number and an
    organ. In the health contract that is an `observation` — one value, or a panel in `values` —
-   and the earlier demo's `analysis` is the same thing under its old name. Everything else is a
+   and the `analysis` kind is the same thing under its old name. Everything else is a
    record for the left list (state-list.js) and the main view (main-view.js), not a sphere. */
 function isMark(node) {
   return !!node && (node.kind === "observation" || node.kind === "analysis");
@@ -2779,7 +2779,7 @@ let DOC_NODES = [];
    them instead of inventing a link the document does not have */
 let DOC_EDGES = [];
 
-/* One document in, one view out: the demo artifact and a rendered page are the same shape, so the
+/* One document in, one view out: a built page and a rendered page are the same shape, so the
    panel, the ruler and the marks do not care which document arrived. The template arrives with
    `KGDATA === null`, and this leaves the page empty rather than making one up. */
 function applyDocument(doc) {
@@ -3064,6 +3064,15 @@ function buildStateList() {
   });
   markStateRow();
   renderMain();
+}
+
+/* With a document in hand the page opens on the latest record it holds: the state the reader is
+   in now, drawn in the centre, with no click. The template carries no document, so it has no
+   stored row, nothing is chosen, and the centre stays closed — one rule, no flag and no mode. */
+function openLatestRecord() {
+  const latest = STATE_ROWS.find(row => row.stored);
+  if (!latest || state.event) return;
+  selectDate(dayOf(latest.date), latest.id);   // selectDate opens the view and marks the row
 }
 
 /* widget 8: exactly one row is marked. Picking a record marks that record; a date chosen on the
@@ -3559,7 +3568,7 @@ let analysisRoot = null, analysisNodes = [];
 const NODE_R = 0.055;
 
 function buildAnalyses() {
-  // the demo can arrive after the page has drawn: rebuild the marks, never stack a second set
+  // the document can arrive after the page has drawn: rebuild the marks, never stack a second set
   if (analysisRoot) {
     ANALYSES.forEach(a => {
       if (!a.line) return;
@@ -3888,16 +3897,10 @@ document.getElementById("layerNo").onclick = () => askLayer3d(false);
 
 buildLegend();
 buildStateList();       // today's summary is made here, at launch, and never stored
+openLatestRecord();     // a document with records opens on the latest of them
 buildTimeline();        // the ruler is the product's: it no longer waits for the graph's models
 refreshPick();          // ends in markStateRow + renderMain — the main flow stands on its own
 tick();
-
-/* An invented document says so where the reader can see it: `meta.demo` is the one flag a page may
-   trust about itself. The template carries no document, so it stays silent. */
-if (TL_META.demo) {
-  const foot = document.getElementById("foot");
-  if (foot) foot.textContent = "demo · invented records, not a patient history · nothing saved";
-}
 
 window.addEventListener("resize", () => { if (bodyBox) { buildTimeline(); refreshPick(); } });
 window.__ready = () => pending === 0 && !!bodyBox && failedFiles.length === 0;
@@ -3915,7 +3918,9 @@ window.__edgeCount = () => (edges ? edges.geometry.attributes.position.count / 2
 window.__nodeCount = () => organNodes.length;
 window.__setSkin = () => layout();   // kept for the test scripts; the shell is always on now
 window.__collapse = () => document.getElementById("collapse").click();
-window.__demoState = () => (KGDATA ? (TL_META.demo ? "demo" : "embedded") : "absent");
+/* What the page is holding, without a word for where it came from: a document or nothing. The
+   page has one state, and it is the document's. */
+window.__documentState = () => (KGDATA ? "present" : "absent");
 /* T27: the graph view as data, for the acceptance run. Opening it must not move the date or the
    record, and nothing inside it may write the document.
    T28: `anatomy` is the 3D layer, `asked` is whether its question is on screen, and `models` counts

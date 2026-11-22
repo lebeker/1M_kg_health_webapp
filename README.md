@@ -28,25 +28,27 @@ that file, not on the package name. Everything about publishing, licences and th
 bun install                 # or: npm install
 bun run dev                 # the graph view on the dev server
 python3 -m http.server 8770 --bind 127.0.0.1    # then http://127.0.0.1:8770/body/
-bun run build:demo          # build body/demo.html from body/demo/kg_demo.json
-bun run verify              # lint, types, unit, contract fixtures, branch rule, split regression
+bun run build               # dist/index.html (the graph page) + dist/demo.html (the case page)
+bun run build:demo          # dist/demo.html only, from kg_demo.json
+bun run verify              # lint, types, case build, unit, contract fixtures, branch rule, split regression
 ```
 
-The body page has no build step and no network. `body/index.html` is the template: it carries the
-`#kg-graph` placeholder and nothing else. Open it over a local server rather than `file://` — the 3D
-layer loads `models/*.glb` when, and only when, the reader asks for it.
+The body page has no runtime build step and no network. `body/index.html` is the template: it carries
+the `#kg-graph` placeholder and nothing else. Open it over a local server rather than `file://` — the
+3D layer loads `models/*.glb` when, and only when, the reader asks for it.
 
-## The demo is not a user
+## The case page is not a user
 
-`body/demo/kg_demo.json` is an invented patient (man, 65, twenty years of history). `bun run
-build:demo` writes that document into the template's placeholder and produces `body/demo.html`; open
-it and the case is on screen — no button, no interaction. The template itself carries no records, so
-a page rendered for a reader's own document draws that document and its empty start stays empty.
+`kg_demo.json` is an invented patient (man, 65, twenty years of history). `bun run build:demo` writes
+that document into the template's placeholder and produces `dist/demo.html`, with the page's `lib/`
+beside it; open it and the case is on screen — the latest record in the centre column, no button, no
+interaction. The template itself carries no records, so a page rendered for a reader's own document
+draws that document.
 
-Opening the demo writes nothing into a profile: after it opens, the user's own workspace is still
-empty. That rule has its own test (`scripts/demo-user.test.ts`), which runs the page's own reader over
-the artifact's document with an empty storage and fails if a key appears — the one failure this
-product cannot survive is someone else's labs appearing in your health record.
+Opening the built page writes nothing into a profile: after it opens, the user's own workspace is
+still empty. That rule has its own test (`scripts/page-storage.test.ts`), which runs the page's own
+reader over the artifact's document with an empty storage and fails if a key appears — the one failure
+this product cannot survive is someone else's labs appearing in your health record.
 
 ## The graph view
 
@@ -81,7 +83,8 @@ force layout arranges depth itself.
 
 | command | output | why |
 |---|---|---|
-| `bun run build` | `dist/index.html` — one file, ~2 MB | what the skill ships; must open from `file://` |
+| `bun run build` | `dist/index.html` — one file, ~2 MB — and `dist/demo.html` | what the skill ships, plus the case page; both open from `file://` |
+| `bun run build:demo` | `dist/demo.html` + `dist/lib/` | the case page alone, from `kg_demo.json` |
 | `bun run build:multi` | `dist-multi/` — code-split | what a hosted app serves; 3D is fetched on demand |
 
 `vite-plugin-singlefile` sets `codeSplitting: false` (Rollup's

@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="topbar"><a class="brand" href="./" aria-label="Forma home"><span class="brand-mark">f</span>forma<span class="brand-sub">PERSONAL HEALTH MAP</span></a><div class="workspace"><span class="status-dot"></span> Personal workspace <span class="slash">/</span> <span>Demo profile</span></div><button class="avatar" id="profile" title="About this demo">JD</button></header>
+<header class="topbar"><a class="brand" href="./" aria-label="Forma home"><span class="brand-mark">f</span>forma<span class="brand-sub">PERSONAL HEALTH MAP</span></a><div class="workspace"><span class="status-dot"></span> Personal workspace <span class="slash">/</span> <span>Example profile</span></div><button class="avatar" id="profile" title="About this example">JD</button></header>
 <aside class="rail" id="legend">
 <div class="rail-heading"><span class="eyebrow">EXPLORE YOUR HEALTH</span><button id="collapse" class="icon-btn" title="Collapse layers" aria-expanded="true">‹</button></div>
 <h1>Your body.<br>Your story.</h1><p class="intro">Find a system. Follow a connection.<br>See the bigger picture.</p>
@@ -25,7 +25,7 @@
 <div class="orbit-hint" id="orbit-hint">Drag to rotate <span>·</span> Scroll to explore</div>
 </main>
 <aside class="detail" id="detail"><div id="detail-content"></div></aside>
-<footer><span>FORMA <i> / </i> BODY ATLAS</span><span id="foot">Illustrative anatomy · Demo graph</span><span id="save-status"><span class="local-dot"></span> Local workspace</span></footer>
+<footer><span>FORMA <i> / </i> BODY ATLAS</span><span id="foot">Illustrative anatomy · Example graph</span><span id="save-status"><span class="local-dot"></span> Local workspace</span></footer>
 <div id="toast" role="status"></div>
 <dialog id="editor"><form id="node-form"><div class="dialog-head"><span class="eyebrow">BUILD A CONNECTION</span><button type="button" id="close-editor" class="icon-btn" aria-label="Close">×</button></div><h2>Add to the story</h2><p>Attach a finding, investigation or protocol to a node.</p><label>NAME<input id="node-label" name="label" required maxlength="100" placeholder="e.g. Lipid profile"></label><div class="form-grid"><label>NODE TYPE<select id="node-type"><option value="condition">Condition</option><option value="analysis">Analysis</option><option value="protocol">Protocol</option><option value="part">Anatomical part</option><option value="specialist">Specialist</option></select></label><label>RELATIONSHIP<select id="edge-kind"><option>sign-of</option><option>measured-by</option><option>treated-by</option><option>has-part</option><option>risk-from</option><option>reviewed-by</option></select></label></div><label>ATTACH TO<select id="attach-to"></select></label><label>NOTE<textarea id="node-note" rows="3" placeholder="What should the next specialist know?"></textarea></label><p class="form-error" id="form-error" role="alert"></p><button class="primary" type="submit">Create & connect <span>↗</span></button><div class="existing-divider">or connect an existing node</div><div class="form-grid"><select id="existing-node" aria-label="Existing node"></select><button type="button" id="connect-existing">Connect node ↗</button></div></form></dialog>
 <script src="lib/three.min.js"></script><script src="lib/GLTFLoader.js"></script><script src="lib/OrbitControls.js"></script><script type="module" src="app.js"></script>

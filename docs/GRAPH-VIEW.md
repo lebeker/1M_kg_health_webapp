@@ -11,7 +11,7 @@ template app has no write path, so there is nothing to reduce.
 ## The contract
 
 - **Read-only.** The view renders the document — the `#kg-graph` placeholder, replaced by the renderer
-  for a reader's document or by the demo build (`body/demo.html`) for the case — and the page has no
+  for a reader's document or by the case build (`dist/demo.html`) — and the page has no
   write path at all: no add, no connect, no delete, no storage write, and no `fetch`. The node panel's
   buttons (take out of the body, put back, split into systems) move what is on screen; they never touch
   the document.

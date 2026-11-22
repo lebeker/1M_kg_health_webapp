@@ -1,28 +1,47 @@
 #!/usr/bin/env bun
 /**
- * T01 — build the demo page from the demo document.
+ * SCRUM-51 — build the case page from the template and the case document.
  *
  * `body/index.html` is the template: it carries the `#kg-graph` placeholder and nothing else, and
- * it never fetches a sidecar. The demo is an artifact — the same page with the placeholder replaced
- * by `body/demo/kg_demo.json` — so the invented case lives in one document and one build output,
+ * it never fetches a sidecar. `kg_demo.json` is the case. This build puts the one into the other
+ * and writes `dist/demo.html` — so the invented case lives in one document and one build output,
  * never in the template a reader's own page is rendered from.
  *
- *   bun scripts/build-demo.ts           # write body/demo.html
- *   bun scripts/build-demo.ts --check   # fail if the checked-in artifact is stale
+ * Nothing about the page changes with the data: the output is the template with the placeholder
+ * replaced, byte for byte. The page's own assets travel beside it (`lib/`, and the anatomy models
+ * it loads only when the reader asks), because the page addresses them relatively and has to keep
+ * working from `file://` and from any static server rooted at `dist/`.
  *
- * The contract gate runs first: an artifact built from a document the schema rejects is a demo
- * nobody can trust. The serialization is exported so the tests can prove the checked-in artifact is
- * exactly this function's output — a hand-edited demo page fails CI instead of drifting.
+ *   bun scripts/build-demo.ts           # write dist/demo.html
+ *   bun scripts/build-demo.ts --check   # fail if the artifact on disk is stale
+ *
+ * The contract gate runs first: an artifact built from a document the schema rejects is a case
+ * nobody can trust. The serialization is exported so the tests can prove the artifact is exactly
+ * this function's output — a hand-edited page in `dist/` fails CI instead of drifting.
  */
-import { readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { validateKg } from './lib/kg-contract'
 
 export const ROOT = resolve(import.meta.dirname, '..')
 export const TEMPLATE = join(ROOT, 'body', 'index.html')
-export const SOURCE = join(ROOT, 'body', 'demo', 'kg_demo.json')
-export const ARTIFACT = join(ROOT, 'body', 'demo.html')
+export const SOURCE = join(ROOT, 'kg_demo.json')
+export const OUT = join(ROOT, 'dist')
+export const ARTIFACT = join(OUT, 'demo.html')
+/**
+ * The page's siblings, under the relative names the page itself uses. `lib/` is 800 kB and copied;
+ * `models/` is 95 MB of tracked content and linked, because a build must not duplicate it.
+ */
+export const ASSETS: Array<{ from: string; to: string; link?: string }> = [
+  { from: join(ROOT, 'body', 'lib'), to: join(OUT, 'lib') },
+  { from: join(ROOT, 'body', 'models'), to: join(OUT, 'models'), link: join('..', 'body', 'models') },
+]
 export const PLACEHOLDER = '__KG_GRAPH__'
+/**
+ * The page is UTF-8 and full of `·` and `—`: a string's `length` is not its size on disk, and the
+ * number this build prints should be the one `ls -l` prints.
+ */
+const byteSize = (text: string): number => Buffer.byteLength(text, 'utf8')
 
 const SCRIPT_OPEN = '<script id="kg-graph" type="application/json">'
 const SCRIPT_CLOSE = '</script>'
@@ -49,13 +68,24 @@ export function buildDemo(template: string, doc: unknown): string {
   return template.replace(marker, `${SCRIPT_OPEN}${serialize(doc)}${SCRIPT_CLOSE}`)
 }
 
+/** Put the page's assets where the page looks for them, replacing whatever an earlier build left. */
+export function installAssets(out = OUT): void {
+  mkdirSync(out, { recursive: true })
+  for (const asset of ASSETS) {
+    if (!existsSync(asset.from)) continue
+    rmSync(asset.to, { recursive: true, force: true })
+    if (asset.link) symlinkSync(asset.link, asset.to, 'dir')
+    else cpSync(asset.from, asset.to, { recursive: true })
+  }
+}
+
 function main(argv: string[]): number {
   const template = readFileSync(TEMPLATE, 'utf8')
   const doc: unknown = JSON.parse(readFileSync(SOURCE, 'utf8'))
 
   const issues = validateKg(doc)
   if (issues.length > 0) {
-    console.error(`body/demo/kg_demo.json fails the kg/1-health contract (${issues.length} issue(s)):`)
+    console.error(`kg_demo.json fails the kg/1-health contract (${issues.length} issue(s)):`)
     for (const issue of issues) console.error(`  ${issue.path}: ${issue.message}`)
     return 1
   }
@@ -73,19 +103,21 @@ function main(argv: string[]): number {
     try {
       onDisk = readFileSync(ARTIFACT, 'utf8')
     } catch {
-      console.error('body/demo.html is missing — run `bun scripts/build-demo.ts`')
+      console.error('dist/demo.html is missing — run `bun run build:demo`')
       return 1
     }
     if (onDisk !== built) {
-      console.error('body/demo.html is stale — run `bun scripts/build-demo.ts`')
+      console.error('dist/demo.html is stale — run `bun run build:demo`')
       return 1
     }
-    console.log(`body/demo.html is current (${built.length} bytes)`)
+    console.log(`dist/demo.html is current (${byteSize(built)} bytes)`)
     return 0
   }
 
+  mkdirSync(OUT, { recursive: true })
   writeFileSync(ARTIFACT, built)
-  console.log(`body/demo.html <- body/demo/kg_demo.json (${built.length} bytes)`)
+  installAssets()
+  console.log(`dist/demo.html <- kg_demo.json (${byteSize(built)} bytes)`)
   return 0
 }
 
