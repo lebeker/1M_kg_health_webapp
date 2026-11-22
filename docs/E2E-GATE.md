@@ -37,8 +37,8 @@ own entry document, and the builder that writes the demo artifact.
 | `app.json` | the demo build: the app manifest |
 | `package.json`, the lockfile, `vite.config.*`, `tsconfig.json` | the build itself |
 
-`NOT_PRODUCT` is the whole allowlist inside those directories — `body/shots/`, `body/*.md`, and
-`src/*.test.ts(x)`, things that cannot move the product on their own. Everything else under `body/`
+`NOT_PRODUCT` is the whole allowlist inside those directories — `body/shots/`, any `body/**/*.md`,
+and `src/*.test.ts(x)`, things that cannot move the product on their own. Everything else under `body/`
 or `src/` is surface, so a new file there is gated until somebody says otherwise in a diff anyone
 can read. Everything outside the list — `docs/`, the rest of `scripts/`, `.github/`, tests,
 screenshots — is not, so a tooling or documentation branch is exempt without anybody remembering

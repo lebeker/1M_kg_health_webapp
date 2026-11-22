@@ -77,7 +77,7 @@ export const APP_SURFACE: Array<[RegExp, string]> = [
  */
 export const NOT_PRODUCT: Array<[RegExp, string]> = [
   [/^body\/shots\//, 'screenshots of the page, produced by the checks and by reviewers'],
-  [/^body\/[^/]*\.md$/, 'notes about the page, not the page'],
+  [/^body\/.*\.md$/, 'notes about the page, not the page'],
   [/^src\/[^/]*\.test\.tsx?$/, "the viewer's own tests"],
 ]
 

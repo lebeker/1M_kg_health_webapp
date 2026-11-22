@@ -196,7 +196,7 @@ describe('the diff decides which branches need a run', () => {
   })
 
   test('the allowlist is exactly the things that cannot move the product on their own', () => {
-    for (const path of ['body/shots/header.png', 'body/README.md', 'body/MODEL_REPAIR.md', 'src/rules.test.ts', 'src/App.test.tsx']) {
+    for (const path of ['body/shots/header.png', 'body/README.md', 'body/MODEL_REPAIR.md', 'body/demo/README.md', 'src/rules.test.ts', 'src/App.test.tsx']) {
       expect(needsE2e([path])).toBe(false)
     }
     for (const [pattern] of NOT_PRODUCT) expect(pattern.source.startsWith('^')).toBe(true)
