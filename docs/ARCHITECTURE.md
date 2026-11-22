@@ -98,8 +98,23 @@ The engine owns the arithmetic and one promise: the same facts and the same rule
 number, bit for bit; a fact that is missing is not a default — the rule does not fire, and the
 estimate says which rules did not fire and why. A rule without a `source` does not load. What counts
 as a risk factor is not the engine's claim to make: it arrives as a reviewed rule file with a
-citation and a confidence, with the scales that use it (T15 SCORE2, T16 Lee index) and the
-explanation (T17).
+citation and a confidence, with the scales that use it (T16 Lee index) and the explanation (T17).
+
+### The one scale that is not a rule set
+
+SCORE2 (T15, `src/score2.ts`, `docs/SCORE2.md`) is the exception, and it is arithmetic, not
+editorial: a Cox model whose predictors enter as `exp(Σβx)` and interact with age cannot be written
+as a sum of independent deltas. It is a coefficient table copied from the paper's supplement — eleven
+rows, a baseline survival, four regional recalibration scales — and it publishes `score2-10y/1` as
+its version for the same reason the engine does. Every number it prints carries a 95% interval
+built from the published hazard-ratio intervals, and a list of what the model does not know
+(diabetes, the population it was not fitted for, the age range, the assumptions behind the
+interval). A rule set that later adjusts that number carries `score2-10y/1` and its deltas are in
+percentage points, which is what the version is for.
+
+So T17 has two shapes to explain — `Estimate` (base + deltas) and `Score2Risk` (a coefficient model)
+— and two things never to do: add a delta to a number whose scale it does not name, and print a
+coefficient model as if it were a sum.
 
 **Today this file is a byte-for-byte copy of the science app** (`id: "viewer"`, `title: "Research
 field map"`). Fixing it is task T02 in the plan, and until it is fixed every agent that reads this
