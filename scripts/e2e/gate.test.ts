@@ -3,8 +3,8 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { decide, latestE2eStatus } from './ci-gate'
-import { APP_SURFACE, appSurface, type GateIo, gateFor, main, needsE2e, NOT_PRODUCT, readRun, REQUIRED_CHECKS, runDirs, runs } from './gate'
+import { APP_SURFACE, appSurface, capturedPages, type GateIo, gateFor, main, needsE2e, NOT_PRODUCT, pagesFor, readRun, REQUIRED_CHECKS, runDirs, runs } from './gate'
+import { decide, latestE2eStatus, receiptPages } from './ci-gate'
 
 const SHA = 'a'.repeat(40)
 const OTHER = 'b'.repeat(40)
@@ -13,16 +13,27 @@ const OTHER = 'b'.repeat(40)
 function makeRun(
   outDir: string,
   name: string,
-  over: Partial<{ commit: string; passed: boolean; dirty: boolean; finishedAt: string; checks: Array<{ name: string; ok: boolean; detail: string }> }> = {},
+  over: Partial<{
+    commit: string
+    passed: boolean
+    dirty: boolean
+    finishedAt: string
+    checks: Array<{ name: string; ok: boolean; detail: string }>
+    /** Which pages the run captured. Omitted means the report predates the field. */
+    pages: string[]
+    /** What the card's `## e2e` block asked for. Omitted means the report predates the field. */
+    cardPage: string[]
+  }> = {},
 ): string {
   const dir = join(outDir, name)
   mkdirSync(dir, { recursive: true })
   const checks = over.checks ?? REQUIRED_CHECKS.map((check) => ({ name: check, ok: true, detail: 'ok' }))
   const report = {
-    card: { id: 't_test', title: 'a card' },
+    card: { id: 't_test', title: 'a card', ...(over.cardPage ? { page: over.cardPage } : {}) },
     branch: 'feat/SCRUM-1_x',
     commit: over.commit ?? SHA,
     dirty: over.dirty ?? false,
+    ...(over.pages ? { pages: over.pages.map((kind) => ({ label: kind, kind })) } : {}),
     checks,
     passed: over.passed ?? true,
     finished_at: over.finishedAt ?? '2026-11-22T10:00:00.000Z',
@@ -330,7 +341,10 @@ describe('the CI step reads the receipt, and only a run can write one', () => {
   })
 
   test('a green receipt passes', () => {
-    const decision = decide({ event: 'pull_request', files: surface, status: { state: 'success', description: 'card-2026-11-22' } })
+    // The positive control. Since the columns page became capturable the receipt names the pages
+    // it opened, and `surface` here is `body/index.html` — a columns-page diff. An unmarked
+    // receipt on this diff is the old loophole and is refused; see the negative controls below.
+    const decision = decide({ event: 'pull_request', files: surface, status: { state: 'success', description: 'G3 [case] PASS — card-2026-11-22' } })
     expect(decision.ok).toBe(true)
     expect(decision.message).toContain('card-2026-11-22')
   })
@@ -428,5 +442,133 @@ describe('a pull request with no head or base is a usage error, not an empty dif
 describe('the required checks are the ones the gate names', () => {
   test('host apps, the room boundary and the capture scope are all mandatory', () => {
     expect([...REQUIRED_CHECKS]).toEqual(['policy.no-host-apps', 'policy.stays-in-room', 'capture.browser-only'])
+  })
+})
+
+/**
+ * The negative control this card exists for: a green run against the graph page used to satisfy
+ * any card, including one whose claim is only visible on the columns page (`body/index.html` →
+ * `dist/demo.html`). That is how a columns-page PR merged on an infrastructure smoke.
+ */
+describe('a graph receipt does not authorise a claim about the columns page', () => {
+  test('a case-page card with a graph-only run is refused, and the reason says which page is missing', () => {
+    const out = emptyOut()
+    makeRun(out, 'case-card-2026-11-22T10-00-00-000Z', { checks: [...REQUIRED_CHECKS.map((name) => ({ name, ok: true, detail: 'ok' })), { name: 'cleanroom.counts', ok: true, detail: 'header "9 nodes / 11 edges"' }] })
+    // No `pages` field: a report as the harness wrote it before the field existed, which was a
+    // graph-page run every time.
+    const result = gateFor(SHA, out, ['case'])
+    expect(result.ok).toBe(false)
+    expect(result.reason).toContain('the columns page')
+    expect(result.reason).toContain('not evidence of this claim')
+  })
+
+  test('the same run satisfies a card that asks for the graph page', () => {
+    const out = emptyOut()
+    makeRun(out, 'smoke-2026-11-22T10-00-00-000Z', { pages: ['graph'], cardPage: ['graph'] })
+    expect(gateFor(SHA, out, ['graph']).ok).toBe(true)
+  })
+
+  test('a run that captured the columns page satisfies a case-page card', () => {
+    const out = emptyOut()
+    makeRun(out, 'case-2026-11-22T10-00-00-000Z', { pages: ['case'], cardPage: ['case'] })
+    const result = gateFor(SHA, out, ['case'])
+    expect(result.ok).toBe(true)
+    expect(result.run?.pages).toEqual(['case'])
+  })
+
+  test('a card that names both pages needs a run that opened both', () => {
+    const out = emptyOut()
+    makeRun(out, 'case-only-2026-11-22T10-00-00-000Z', { pages: ['case'] })
+    expect(gateFor(SHA, out, ['case', 'graph']).ok).toBe(false)
+    const both = emptyOut()
+    makeRun(both, 'both-2026-11-22T10-00-00-000Z', { pages: ['case', 'graph'] })
+    expect(gateFor(SHA, both, ['case', 'graph']).ok).toBe(true)
+  })
+
+  test('a report whose own card names a page its captures do not is refused without being asked', () => {
+    // The second half of the rule: even with no caller-supplied requirement, a report that says
+    // "this card asked for the columns page" and carries no columns capture is not evidence.
+    const out = emptyOut()
+    makeRun(out, 'incoherent-2026-11-22T10-00-00-000Z', { pages: ['graph'], cardPage: ['case'] })
+    const result = gateFor(SHA, out)
+    expect(result.ok).toBe(false)
+    expect(result.reason).toContain('the columns page')
+  })
+
+  test('a run from before the page field is read as a graph run, not as every page', () => {
+    const old = { checks: [{ name: 'cleanroom.counts', ok: true, detail: 'header "9 nodes / 11 edges"' }] }
+    expect(capturedPages(old)).toEqual(['graph'])
+    expect(capturedPages({ pages: [{ label: 'case', kind: 'case' }] })).toEqual(['case'])
+    expect(capturedPages({ pages: [{ label: 'case', kind: 'case' }, { label: 'replay', kind: 'graph' }] })).toEqual(['case', 'graph'])
+    // A report with neither is not evidence of any page: absent is not "all of them".
+    expect(capturedPages({ checks: REQUIRED_CHECKS.map((name) => ({ name, ok: true, detail: 'ok' })) })).toEqual([])
+  })
+
+  test('the CLI refuses a case-page run it does not have, and names the page', () => {
+    const out = emptyOut()
+    makeRun(out, 'graph-2026-11-22T10-00-00-000Z', { pages: ['graph'] })
+    const refused = cli(['--commit', SHA, '--pages', 'case'], out)
+    expect(refused.code).toBe(1)
+    expect(refused.stderr.join('\n')).toContain('the columns page')
+    // The same directory answers yes when only the graph page is asked for: the refusal is about
+    // the page, not about the run being unusable.
+    expect(cli(['--commit', SHA, '--pages', 'graph'], out).code).toBe(0)
+  })
+
+  test('a flag that names no page is a usage error', () => {
+    const result = cli(['--commit', SHA, '--pages', 'columns'])
+    expect(result.code).toBe(1)
+    expect(result.stderr.join('\n')).toContain('not a page')
+  })
+})
+
+describe('the diff decides which page the receipt has to be evidence of', () => {
+  test('the columns page and the graph page are named by their own paths', () => {
+    expect(pagesFor(['body/index.html'])).toEqual(['case'])
+    expect(pagesFor(['src/App.tsx'])).toEqual(['graph'])
+    expect(pagesFor(['graph.html'])).toEqual(['graph'])
+    expect(pagesFor(['index.html', 'case.html', 'scripts/build-demo.ts'])).toEqual(['case'])
+    // Both pages come out of one build, and app.json is what the clean room installs.
+    expect(pagesFor(['package.json'])).toEqual(['case', 'graph'])
+    expect(pagesFor(['docs/PLAN.md', 'scripts/e2e/gate.ts'])).toEqual([])
+  })
+
+  test('a green receipt that names no page cannot authorise a diff that moves the columns page', () => {
+    // This is the receipt t_7557a1f2 produced: green, from the graph page, on a columns-page branch.
+    const decision = decide({ event: 'pull_request', files: ['body/lib/right-panel.js'], status: { state: 'success', description: 'G3 PASS — t17-what-moves-it-2026-11-22' } })
+    expect(decision.required).toBe(true)
+    expect(decision.ok).toBe(false)
+    expect(decision.message).toContain('the columns page')
+    expect(decision.message).toContain('page: case')
+  })
+
+  test('a receipt that says it opened the columns page is enough for that diff', () => {
+    const decision = decide({
+      event: 'pull_request',
+      files: ['body/lib/right-panel.js'],
+      status: { state: 'success', description: 'G3 [case] PASS — t17-what-moves-it-2026-11-22 — t_7557a1f2' },
+    })
+    expect(decision.ok).toBe(true)
+  })
+
+  test('a graph-only receipt is still enough for a graph-page diff, old ones included', () => {
+    for (const description of ['G3 PASS — smoke-2026-11-21', 'G3 [graph] PASS — card-2026-11-22']) {
+      const decision = decide({ event: 'pull_request', files: ['src/App.tsx'], status: { state: 'success', description } })
+      expect(decision.ok).toBe(true)
+    }
+  })
+
+  test('a diff that moves both pages needs both, named', () => {
+    const files = ['body/index.html', 'src/App.tsx']
+    expect(decide({ event: 'pull_request', files, status: { state: 'success', description: 'G3 [case] PASS — x' } }).ok).toBe(false)
+    expect(decide({ event: 'pull_request', files, status: { state: 'success', description: 'G3 [graph] PASS — x' } }).ok).toBe(false)
+    expect(decide({ event: 'pull_request', files, status: { state: 'success', description: 'G3 [case+graph] PASS — x' } }).ok).toBe(true)
+  })
+
+  test('the page marker is read from the receipt, and an absent one is not a claim', () => {
+    expect(receiptPages('G3 [case] PASS — dir — t_1')).toEqual(['case'])
+    expect(receiptPages('G3 [case+graph] PASS — dir')).toEqual(['case', 'graph'])
+    expect(receiptPages('G3 [graph, case] PASS — dir')).toEqual(['case', 'graph'])
+    expect(receiptPages('G3 PASS — dir')).toBeNull()
   })
 })

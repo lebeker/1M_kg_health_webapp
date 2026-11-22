@@ -13,6 +13,21 @@
  * A card marked `e2e: light` runs G2 plus one prompt and no replay. Anything smaller than
  * `M` may be marked that way by the lead (docs/DELIVERY-LOOP.md §3).
  *
+ * `page:` says which page the claim lives on, because the product has two and they do not
+ * render the same thing: `graph` is `dist/graph.html`, the React viewer the skill installs;
+ * `case` is `dist/demo.html`, the three-column page with the timeline, the record list and the
+ * right panel (widgets 19–25). A card about the columns page that is asserted against the graph
+ * page gets a receipt for a page it never claimed, which is the loophole this field closes:
+ *
+ *   ## e2e
+ *   prompt: what moves my forecast
+ *   page: case
+ *   expect: no record here carries an effect size
+ *
+ * `page: both` asks for both. Absent means `graph`, the page the harness has always captured, so
+ * a card written before the field existed keeps running the run it was written for. A card whose
+ * claim is on the columns page must say so; `gate.ts` then refuses a graph-only receipt.
+ *
  * A card with no prompt is not guessed at. G0 says a card that does not state its own test
  * is blocked, not started; the harness exits 2 and says which block to add.
  */
@@ -23,6 +38,11 @@ import { basename, join, resolve } from 'node:path'
 
 export type CardMode = 'full' | 'light'
 
+/** The two pages the product has, and the only two a run can be evidence of. */
+export type PageKind = 'case' | 'graph'
+
+export const PAGE_KINDS: PageKind[] = ['case', 'graph']
+
 export type Card = {
   /** Task id (`t_…`) or the file the card was read from. */
   id: string
@@ -31,6 +51,8 @@ export type Card = {
   mode: CardMode
   prompt: string
   expect: string[]
+  /** Which built pages the claim lives on. Absent `page:` means `['graph']`. */
+  pages: PageKind[]
   source: 'kanban' | 'file'
 }
 
@@ -87,9 +109,13 @@ function readFileCard(path: string): Card {
 /**
  * Read one `## e2e` block: `key: value` lines, with `expect:` accepting a comma-separated
  * list or indented `- item` bullets. Everything else on the card is prose.
+ *
+ * `page: case|graph|both` is parsed here too, and an unknown page is refused rather than
+ * ignored: a typo in the one line that says which page the claim lives on would otherwise fall
+ * back to the graph page — the exact mismatch this field exists to make impossible.
  */
-export function parseE2e(body: string): { mode?: CardMode; prompt?: string; expect: string[] } {
-  const result: { mode?: CardMode; prompt?: string; expect: string[] } = { expect: [] }
+export function parseE2e(body: string): { mode?: CardMode; prompt?: string; expect: string[]; pages?: PageKind[] } {
+  const result: { mode?: CardMode; prompt?: string; expect: string[]; pages?: PageKind[] } = { expect: [] }
 
   const lightMarker = body.match(/^\s*e2e:\s*light\b/im)
   if (lightMarker) result.mode = 'light'
@@ -109,6 +135,7 @@ export function parseE2e(body: string): { mode?: CardMode; prompt?: string; expe
       const value = heading[2].trim()
       if (key === 'prompt' && value) result.prompt = value
       if (key === 'mode' && /^(full|light)$/i.test(value)) result.mode = value.toLowerCase() as CardMode
+      if (key === 'page' && value) result.pages = parsePages(value)
       if (key === 'expect' && value) {
         result.expect.push(...value.split(',').map((s) => s.trim()).filter(Boolean))
       }
@@ -122,7 +149,32 @@ export function parseE2e(body: string): { mode?: CardMode; prompt?: string; expe
   return result
 }
 
-export function parseCard(body: string, title: string): { title: string; body: string; mode: CardMode; prompt: string; expect: string[] } {
+/** `case`, `graph`, `both`, or any `+`/`,`/space list of the first two. Anything else throws. */
+export function parsePages(value: string): PageKind[] {
+  const wanted = new Set<PageKind>()
+  for (const token of value
+    .toLowerCase()
+    .split(/[\s,+]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)) {
+    if (token === 'both') {
+      wanted.add('case')
+      wanted.add('graph')
+      continue
+    }
+    if (!PAGE_KINDS.includes(token as PageKind)) {
+      throw new Error(`the card's ## e2e block says \`page: ${value}\`, and "${token}" is not a page — use case, graph or both`)
+    }
+    wanted.add(token as PageKind)
+  }
+  if (wanted.size === 0) throw new Error(`the card's ## e2e block says \`page: ${value}\`, which names no page — use case, graph or both`)
+  return PAGE_KINDS.filter((kind) => wanted.has(kind))
+}
+
+export function parseCard(
+  body: string,
+  title: string,
+): { title: string; body: string; mode: CardMode; prompt: string; expect: string[]; pages: PageKind[] } {
   const e2e = parseE2e(body)
   return {
     title,
@@ -130,6 +182,9 @@ export function parseCard(body: string, title: string): { title: string; body: s
     mode: e2e.mode ?? 'full',
     prompt: e2e.prompt ?? '',
     expect: e2e.expect,
+    // The page the harness has always captured, so a card that predates the field keeps the run
+    // it was written for. A claim on the columns page has to say `page: case`.
+    pages: e2e.pages ?? ['graph'],
   }
 }
 
@@ -147,6 +202,9 @@ export function missingPromptHelp(card: Card): string {
     '  ## e2e',
     '  prompt: <the one sentence a user would say>',
     '  expect: <text that must be visible when it worked>',
+    '',
+    'Add `page: case` beside them when the claim lives on the columns page (`dist/demo.html`,',
+    'widgets 19–25) rather than the graph view; the default is `page: graph`.',
     '',
     'Then run the harness again. Nothing was run.',
   ].join('\n')

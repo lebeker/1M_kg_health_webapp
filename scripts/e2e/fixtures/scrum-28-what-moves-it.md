@@ -21,5 +21,6 @@ and the section states that no record in this document carries an effect size, i
 a column of `+0.0`.
 
 ## e2e
+page: case
 prompt: Build me a health record I can look at — an invented patient labelled synthetic: born 1961, male; one visit on 2024-03-05 with a lipid panel whose LDL cholesterol is 4.1 mmol/L against a reference of 0 to 3.0, flagged high, and a blood pressure of 158/96 that day; and atorvastatin 20 mg started 2023-01-10.
 expect: no record here carries an effect size, LDL, blood pressure, statin

@@ -18,13 +18,16 @@
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { PageKind } from './card'
 import { browserEnv, endpointConfig, packagedAgentBrowser, runChat, writeHermesHome, type ToolCall } from './hermes'
 
-export type Page = { label: string; url: string; expect: string[] }
+export type Page = { label: string; url: string; expect: string[]; kind: PageKind }
 
 export type PageCapture = {
   label: string
   url: string
+  /** Which built page this is: `graph` (the React viewer) or `case` (the columns page). */
+  kind: PageKind
   /** The object `browser_console` returned; `{}` when the session never got that far. */
   values: Record<string, unknown>
   /** Evidence-dir path of the PNG `browser_vision` wrote, or '' when there was none. */
@@ -54,12 +57,68 @@ export type CaptureRun = {
  * one call is enough, and it answers the claim itself: `expect` is matched against the page's
  * own text, in the page, rather than against a string the model retyped.
  *
+ * Two pages, two shapes. The graph page mounts React into `#root` and prints `N nodes · M edges`
+ * in `header.bar`; the columns page mounts nothing, boots from `#kg-graph` into three static
+ * columns, and reports itself through the page's own acceptance hooks (`__documentState`,
+ * `__columns`, `__records`) — so readiness means "the document is in it and the three columns
+ * are drawn", not "six elements appeared under a root that does not exist here".
+ *
  * Keep the returned object small: the session's record stream caps one tool result at 5 kB, and
  * a truncated result cannot be parsed. The whole DOM is represented by its sha256 and length;
  * `domHead` is there so a reviewer sees the document is real without a 2 MB file.
  */
-export function probeExpression(expect: string[]): string {
+export function probeExpression(expect: string[], kind: PageKind = 'graph'): string {
   const needles = JSON.stringify(expect)
+  if (kind === 'case') {
+    return `(async () => {
+  const start = Date.now()
+  const state = () => (typeof window.__documentState === 'function' ? window.__documentState() : 'no hook')
+  const cols = () => {
+    try { return typeof window.__columns === 'function' ? window.__columns() : null } catch (error) { return null }
+  }
+  const drawn = (c) => Boolean(c && c.left && c.centre && c.panel && c.centre.width > 0 && c.panel.width > 0)
+  while (Date.now() - start < 20000 && !(state() === 'present' && cols() && cols().centreFilled)) {
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+  const columns = cols() || {}
+  let records = { total: 0, stored: 0, sample: [] }
+  try {
+    if (typeof window.__records === 'function') {
+      const all = window.__records()
+      const kept = all.filter((row) => row.stored === true)
+      records = { total: all.length, stored: kept.length, sample: kept.slice(0, 6).map((row) => ({ kind: row.kind, date: row.date })) }
+    }
+  } catch (error) { records = { total: 0, stored: 0, sample: [] } }
+  const html = document.documentElement.outerHTML
+  const body = (document.body.innerText || '')
+  const lower = body.toLowerCase()
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(html))
+  const sha = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('')
+  return {
+    url: location.href,
+    ready: state() === 'present' && drawn(columns) && columns.centreFilled === true,
+    page: 'case',
+    title: document.title,
+    documentState: state(),
+    columns: {
+      left: columns.left ? columns.left.width : 0,
+      centre: columns.centre ? columns.centre.width : 0,
+      panel: columns.panel ? columns.panel.width : 0,
+      centreFilled: columns.centreFilled === true,
+      centreRecord: columns.centreRecord || '',
+      states: columns.states || 0,
+    },
+    records,
+    text: body.slice(0, 700),
+    claim: ${needles}.map((needle) => ({ needle, found: lower.includes(needle.toLowerCase()) })),
+    empty: state() === 'absent' ? 'document' : null,
+    domBytes: html.length,
+    domSha256: sha,
+    domHead: html.slice(0, 300),
+    capturedAt: new Date().toISOString(),
+  }
+})()`
+  }
   return `(async () => {
   const start = Date.now()
   const mounted = () => document.querySelectorAll('#root *').length
@@ -77,6 +136,7 @@ export function probeExpression(expect: string[]): string {
   return {
     url: location.href,
     ready: mounted() > 5 && !loading(),
+    page: 'graph',
     title: document.title,
     header: header ? header.innerText.replace(/\\n+/g, ' | ') : '',
     text: body.slice(0, 1200),
@@ -97,14 +157,18 @@ export function probeExpression(expect: string[]): string {
  * for every card so a reviewer can read it once.
  */
 export function capturePrompt(pages: Page[]): string {
-  const probe = probeExpression(pages[0]?.expect ?? [])
   const steps = pages
-    .map(
-      (page, index) =>
-        `PAGE ${index + 1} — ${page.label}\n  a. browser_navigate with url: ${page.url}\n` +
-        `  b. browser_console with this exact expression (it waits for the first render itself):\n${probe}\n` +
-        `  c. browser_vision with question: "the page under test — does it show a rendered graph and which header text is visible?"`,
-    )
+    .map((page, index) => {
+      const question =
+        page.kind === 'case'
+          ? 'the columns page under test — are the left record list, the centre record and the right panel drawn, and which headings are visible?'
+          : 'the page under test — does it show a rendered graph and which header text is visible?'
+      return (
+        `PAGE ${index + 1} — ${page.label} (${page.kind} page)\n  a. browser_navigate with url: ${page.url}\n` +
+        `  b. browser_console with this exact expression (it waits for the first render itself):\n${probeExpression(page.expect, page.kind)}\n` +
+        `  c. browser_vision with question: "${question}"`
+      )
+    })
     .join('\n\n')
   return [
     'You are the capture step of an automated gate. Do not solve any other problem, do not',
@@ -213,6 +277,7 @@ export async function capturePages(options: CaptureOptions): Promise<CaptureRun>
   const captures: PageCapture[] = options.pages.map((page) => ({
     label: page.label,
     url: page.url,
+    kind: page.kind,
     values: {},
     screenshot: '',
     screenshotBytes: 0,

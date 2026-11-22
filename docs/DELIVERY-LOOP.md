@@ -115,6 +115,7 @@ would say, plus the text that must be visible when the card is done:
 
 ```markdown
 ## e2e
+page: case
 prompt: show me my last lipid panel
 expect: LDL cholesterol, mmol/L
 ```
@@ -122,6 +123,12 @@ expect: LDL cholesterol, mmol/L
 A card about rendering asks for a picture of a record; a card about the risk model asks for
 "what is my ten-year risk and where does the number come from". Nothing is hard-coded in the harness:
 a card with no prompt exits 2 and is blocked at G0 instead of being guessed at.
+
+`page:` is which built page the claim lives on, and it is not decoration. The product has two —
+`graph` (`dist/graph.html`, the React viewer the skill installs) and `case` (`dist/demo.html`, the
+three-column page: timeline, record list, right panel, widgets 19–25). Absent means `graph`, which
+is the page the harness captured before this field existed; a card whose claim is on the columns
+page must say `page: case`, and `scripts/e2e/gate.ts` then refuses a receipt that never opened it.
 
 **Load.** **The published Pages build cannot be used for unmerged work.** Pages serves `main`; a
 card's work exists on a branch. So the clean room loads a **build of the card's worktree**
@@ -133,11 +140,14 @@ public. Anything else tests the old product and proves nothing.
 narrowly scoped capture session — headless, throwaway profile, `use_real_profile: false`, no
 `computer_use`, pinned to the `browser` toolset alone, and no browser binary started by the
 harness (owner policy: bots do not launch or control desktop applications). That session opens
-the page the agent rendered, waits for
-the first render, reads the page title, the `N nodes · M edges` header, the visible text and a
+every page the card names — the page the agent rendered, and/or the columns page the branch builds
+with the agent's document in its `#kg-graph` slot — waits for
+the first render, reads the page title, the `N nodes · M edges` header (or, on the columns page,
+the three column widths and the record rows it drew), the visible text and a
 sha256 of the live DOM, answers the card's `expect` in the page itself, and takes the
 screenshot. All of it is written to `~/.hermes/e2e/<card>-<timestamp>/` next to the agent's
-`kg.json` and its record stream. Then that `kg.json` is injected into the branch build and
+`kg.json` and its record stream, and `report.json` names the page every claim was checked against.
+Then that `kg.json` is injected into the branch build and
 replayed: no crash, `bun run verify` green, the kg/1 contract over the agent's own document,
 the same claim visible. Every child session's tool calls are scanned afterwards — one that
 starts its own browser, `osascript`, a remote-debugging port or Playwright fails the run — and

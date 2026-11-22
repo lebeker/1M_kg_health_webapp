@@ -14,7 +14,9 @@
  *     build, no repo, no fixtures, no memory — and gives one fresh agent the one sentence;
  *  4. takes what the agent produced (`kg.json`), then opens the page it rendered in a capture
  *     session that has Hermes's `browser_*` tools and nothing else: readiness, title, header,
- *     visible text, a sha256 over the live DOM, and a screenshot;
+ *     visible text, a sha256 over the live DOM, and a screenshot. Which page is opened is the
+ *     card's `page:` line: the graph view (`dist/graph.html`) and/or the columns page
+ *     (`dist/demo.html` + the agent's document), and each capture records which it is;
  *  5. replays that same `kg.json` inside the branch build, captures it the same way, and runs
  *     the acceptance scripts (`bun run verify`, the kg/1 contract over the agent's document);
  *  6. writes `report.json` next to the screenshots and posts one `e2e` commit status on the head
@@ -26,11 +28,11 @@
  */
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join, resolve, sep } from 'node:path'
 import { capturePages, describeValues, type PageCapture } from './capture'
-import { type Card, cardStatus, missingPromptHelp, readCard } from './card'
+import { type Card, cardStatus, missingPromptHelp, type PageKind, readCard } from './card'
 import { findArtifacts, keepRoomCopy, prepareCleanRoom, runAgent } from './cleanroom'
 import type { ToolCall } from './hermes'
 import { inject } from './inject'
@@ -166,7 +168,7 @@ function printHelp() {
   --prompt <text>      override the card's prompt (recorded as an override, for debugging)
   --label <text>       prefix for the run directory, e.g. "smoke"
   --timeout <seconds>  how long the fresh agent may take (default: 900)
-  --skip-build         reuse dist/graph.html from an earlier build
+  --skip-build         reuse dist/graph.html (and dist/demo.html) from an earlier build
   --skip-verify        do not run \`bun run verify\`
   --no-comment         never comment on the card, even on failure
   --no-status          do not post the \`e2e\` commit status CI reads
@@ -226,6 +228,7 @@ function policyChecks(sessionCalls: ToolCall[], roomCalls: ToolCall[], captureCa
 
 type PageValues = {
   url?: string
+  page?: string
   ready?: boolean
   title?: string
   header?: string
@@ -233,15 +236,32 @@ type PageValues = {
   claim?: Array<{ needle: string; found: boolean }>
   mounted?: number
   empty?: string | null
+  /** The columns page's own hooks: what it holds, what it drew, which rows it lists. */
+  documentState?: string
+  columns?: { left?: number; centre?: number; panel?: number; centreFilled?: boolean; centreRecord?: string; states?: number }
+  records?: { total?: number; stored?: number; sample?: Array<{ kind?: string; date?: string }> }
   domBytes?: number
   domSha256?: string
   domHead?: string
   capturedAt?: string
 }
 
+/** `2024-03-05` out of whatever the document stores — a date, or a date-time. */
+function day(value: unknown): string {
+  const text = String(value ?? '')
+  return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : ''
+}
+
+/**
+ * The checks for one captured page. The two pages do not have the same anatomy, so they do not
+ * have the same evidence: the graph page proves itself with a `N nodes · M edges` header and a
+ * mounted root, and the columns page with a document in its slot, three columns laid out and a
+ * record list whose dates are the document's own. The claim checks are the same on both, and
+ * they are the only part that decides the card.
+ */
 function pageChecks(stage: string, capture: PageCapture, document: KgDocument): Check[] {
   const values = capture.values as PageValues
-  const nodes = document.nodes?.length ?? 0
+  const nodes = document.nodes ?? []
   const edges = document.edges?.length ?? 0
   const docTitle = String(document.meta?.title ?? '')
   const header = String(values.header ?? '')
@@ -258,26 +278,70 @@ function pageChecks(stage: string, capture: PageCapture, document: KgDocument): 
       ok: String(values.url ?? '') === capture.url,
       detail: `the browser reported ${values.url ? String(values.url) : 'no url'}, expected ${capture.url}`,
     },
-    {
-      name: `${stage}.page-ready`,
-      ok: values.ready === true,
-      detail: values.ready === true ? `${mounted} elements under #root` : 'the page never finished its first render',
-    },
-    {
-      name: `${stage}.not-empty`,
-      ok: values.empty === null || values.empty === undefined,
-      detail: values.empty == null ? 'the viewer drew a graph' : `the viewer says: no ${String(values.empty)} yet`,
-    },
-    {
-      name: `${stage}.title`,
-      ok: docTitle.length > 0 && String(values.title ?? '') === docTitle,
-      detail: `page title "${String(values.title ?? '')}", document title "${docTitle}"`,
-    },
-    {
-      name: `${stage}.counts`,
-      ok: header.includes(`${nodes} nodes`) && header.includes(`${edges} edges`),
-      detail: `header "${header}" for ${nodes} nodes / ${edges} edges`,
-    },
+  ]
+
+  if (capture.kind === 'case') {
+    const columns = values.columns ?? {}
+    const records = values.records ?? {}
+    const sample = Array.isArray(records.sample) ? records.sample : []
+    const dated = new Set(
+      nodes
+        .map((node) => day((node as { when?: unknown }).when) || day((node as { date?: unknown }).date))
+        .filter(Boolean),
+    )
+    const offDocument = sample.filter((row) => !dated.has(day(row.date)))
+    checks.push(
+      {
+        name: `${stage}.page-ready`,
+        ok: values.ready === true && values.documentState === 'present',
+        detail:
+          values.ready === true
+            ? `the page holds a document and drew ${Number(columns.left ?? 0)} / ${Number(columns.centre ?? 0)} / ${Number(columns.panel ?? 0)} px of columns, centre on ${String(columns.centreRecord ?? '(none)')}`
+            : `the columns page never finished its first render — document ${String(values.documentState ?? 'unknown')}, columns ${Number(columns.left ?? 0)} / ${Number(columns.centre ?? 0)} / ${Number(columns.panel ?? 0)} px`,
+      },
+      {
+        name: `${stage}.not-empty`,
+        ok: values.documentState === 'present',
+        detail: values.documentState === 'present' ? 'the columns page is holding the run\'s document' : `the page says: no ${String(values.empty ?? 'document')}`,
+      },
+      {
+        name: `${stage}.records`,
+        ok: sample.length > 0 && offDocument.length === 0,
+        detail:
+          sample.length === 0
+            ? 'the record list drew no stored row, so the page is not showing this document'
+            : `${Number(records.stored ?? 0)} stored rows of ${Number(records.total ?? 0)}: ${sample
+                .slice(0, 4)
+                .map((row) => `${String(row.kind ?? '?')} ${String(row.date ?? '?')}`)
+                .join(', ')}${offDocument.length > 0 ? ` — ${offDocument.length} row date(s) are not in the document: ${offDocument.map((row) => String(row.date)).join(', ')}` : ' — every one is dated in the document'}`,
+      },
+    )
+  } else {
+    checks.push(
+      {
+        name: `${stage}.page-ready`,
+        ok: values.ready === true,
+        detail: values.ready === true ? `${mounted} elements under #root` : 'the page never finished its first render',
+      },
+      {
+        name: `${stage}.not-empty`,
+        ok: values.empty === null || values.empty === undefined,
+        detail: values.empty == null ? 'the viewer drew a graph' : `the viewer says: no ${String(values.empty)} yet`,
+      },
+      {
+        name: `${stage}.title`,
+        ok: docTitle.length > 0 && String(values.title ?? '') === docTitle,
+        detail: `page title "${String(values.title ?? '')}", document title "${docTitle}"`,
+      },
+      {
+        name: `${stage}.counts`,
+        ok: header.includes(`${nodes.length} nodes`) && header.includes(`${edges} edges`),
+        detail: `header "${header}" for ${nodes.length} nodes / ${edges} edges`,
+      },
+    )
+  }
+
+  checks.push(
     {
       name: `${stage}.dom`,
       ok: Number(values.domBytes ?? 0) > 10_000 && String(values.domSha256 ?? '').length === 64,
@@ -288,7 +352,7 @@ function pageChecks(stage: string, capture: PageCapture, document: KgDocument): 
       ok: capture.screenshotBytes > 15_000,
       detail: `${capture.screenshotBytes} bytes of PNG at ${capture.screenshot || '(none)'}`,
     },
-  ]
+  )
   if (claim.length === 0) {
     checks.push({ name: `${stage}.claim`, ok: false, detail: 'the card states no expected text, so its own claim was not checked' })
   }
@@ -345,7 +409,14 @@ function returnCard(taskId: string, reason: string): string {
 
 /** `N nodes / M edges` as the page itself printed them, or the document's own count. */
 function pageCounts(capture: PageCapture, document: KgDocument): string {
-  const header = String((capture.values as PageValues).header ?? '')
+  const values = capture.values as PageValues
+  if (capture.kind === 'case') {
+    const records = values.records ?? {}
+    const columns = values.columns ?? {}
+    const drawn = `${Number(records.stored ?? 0)} record(s) drawn, columns ${Number(columns.left ?? 0)}/${Number(columns.centre ?? 0)}/${Number(columns.panel ?? 0)} px`
+    return drawn
+  }
+  const header = String(values.header ?? '')
   const match = header.match(/(\d+)\s+nodes?\D+(\d+)\s+edges?/i)
   if (match) return `${match[1]} nodes / ${match[2]} edges`
   return `${document.nodes?.length ?? 0} nodes / ${document.edges?.length ?? 0} edges (document; no header read)`
@@ -378,6 +449,7 @@ function evidenceBody(input: {
     '',
     `run: ${input.evidence}`,
     `branch ${input.branch} @ ${input.commit.slice(0, 7)} (${input.dirty ? 'dirty worktree — not commit-bound' : 'clean tree'})`,
+    `page ${input.card.pages.join('+')} — every claim below names the page it was checked against`,
     '',
     'replay counts:',
     ...input.captures.map((capture) => `- ${capture.label}: ${pageCounts(capture, input.document)}`),
@@ -395,8 +467,9 @@ function evidenceBody(input: {
     ...input.captures.flatMap((capture) => {
       const values = capture.values as PageValues
       const claim = Array.isArray(values.claim) ? values.claim : []
-      if (claim.length === 0) return [`- ${capture.label}: the card states no expected text`]
-      return claim.map((hit) => `- ${capture.label}: ${hit.found ? 'visible' : 'NOT visible'} — "${hit.needle}"`)
+      const where = `${capture.label} (${capture.kind} page)`
+      if (claim.length === 0) return [`- ${where}: the card states no expected text`]
+      return claim.map((hit) => `- ${where}: ${hit.found ? 'visible' : 'NOT visible'} — "${hit.needle}"`)
     }),
     '',
     `policy.no-host-apps: ${checkDetail(input.checks, 'policy.no-host-apps')}`,
@@ -432,6 +505,10 @@ async function main() {
   const buildPath = join(worktree, 'dist', 'graph.html')
   if (!existsSync(buildPath)) throw new Error(`${buildPath} is missing — run without --skip-build`)
   const buildBytes = readFileSync(buildPath)
+  /** The three-column page, built by the same `bun run build` (`scripts/build-demo.ts`). */
+  const caseBuildPath = join(worktree, 'dist', 'demo.html')
+  const caseBytes = card.pages.includes('case') ? (existsSync(caseBuildPath) ? readFileSync(caseBuildPath) : null) : null
+  if (card.pages.includes('case') && !caseBytes) throw new Error(`${caseBuildPath} is missing and the card asks for the case page — run without --skip-build`)
 
   const slugBase = card.source === 'file' ? basename(card.id).replace(/\.[^.]+$/, '') : card.id
   const slug = `${options.label ? `${options.label}-` : ''}${slugBase.replace(/[^A-Za-z0-9_-]/g, '_')}-${new Date().toISOString().replace(/[:.]/g, '-')}`
@@ -443,6 +520,7 @@ async function main() {
     title: card.title,
     source: card.source,
     mode: card.mode,
+    pages: card.pages,
     prompt: card.prompt,
     prompt_source: options.promptOverride ? 'override' : 'card',
     expect: card.expect,
@@ -451,11 +529,12 @@ async function main() {
     dirty,
     dirty_files: dirtyFiles,
     build: { path: join(evidence, 'build.html'), sha256: sha256(buildBytes), bytes: buildBytes.length },
+    case_build: caseBytes ? { path: caseBuildPath, sha256: sha256(caseBytes), bytes: caseBytes.length } : null,
     started_at: new Date().toISOString(),
   }, null, 2)}\n`)
 
   console.log(`card    ${card.id} — ${card.title}`)
-  console.log(`prompt  "${card.prompt}"  (${options.promptOverride ? 'override' : 'from the card'}, mode ${card.mode})`)
+  console.log(`prompt  "${card.prompt}"  (${options.promptOverride ? 'override' : 'from the card'}, mode ${card.mode}, page ${card.pages.join('+')})`)
   console.log(`evidence ${evidence}`)
   console.log()
 
@@ -507,10 +586,28 @@ async function main() {
       const cleanroomPage = found.pagePath ?? join(evidence, 'cleanroom-injected.html')
       if (!found.pagePath) writeFileSync(cleanroomPage, inject(buildBytes.toString('utf8'), document))
       const replayPage = join(evidence, 'replay.html')
-      if (card.mode === 'full') writeFileSync(replayPage, inject(buildBytes.toString('utf8'), document))
 
-      const pages = [{ label: 'cleanroom', url: `file://${cleanroomPage}`, expect: card.expect }]
-      if (card.mode === 'full') pages.push({ label: 'replay', url: `file://${replayPage}`, expect: card.expect })
+      const pages: Array<{ label: string; url: string; expect: string[]; kind: PageKind }> = []
+      if (card.pages.includes('graph')) {
+        if (card.mode === 'full') writeFileSync(replayPage, inject(buildBytes.toString('utf8'), document))
+        pages.push({ label: 'cleanroom', url: `file://${cleanroomPage}`, expect: card.expect, kind: 'graph' })
+        if (card.mode === 'full') pages.push({ label: 'replay', url: `file://${replayPage}`, expect: card.expect, kind: 'graph' })
+      }
+      if (card.pages.includes('case')) {
+        // The columns page the branch builds, with the run's own document in its slot. It is not
+        // retitled: `dist/demo.html` carries the product's title, and a page the harness renamed
+        // is not the page under test. `lib/` and `models/` are what the page loads relatively,
+        // so they are linked beside the copy — otherwise nothing on it renders.
+        const casePath = join(evidence, 'case.html')
+        writeFileSync(casePath, inject(readFileSync(caseBuildPath, 'utf8'), document, { title: false }))
+        for (const asset of ['lib', 'models']) {
+          const from = join(worktree, 'dist', asset)
+          const to = join(evidence, asset)
+          if (!existsSync(from)) throw new Error(`${from} is missing — the columns page loads ${asset}/ and the build did not install it`)
+          if (!existsSync(to)) symlinkSync(from, to, 'dir')
+        }
+        pages.push({ label: 'case', url: `file://${casePath}`, expect: card.expect, kind: 'case' })
+      }
 
       const capture = await capturePages({ pages, outDir: evidence })
       allCalls.push(...capture.calls)
@@ -549,13 +646,32 @@ async function main() {
   checks.push(...policyChecks(allCalls, roomCalls, captureCalls))
 
   const failed = checks.filter((check) => !check.ok)
+  /**
+   * Which page each claim was checked against. The page kinds are recorded per capture as well as
+   * on the card, because the reviewer's question is not "what did the card ask for" but "what did
+   * this run actually open, and could the claim have failed there".
+   */
+  const pages = captures.map((capture) => {
+    const values = capture.values as PageValues
+    const claim = Array.isArray(values.claim) ? values.claim : []
+    return {
+      label: capture.label,
+      kind: capture.kind,
+      url: capture.url,
+      screenshot: capture.screenshot,
+      dom_bytes: Number(values.domBytes ?? 0),
+      dom_sha256: String(values.domSha256 ?? ''),
+      claim: claim.map((hit) => ({ needle: hit.needle, found: hit.found })),
+    }
+  })
   const report = {
-    card: { id: card.id, title: card.title, mode: card.mode, prompt: card.prompt, expect: card.expect },
+    card: { id: card.id, title: card.title, mode: card.mode, page: card.pages, prompt: card.prompt, expect: card.expect },
     branch,
     commit,
     dirty,
     dirty_files: dirtyFiles,
     evidence,
+    pages,
     browser: { route: 'hermes browser_* tools in a capture session', tools: captures.length > 0 },
     artifacts: {
       kg_json: join(evidence, 'kg.json'),
@@ -582,12 +698,15 @@ async function main() {
     if (dirty) return 'not posted — the worktree was dirty, so this run is not evidence of the commit'
     if (!onRemote(worktree, commit)) return `not posted — ${commit.slice(0, 7)} is not on origin, so it has no pull request`
     const state = failed.length === 0 ? 'success' : 'failure'
-    const what = failed.length === 0 ? 'PASS' : `${failed.length} failed: ${failed.map((check) => check.name).slice(0, 3).join(', ')}`
+    const pages = `[${card.pages.join('+')}]`
+    const what = failed.length === 0 ? 'PASS' : `${failed.length} failed: ${failed.map((check) => check.name).slice(0, 2).join(', ')}`
     const posted = postStatus({
       worktree,
       sha: commit,
       state,
-      description: `G3 ${what} — ${basename(evidence)}${failed.length === 0 ? ` — ${card.id}` : ''}`,
+      // The page marker is part of the receipt, not decoration: `ci-gate.ts` refuses a diff that
+      // moves the columns page when the receipt on its head does not say a case-page run made it.
+      description: `G3 ${pages} ${what} — ${basename(evidence)}${failed.length === 0 ? ` — ${card.id}` : ''}`,
     })
     if (!posted.ok) return `NOT posted: ${posted.output.split('\n').slice(0, 2).join(' ')}`
     return `e2e=${state} posted on ${commit.slice(0, 7)} (${basename(evidence)})`

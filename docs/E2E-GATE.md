@@ -28,16 +28,19 @@ It names directories, not files: a file list is a list somebody has to remember 
 first three things a file list quietly exempted were the models the page renders, the graph page's
 own entry document, and the builder that writes the demo artifact.
 
-| path | surface |
-|---|---|
-| `body/` | the page: header, timeline, columns, centre, right panel, the anatomy models it loads, the demo build and its artifact |
-| `src/` | the graph view and the node panel |
-| `graph.html` | the graph page's entry document, which the viewer mounts into |
-| `index.html` | the published root page: what GitHub Pages answers `/` with |
-| `case.html` | the published case page, the alias the docs name |
-| `scripts/build-demo.ts`, `scripts/build-case.ts` | the case build: the builders that write `dist/demo.html` and the published root page |
-| `app.json` | the demo build: the app manifest |
-| `package.json`, the lockfile, `vite.config.*`, `tsconfig.json` | the build itself |
+Each entry names the page the change is visible on — `pagesFor()` reads that — because the product
+has two built pages and a receipt for one is not a receipt for the other.
+
+| path | surface | page |
+|---|---|---|
+| `body/` | the page: header, timeline, columns, centre, right panel, the anatomy models it loads, the demo build and its artifact | case |
+| `src/` | the graph view and the node panel | graph |
+| `graph.html` | the graph page's entry document, which the viewer mounts into | graph |
+| `index.html` | the published root page: what GitHub Pages answers `/` with | case |
+| `case.html` | the published case page, the alias the docs name | case |
+| `scripts/build-demo.ts`, `scripts/build-case.ts` | the case build: the builders that write `dist/demo.html` and the published root page | case |
+| `app.json` | the demo build: the app manifest, which also names the app the clean room installs | case + graph |
+| `package.json`, the lockfile, `vite.config.*`, `tsconfig.json` | the build itself, which emits both pages | case + graph |
 
 `NOT_PRODUCT` is the whole allowlist inside those directories — `body/shots/`, any `body/**/*.md`,
 and `src/*.test.ts(x)`, things that cannot move the product on their own. Everything else under `body/`
@@ -48,7 +51,7 @@ to exempt it.
 
 ## What a run has to be
 
-`scripts/e2e/gate.ts` refuses a run that is not all four of these:
+`scripts/e2e/gate.ts` refuses a run that is not all five of these:
 
 - **against this commit** — `report.json`'s `commit` equals the head being reviewed, in full;
 - **clean** — `dirty: false`, because a run on a dirty tree is not evidence of any commit;
@@ -56,14 +59,30 @@ to exempt it.
   check is red is not a pass;
 - **policy-complete** — `policy.no-host-apps`, `policy.stays-in-room` and `capture.browser-only`
   present and green. Absent is not the same as green: a run that never scanned its child's tool
-  calls proves nothing about them.
+  calls proves nothing about them;
+- **on the right page** — the run captured every page the card names. `report.json` records the
+  page of each capture (`pages[].kind`) and what the card asked for (`card.page`); a card that
+  asked for the columns page and a run that only opened the graph page is refused, whether the
+  caller says so or the report contradicts itself. A report written before the field existed is
+  read as a graph run, which is what it was.
+
+`bun scripts/e2e/gate.ts --commit <sha> --pages case` asks for a specific page; `--files <paths>`
+prints which pages a diff's receipt has to have opened.
+
+That last rule is what CI reads from the receipt: `run.ts` puts the page marker in the status
+description (`G3 [case] PASS — …`, `[graph]`, `[case+graph]`), and `ci-gate.ts` refuses a diff that
+moves the columns page when the green status on its head does not say a case-page run made it. An
+unmarked receipt still satisfies a graph-only diff — every status posted before the field existed
+is graph-page evidence — but it can never authorise a columns-page change. That was the hole: a
+`body/` pull request merged on a green run of a page the card never mentioned.
 
 ## What the card gets
 
 On a pass, `run.ts` comments and attaches, so the reviewer never has to open a directory to know
-whether the run happened: replay counts for the clean room and the replay, DOM bytes and sha256 for
-each, the screenshot paths, the card's own `expect` hits, and the three policy checks with the
-number of child tool calls they scanned. On a failure it attaches the transcripts and the
+whether the run happened: the page each capture was (graph or case), replay counts for the clean
+room and the replay (records drawn and column widths on the columns page), DOM bytes and sha256 for
+each, the screenshot paths, the card's own `expect` hits per page, and the three policy checks with
+the number of child tool calls they scanned. On a failure it attaches the transcripts and the
 screenshots, posts `e2e=failure`, and moves the card out of `review`.
 
 ## The room's boundary, unchanged

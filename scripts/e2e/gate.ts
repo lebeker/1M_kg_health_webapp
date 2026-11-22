@@ -16,6 +16,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { PAGE_KINDS, type PageKind } from './card'
 
 export const DEFAULT_OUT = join(homedir(), '.hermes', 'e2e')
 
@@ -24,13 +25,17 @@ export const REQUIRED_CHECKS = ['policy.no-host-apps', 'policy.stays-in-room', '
 
 export type E2eCheck = { name: string; ok: boolean; detail: string }
 
+export type E2ePage = { label?: string; kind?: string; url?: string; screenshot?: string; claim?: Array<{ needle: string; found: boolean }> }
+
 export type E2eReport = {
-  card?: { id?: string; title?: string; mode?: string; prompt?: string; expect?: string[] }
+  card?: { id?: string; title?: string; mode?: string; page?: string[]; prompt?: string; expect?: string[] }
   branch?: string
   commit?: string
   dirty?: boolean
   dirty_files?: string[]
   evidence?: string
+  /** Which page each capture was, as `run.ts` wrote it. Absent on runs that predate the field. */
+  pages?: E2ePage[]
   checks?: E2eCheck[]
   passed?: boolean
   finished_at?: string
@@ -44,6 +49,8 @@ export type E2eRun = {
   finishedAt: string
   dirty: boolean
   passed: boolean
+  /** The pages this run actually captured. Never inferred from the card's wish list. */
+  pages: PageKind[]
   checks: E2eCheck[]
   report: E2eReport
 }
@@ -59,17 +66,21 @@ export type E2eRun = {
  * graph page's entry document, and the builder that writes the demo artifact — a pull request
  * that changed only one of those moved the product with no run behind it. A directory is only as
  * narrow as `NOT_PRODUCT` below, which is short, explicit, and read by the tests.
+ *
+ * The third element is which built page the change is visible on, and it is the same kind of
+ * list: a path that moves the columns page says `case`, and a receipt that never opened that page
+ * does not satisfy it (`pagesFor`, and `ci-gate.ts`).
  */
-export const APP_SURFACE: Array<[RegExp, string]> = [
-  [/^body\//, 'the page: header, timeline, columns, centre, right panel, the models it loads and the demo build'],
-  [/^src\//, 'the graph view and the node panel'],
-  [/^graph\.html$/, "the graph page's entry document, which the viewer mounts into"],
-  [/^index\.html$/, 'the published root page: what GitHub Pages answers `/` with'],
-  [/^case\.html$/, 'the published case page, the alias the docs name'],
-  [/^scripts\/build-demo\.ts$/, 'the case build: the builder that writes dist/demo.html'],
-  [/^scripts\/build-case\.ts$/, 'the case build: the builder that writes the published root page and its alias'],
-  [/^app\.json$/, 'the demo build: the app manifest'],
-  [/^(?:package\.json|bun\.lockb?|vite\.config\.[cm]?[jt]s|tsconfig\.json)$/, 'the build itself'],
+export const APP_SURFACE: Array<[RegExp, string, PageKind[]]> = [
+  [/^body\//, 'the page: header, timeline, columns, centre, right panel, the models it loads and the demo build', ['case']],
+  [/^src\//, 'the graph view and the node panel', ['graph']],
+  [/^graph\.html$/, "the graph page's entry document, which the viewer mounts into", ['graph']],
+  [/^index\.html$/, 'the published root page: what GitHub Pages answers `/` with', ['case']],
+  [/^case\.html$/, 'the published case page, the alias the docs name', ['case']],
+  [/^scripts\/build-demo\.ts$/, 'the case build: the builder that writes dist/demo.html', ['case']],
+  [/^scripts\/build-case\.ts$/, 'the case build: the builder that writes the published root page and its alias', ['case']],
+  [/^app\.json$/, 'the demo build: the app manifest, which also names the app the clean room installs', ['case', 'graph']],
+  [/^(?:package\.json|bun\.lockb?|vite\.config\.[cm]?[jt]s|tsconfig\.json)$/, 'the build itself, which emits both pages', ['case', 'graph']],
 ]
 
 /**
@@ -84,16 +95,16 @@ export const NOT_PRODUCT: Array<[RegExp, string]> = [
   [/^src\/[^/]*\.test\.tsx?$/, "the viewer's own tests"],
 ]
 
-/** Which of `files` are app surface, and which surface each one moves. */
-export function appSurface(files: string[]): Array<{ path: string; area: string }> {
-  const found: Array<{ path: string; area: string }> = []
+/** Which of `files` are app surface, which surface each one moves, and on which page. */
+export function appSurface(files: string[]): Array<{ path: string; area: string; pages: PageKind[] }> {
+  const found: Array<{ path: string; area: string; pages: PageKind[] }> = []
   for (const file of files) {
     const path = file.trim()
     if (!path) continue
     if (NOT_PRODUCT.some(([pattern]) => pattern.test(path))) continue
-    for (const [pattern, area] of APP_SURFACE) {
+    for (const [pattern, area, pages] of APP_SURFACE) {
       if (pattern.test(path)) {
-        found.push({ path, area })
+        found.push({ path, area, pages })
         break
       }
     }
@@ -104,6 +115,17 @@ export function appSurface(files: string[]): Array<{ path: string; area: string 
 /** Does this diff need a clean-room run before it may merge? */
 export function needsE2e(files: string[]): boolean {
   return appSurface(files).length > 0
+}
+
+/**
+ * Which pages a diff's receipt has to be evidence of. A path that moves the columns page needs a
+ * run that opened the columns page; a diff that moves both pages needs both. Empty for a diff
+ * that touches no surface, because there is nothing to authorise.
+ */
+export function pagesFor(files: string[]): PageKind[] {
+  const needed = new Set<PageKind>()
+  for (const hit of appSurface(files)) for (const kind of hit.pages) needed.add(kind)
+  return PAGE_KINDS.filter((kind) => needed.has(kind))
 }
 
 function readJson<T>(path: string): T | null {
@@ -139,6 +161,27 @@ export function runDirs(outDir: string = DEFAULT_OUT): string[] {
     .map((entry) => entry.dir)
 }
 
+/**
+ * Which pages a report is evidence of.
+ *
+ * Read from `report.pages` when it is there. A report written before that field existed captured
+ * exactly one page — the graph view, the only one the harness could open — and that is inferred
+ * from its own checks (`<stage>.counts` reads the graph page's `N nodes · M edges` header), so an
+ * older receipt keeps meaning what it meant instead of becoming unusable or, worse, meaning
+ * everything.
+ */
+export function capturedPages(report: E2eReport): PageKind[] {
+  if (Array.isArray(report.pages)) {
+    const kinds = new Set<PageKind>()
+    for (const page of report.pages) {
+      if (page?.kind === 'case' || page?.kind === 'graph') kinds.add(page.kind)
+    }
+    return PAGE_KINDS.filter((kind) => kinds.has(kind))
+  }
+  const checks = Array.isArray(report.checks) ? report.checks : []
+  return checks.some((check) => /\.counts$/.test(check.name)) ? ['graph'] : []
+}
+
 /** One run, as the report describes it. `null` when the directory holds no usable report. */
 export function readRun(dir: string): E2eRun | null {
   const report = readJson<E2eReport>(join(dir, 'report.json'))
@@ -153,6 +196,7 @@ export function readRun(dir: string): E2eRun | null {
     finishedAt: String(report.finished_at ?? ''),
     dirty: report.dirty === true,
     passed: report.passed === true && checks.every((check) => check.ok === true),
+    pages: capturedPages(report),
     checks,
     report,
   }
@@ -183,14 +227,40 @@ export type GateResult = {
   reason: string
 }
 
+/** The pages a report says its card asked for, when the card said. */
+export function claimedPages(report: E2eReport): PageKind[] {
+  const listed = Array.isArray(report.card?.page) ? report.card.page : []
+  const wanted = new Set<PageKind>()
+  for (const value of listed) {
+    if (value === 'case' || value === 'graph') wanted.add(value)
+  }
+  return PAGE_KINDS.filter((kind) => wanted.has(kind))
+}
+
 /**
- * The gate. `ok` only for a clean, passing, policy-complete run against exactly `commit`.
+ * Pages that have to be in a run's evidence but are not: what the caller asks for (a card, a diff)
+ * plus what the run's own card line says it asked for. A report that names a page it never
+ * captured is not evidence of anything, whatever its checks say.
+ */
+export function missingPages(run: E2eRun, required: PageKind[] = []): PageKind[] {
+  const wanted = new Set<PageKind>([...required, ...claimedPages(run.report)])
+  return PAGE_KINDS.filter((kind) => wanted.has(kind) && !run.pages.includes(kind))
+}
+
+function pageSentence(kind: PageKind): string {
+  return kind === 'case' ? 'the columns page (dist/demo.html)' : 'the graph page (dist/graph.html)'
+}
+
+/**
+ * The gate. `ok` only for a clean, passing, policy-complete run against exactly `commit` that
+ * captured every page the card (or the caller) needs.
  *
  * The reasons are ordered by how far the reader has to go to fix them: no evidence at all, the
  * evidence is for another commit, the evidence is for this commit and it is red, the evidence is
- * for this commit and it is not trustworthy (dirty tree, missing policy scan).
+ * for this commit and it is not trustworthy (dirty tree, missing policy scan), the evidence is
+ * for this commit and it is a different page.
  */
-export function gateFor(commit: string, outDir: string = DEFAULT_OUT): GateResult {
+export function gateFor(commit: string, outDir: string = DEFAULT_OUT, required: PageKind[] = []): GateResult {
   const wanted = commit.trim().toLowerCase()
   if (!/^[0-9a-f]{40}$/.test(wanted)) {
     return { ok: false, run: null, reason: `"${commit}" is not a full commit sha, so no run can be matched to it` }
@@ -220,18 +290,32 @@ export function gateFor(commit: string, outDir: string = DEFAULT_OUT): GateResul
         : `the run for ${wanted.slice(0, 7)} failed — ${failed.slice(0, 3).join(' / ') || 'see report.json'}`,
     }
   }
+  let wrongPage: { run: E2eRun; missing: PageKind[] } | null = null
   for (const run of green) {
-    const problems = policyProblems(run)
-    if (problems.length === 0) return { ok: true, run, reason: '' }
+    if (policyProblems(run).length > 0) continue
+    const missing = missingPages(run, required)
+    if (missing.length === 0) return { ok: true, run, reason: '' }
+    if (!wrongPage) wrongPage = { run, missing }
+  }
+  if (wrongPage) {
+    const captured = wrongPage.run.pages.length > 0 ? wrongPage.run.pages.map(pageSentence).join(' and ') : 'no page at all'
+    return {
+      ok: false,
+      run: wrongPage.run,
+      reason: `the run for ${wanted.slice(0, 7)} captured ${captured} and not ${wrongPage.missing
+        .map(pageSentence)
+        .join(' and ')}, so it is not evidence of this claim — a card asks for the columns page with \`page: case\` in its ## e2e block, and the receipt has to have opened it`,
+    }
   }
   const run = green[0]
   return { ok: false, run, reason: `the run for ${wanted.slice(0, 7)} cannot be trusted — ${policyProblems(run).slice(0, 3).join(' / ')}` }
 }
 
-/** One line for a log: which run satisfied the gate, and what it captured. */
+/** One line for a log: which run satisfied the gate, what it captured, and on which page. */
 export function describeRun(run: E2eRun): string {
   const dom = run.checks.filter((check) => /\.dom$/.test(check.name)).map((check) => check.detail)
-  return `${run.dir} (${run.commit.slice(0, 7)}, ${run.checks.filter((check) => check.ok).length}/${run.checks.length} checks${dom.length > 0 ? `, ${dom.join('; ')}` : ''})`
+  const pages = run.pages.length > 0 ? `${run.pages.join('+')} page` : 'page unrecorded'
+  return `${run.dir} (${run.commit.slice(0, 7)}, ${run.checks.filter((check) => check.ok).length}/${run.checks.length} checks, ${pages}${dom.length > 0 ? `, ${dom.join('; ')}` : ''})`
 }
 
 function printHelp(to: (line: string) => void = console.log) {
@@ -239,13 +323,16 @@ function printHelp(to: (line: string) => void = console.log) {
 
   --commit <sha>       the head commit the run has to be against (required)
   --out <dir>          where run directories live (default: ~/.hermes/e2e)
-  --files <path>...    instead of a commit: say whether this diff needs a run at all
+  --pages <list>       pages the receipt must have opened: case, graph or both (repeatable,
+                       comma-separated; default: whatever the report's card asked for)
+  --files <path>...    instead of a commit: say whether this diff needs a run at all, and on
+                       which page the receipt has to be evidence
   --json               print the result as JSON
 
-Exit 0 = a clean, passing, policy-complete run exists for that commit, or (with --files) the
-question was answered: the list needs a run, or it does not. Exit 1 = no such run exists, or
---files was given no paths to ask about, or a flag was unusable — the reason is the one sentence
-printed. No run is ever invented here.`)
+Exit 0 = a clean, passing, policy-complete run exists for that commit that opened the pages the
+card names, or (with --files) the question was answered: the list needs a run, or it does not.
+Exit 1 = no such run exists, or --files was given no paths to ask about, or a flag was unusable —
+the reason is the one sentence printed. No run is ever invented here.`)
 }
 
 export type GateIo = { out: (line: string) => void; err: (line: string) => void }
@@ -256,6 +343,7 @@ export function main(argv: string[], io: GateIo = CONSOLE_IO): number {
   let commit = ''
   let out = DEFAULT_OUT
   let files: string[] | null = null
+  let pages: PageKind[] = []
   let json = false
   try {
     for (let i = 0; i < argv.length; i += 1) {
@@ -268,7 +356,16 @@ export function main(argv: string[], io: GateIo = CONSOLE_IO): number {
       }
       if (arg === '--commit') commit = next()
       else if (arg === '--out') out = next()
-      else if (arg === '--files') {
+      else if (arg === '--pages') {
+        for (const token of next()
+          .toLowerCase()
+          .split(/[\s,+]+/)
+          .filter(Boolean)) {
+          if (token === 'both') pages.push('case', 'graph')
+          else if (token === 'case' || token === 'graph') pages.push(token)
+          else throw new Error(`--pages ${token} is not a page — use case, graph or both`)
+        }
+      } else if (arg === '--files') {
         // Everything up to the next flag is a path. Consume it, or the loop walks into the paths
         // and throws "unknown argument body/lib/right-panel.js" on every real invocation.
         files = []
@@ -298,9 +395,13 @@ export function main(argv: string[], io: GateIo = CONSOLE_IO): number {
       return 1
     }
     const surface = appSurface(paths)
-    if (json) io.out(JSON.stringify({ needed: surface.length > 0, surface }, null, 2))
+    const needed = pagesFor(paths)
+    if (json) io.out(JSON.stringify({ needed: surface.length > 0, pages: needed, surface }, null, 2))
     else if (surface.length === 0) io.out('no e2e needed — none of these paths is app surface')
-    else for (const hit of surface) io.out(`e2e needed — ${hit.path} moves ${hit.area}`)
+    else {
+      for (const hit of surface) io.out(`e2e needed — ${hit.path} moves ${hit.area} (${hit.pages.join(' + ')})`)
+      io.out(`the receipt on the head must have opened: ${needed.join(' + ')}`)
+    }
     return 0
   }
 
@@ -308,9 +409,9 @@ export function main(argv: string[], io: GateIo = CONSOLE_IO): number {
     printHelp(io.out)
     return 1
   }
-  const result = gateFor(commit, out)
+  const result = gateFor(commit, out, pages)
   if (json) {
-    io.out(JSON.stringify({ ok: result.ok, reason: result.reason, run: result.run?.dir ?? null }, null, 2))
+    io.out(JSON.stringify({ ok: result.ok, reason: result.reason, run: result.run?.dir ?? null, pages: result.run?.pages ?? [] }, null, 2))
   } else if (result.ok && result.run) {
     io.out(`e2e ok  ${describeRun(result.run)}`)
   } else {
