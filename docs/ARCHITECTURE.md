@@ -99,8 +99,12 @@ because a page opened from `file://` cannot `fetch()` a sidecar. Whatever produc
 replaces that text and changes nothing else. `body/index.html` is that template, placeholder included,
 and never fetches a document. The case page is an artifact built from `kg_demo.json`:
 `bun run build:demo` writes that document into the placeholder and produces `dist/demo.html`, with the
-page's own `lib/` beside it so it opens from `file://`. Nothing about the page changes with the data —
-same head, same scripts, same styles — and a renderer does the same for the reader's own document.
+page's own `lib/` beside it so it opens from `file://`. `bun run build:case` writes the same page to
+`case.html` at the repository root, with one `<base>` naming `body/` where the assets live: that is the
+copy the published site serves, because `dist/` is never published and the template there would open
+empty. Nothing about the page changes with the data — same head, same scripts, same styles, one
+`<base>` — and a renderer does the same for the reader's own document.
+
 With a document in hand the page opens on its latest record; with no document it has no record to
 open and the centre stays closed, so the template still starts empty.
 

@@ -66,6 +66,10 @@ jobs:
         run: bun run lint
       - name: typecheck
         run: bun run typecheck
+      # the page the published site serves, checked before anything below can regenerate it: a
+      # stale `case.html` is a published page that no longer matches the template or the case
+      - name: published case
+        run: bun run check:case
       # the case page is build output: dist/demo.html is made from kg_demo.json, and the two tests
       # that hold it (scripts/case-artifact.test.ts, scripts/page-storage.test.ts) compare against
       # the file, not against a function's idea of it. `bun run verify` builds it; this job calls
