@@ -2,19 +2,23 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
 /**
- * T23 — demo ≠ user.
+ * T23 — demo ≠ user. SCRUM-48 — the demo page opens with its case.
  *
  * Somebody else's labs must never end up in the reader's own record. `body/demo/graph.json` is a
- * finished document about an invented man, and the page fetches it when the reader presses "load
- * demo". This card is the proof that the load is a *view*: a clean workspace that loads the demo
- * still has no user data afterwards — nothing in storage, no second record, no profile the reader
- * did not bring.
+ * finished document about an invented man, and the checked-in page fetches it at launch, because a
+ * demo that needs a click before it has anything in it is not a demo. This card is the proof that
+ * the load is a *view*: a clean workspace that opens on the demo still has no user data afterwards —
+ * nothing in storage, no second record, no profile the reader did not bring.
  *
  * The static half (`demo-artifact.test.ts`) greps for the one write call it knows about. That grep
  * cannot hold the rule: a write path can arrive under another name, another API, or three lines
  * below a comment that says "nothing is saved". So `loadDemo` is executed here, out of the page
  * itself, against the real demo file and a recording storage — and the whole page is held to its
  * own sentence, "Nothing on this page writes to storage".
+ *
+ * The other half of the card is the guard: only a page with no rendered document (`#kg-graph`
+ * absent) loads the demo. A rendered page is the reader's own and fetches nothing, so its empty
+ * start stays empty. Both halves are executed below, not only grepped.
  */
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
@@ -118,14 +122,13 @@ type LoadRun = {
   storage: Spy
   fetches: Array<{ url: string; cache: unknown }>
   built: string[]
-  button: { disabled: boolean; textContent: string }
   foot: { textContent: string }
   clearedAnalysisHides: boolean
 }
 
 /**
  * The page's own `loadDemo`, in a clean workspace: no `#kg-graph`, an empty storage, a DOM stub
- * carrying only the two elements the loader touches, and a `fetch` that answers with the demo file.
+ * carrying only the element the loader writes to, and a `fetch` that answers with the demo file.
  * The five redraw calls are stubbed — this is about what the load *writes*, not what it paints.
  */
 async function loadDemoIn(pageHtml: string, options: { status?: number } = {}): Promise<LoadRun> {
@@ -138,11 +141,10 @@ async function loadDemoIn(pageHtml: string, options: { status?: number } = {}): 
   const storage = storageSpy()
   const fetches: Array<{ url: string; cache: unknown }> = []
   const built: string[] = []
-  const button = { disabled: false, textContent: 'load demo' }
   const foot = { textContent: 'nothing saved yet' }
   const state = { analysisHidden: new Set<string>(['hide-me']) }
 
-  const elements: Record<string, unknown> = { loadDemo: button, foot }
+  const elements: Record<string, unknown> = { foot }
   const documentStub = {
     getElementById: (id: string) => elements[id] ?? null,
   }
@@ -222,14 +224,13 @@ async function loadDemoIn(pageHtml: string, options: { status?: number } = {}): 
     storage,
     fetches,
     built,
-    button,
     foot,
     clearedAnalysisHides: run.hidden() === 0,
   }
 }
 
 describe('a clean workspace stays empty when demo is loaded', () => {
-  test('before the click the page holds no record and no identity', async () => {
+  test('before the load the page holds no record and no identity', async () => {
     const run = await loadDemoIn(page)
     expect(run.before.analyses).toEqual([])
     expect(run.before.nodes).toBe(0)
@@ -250,7 +251,6 @@ describe('a clean workspace stays empty when demo is loaded', () => {
     expect(run.after.analyses.length).toBe(27) // the measurement marks of the T21 case
     expect(run.after.isDemo).toBe(true)
     expect(run.after.profile).toEqual(demo.meta.profile as Snapshot['profile'])
-    expect(run.button.textContent).toBe('demo loaded')
     // it says whose record this is, in the page, where the reader can see it
     expect(run.foot.textContent).toContain('invented records, not a patient history')
     expect(run.foot.textContent).toContain('nothing saved')
@@ -273,8 +273,6 @@ describe('a clean workspace stays empty when demo is loaded', () => {
     expect(run.after.analyses).toEqual([])
     expect(run.after.profile).toBeNull()
     expect(run.foot.textContent).toContain('Could not load demo/graph.json')
-    expect(run.button.disabled).toBe(false)      // the reader can try again
-    expect(run.button.textContent).toBe('load demo')
     expect(run.storage.writes).toEqual([])
     expect(run.storage.keys()).toEqual([])
   })
@@ -293,18 +291,48 @@ describe('the page writes nothing, which is what makes the demo safe to load', (
     expect(page).not.toMatch(/caches\.(open|match)/)
   })
 
-  test('loading is a click, never a launch: the demo cannot arrive without being asked for', () => {
-    // `loadDemo()` appears exactly once — as its own declaration. A second call would be a load
-    // nobody asked for, which is the defect T01 removed from the other direction.
-    expect(page.match(/loadDemo\(\)/g)?.length).toBe(1)
-    expect(page).toContain('loadDemoBtn.onclick = loadDemo')
-  })
-
   test('the demo is the demo: it is fetched, not built into the page', () => {
     expect(page).toContain('fetch("demo/graph.json"')
     expect(page.match(/fetch\(/g)?.length).toBe(1)
     // the case's identity is in the artifact only — a page that spells it is a page that ships it
     expect(page).not.toContain('Andrei')
     expect(page).not.toContain('1961')
+  })
+})
+
+/**
+ * SCRUM-48 — the demo page opens with its case, and the reader's page never takes it.
+ *
+ * The button is gone: a demo that needs a click before it has anything in it is not a demo. What
+ * replaces it is one guard at launch — `if (!KGDATA) loadDemo()` — where `KGDATA` is the document
+ * a renderer wrote into `#kg-graph`. So the guard is executed here twice, out of the page: with no
+ * document it loads, with a document (even an empty one) it does not. That is the whole difference
+ * between the demo artifact and the reader's own page, and it is text, so it is pinned here.
+ */
+describe('the demo opens loaded; a rendered page does not (SCRUM-48)', () => {
+  const guard = page.match(/if \(!KGDATA\) loadDemo\(\);/)?.[0] ?? ''
+  const runsWith = (kgdata: unknown): number => {
+    let calls = 0
+    // the page's own guard text, executed: a `null` document is the demo, an object is the reader's
+    new Function('KGDATA', 'loadDemo', guard)(kgdata, () => { calls += 1 })
+    return calls
+  }
+
+  test('the guard exists, and the page has exactly one way to arrive at the demo', () => {
+    expect(guard).toBe('if (!KGDATA) loadDemo();')
+    // the declaration and the one launch call: there is no second trigger, and no click handler
+    expect(page.match(/loadDemo/g)?.length).toBe(2)
+    expect(page).not.toContain('id="loadDemo"')
+    expect(page).not.toContain('.onclick = loadDemo')
+    expect(page).not.toContain('loadDemoBtn')
+  })
+
+  test('no document in the page: the demo loads at launch', () => {
+    expect(runsWith(null)).toBe(1)
+  })
+
+  test('a rendered document — even an empty one — never loads the demo', () => {
+    // the reader's page is handed a document; it draws that, and its empty start stays empty
+    expect(runsWith({ meta: { app: 'health-viewer' }, nodes: [], edges: [] })).toBe(0)
   })
 })
