@@ -69,9 +69,10 @@ interval — the split is gone and both halves become untrustworthy.
 The health page (`body/index.html`) draws the body, the timeline, the records list and one main view
 per event type, and it starts empty: the template carries the `#kg-graph` placeholder, not a document.
 The case page is a build artifact (`dist/demo.html`, from `kg_demo.json`) — an invented man, 65,
-twenty years of records, labelled in its own title — which passes the contract gate. Opening it writes
-nothing into a reader's own record (T21, T23). No `kg.json` of a real person ships in this repository:
-data lives beside the document, never in the template.
+twenty years of records, labelled in its own title — which passes the contract gate. It ships a second
+time as `case.html`, the published page the Pages address serves, because `dist/` is never published;
+opening either writes nothing into a reader's own record (T21, T23). No `kg.json` of a real person
+ships in this repository: data lives beside the document, never in the template.
 
 The estimates are implemented and tested — SCORE2 (`src/score2.ts`), the Lee index (`src/lee.ts`), delta
 explanations (`src/explain.ts`), the forecast gate (`src/prediction.ts`) and five built-in strategies

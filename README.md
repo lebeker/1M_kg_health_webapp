@@ -9,8 +9,9 @@ Three things ship from here:
 
 | what | where | what it is |
 |---|---|---|
-| the main page | `body/index.html` | the health view, the demo, and the anatomy under it |
+| the main page | `body/index.html` | the template: the health view, the anatomy under it, and the `#kg-graph` slot a document is rendered into |
 | the graph view | `src/` → `dist/index.html` | the same document rendered as a graph, opened behind the "open graph" button, read-only |
+| the case page | `case.html` | the published page: the template with `kg_demo.json` in its slot, which is what the Pages address serves |
 | the skills | `skills/` | what this app hands to the parent `kg` skill: markers → PDF, markers → FHIR, and `add-prediction` |
 
 The app's own identity is `app.json` → `id: health-viewer`, `title: Health map`. A skill routes on
@@ -28,22 +29,37 @@ that file, not on the package name. Everything about publishing, licences and th
 bun install                 # or: npm install
 bun run dev                 # the graph view on the dev server
 python3 -m http.server 8770 --bind 127.0.0.1    # then http://127.0.0.1:8770/body/
-bun run build               # dist/index.html (the graph page) + dist/demo.html (the case page)
+bun run build               # dist/index.html (the graph page) + dist/demo.html and case.html (the case page)
 bun run build:demo          # dist/demo.html only, from kg_demo.json
-bun run verify              # lint, types, case build, unit, contract fixtures, branch rule, split regression
+bun run build:case          # case.html — the published page, from the same two inputs
+bun run verify              # lint, types, published page current, case build, unit, contract fixtures, branch rule, split regression
 ```
 
 The body page has no runtime build step and no network. `body/index.html` is the template: it carries
 the `#kg-graph` placeholder and nothing else. Open it over a local server rather than `file://` — the
 3D layer loads `models/*.glb` when, and only when, the reader asks for it.
 
+## The published page
+
+Pages serves this repository from `main` at its root, and `dist/` is never published. So the page a
+reader opens without cloning anything is `case.html`: the case page, generated from
+`body/index.html` and `kg_demo.json` and committed, at
+<https://lebeker.github.io/1M_kg_health_webapp/case.html>. It is the artifact with one `<base>`
+naming `body/`, because the page addresses its assets relatively and they live there; opening it
+draws the 47-record case with no interaction and no button, and stores nothing.
+
+`bun run build:case` writes it and `bun run check:case` fails on a stale copy, both wired into
+`bun run verify` and CI. The template stays empty: the case exists as one document (`kg_demo.json`)
+and one generated page, never as code in the template a reader's own document is rendered from.
+
 ## The case page is not a user
 
 `kg_demo.json` is an invented patient (man, 65, twenty years of history). `bun run build:demo` writes
 that document into the template's placeholder and produces `dist/demo.html`, with the page's `lib/`
 beside it; open it and the case is on screen — the latest record in the centre column, no button, no
-interaction. The template itself carries no records, so a page rendered for a reader's own document
-draws that document.
+interaction. `bun run build:case` produces the published copy of the same page (`case.html`, see
+[the published page](#the-published-page)). The template itself carries no records, so a page
+rendered for a reader's own document draws that document.
 
 Opening the built page writes nothing into a profile: after it opens, the user's own workspace is
 still empty. That rule has its own test (`scripts/page-storage.test.ts`), which runs the page's own
@@ -83,8 +99,9 @@ force layout arranges depth itself.
 
 | command | output | why |
 |---|---|---|
-| `bun run build` | `dist/index.html` — one file, ~2 MB — and `dist/demo.html` | what the skill ships, plus the case page; both open from `file://` |
+| `bun run build` | `dist/index.html` — one file, ~2 MB — and `dist/demo.html` + `case.html` | what the skill ships, plus the case page (local and published); both open from their address |
 | `bun run build:demo` | `dist/demo.html` + `dist/lib/` | the case page alone, from `kg_demo.json` |
+| `bun run build:case` | `case.html` at the repository root | the published case page; the same artifact with a `<base>` naming `body/` |
 | `bun run build:multi` | `dist-multi/` — code-split | what a hosted app serves; 3D is fetched on demand |
 
 `vite-plugin-singlefile` sets `codeSplitting: false` (Rollup's
