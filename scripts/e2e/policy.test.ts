@@ -89,6 +89,43 @@ describe('the guard reads a command, not the shape of a string', () => {
     expect(outsideRoomCalls([call('patch', { path: 'NOTES.md', old_string: 'find /', new_string: 'nothing' })])).toEqual([])
   })
 
+  // The card that asked for this narrowing (t_a230bdb2) names the controls it must keep: the
+  // places a run must never reach, and the in-room shapes the old substring rules read as places.
+  // Both lists are here verbatim, because the point of narrowing a rule is that the cases it was
+  // written for still fail — a rule that fires on the app's own source is a rule a worker learns
+  // to ignore, and a rule that stops firing on `find /` is worse than no rule at all.
+  test('keeps failing every place the narrowing was written for', () => {
+    const places: Array<[string, string]> = [
+      ['find /', 'filesystem root'],
+      ['ls /', 'filesystem root'],
+      ['grep -r foo /', 'filesystem root'],
+      ['find ~', 'home directory'],
+      ['find ..', 'above the room'],
+      ['mdfind x', 'Spotlight'],
+      ['diskutil list', 'disk query'],
+      ['cat /Volumes/x', 'mounted volumes'],
+    ]
+    const missed = places.filter(([command, reason]) => {
+      const found = outsideRoomCalls([call('terminal', { command })])
+      return found.length !== 1 || !found[0].includes(reason)
+    })
+    expect(missed.map(([command]) => command)).toEqual([])
+    // The same place named as a tool's path argument, not as a command word.
+    expect(outsideRoomCalls([call('read_file', { path: '/Volumes/x' })])).toHaveLength(1)
+  })
+
+  test('passes the in-room shapes the card names as false positives', () => {
+    const inRoom = [
+      // The viewer's own HTML read inside the room, and the `find` inside it is a method call.
+      "s.find('placeholder:`search  /`')",
+      "s=open('kg/assets/health-viewer.html').read()\ni=s.find('placeholder:`search  /`')",
+      'grep -n "a\\|b" kg/file.py',
+      "value.split('/')",
+    ]
+    const flagged = inRoom.filter((command) => outsideRoomCalls([call('terminal', { command })]).length > 0)
+    expect(flagged).toEqual([])
+  })
+
   test('reads a quoted command as a command', () => {
     expect(outsideRoomCalls([call('terminal', { command: "bash -c 'find / -name validate.ts'" })])).toHaveLength(1)
     expect(outsideRoomCalls([call('terminal', { command: 'sudo find / -name kg.py' })])).toHaveLength(1)
