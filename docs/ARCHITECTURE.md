@@ -85,8 +85,14 @@ replaces that text and changes nothing else.
 
 An estimate is a base number plus the deltas of the rules that fire, and every rule carries its own
 citation: `{id, when, delta, source, confidence}` (`src/rules.ts`). `when` is a condition over the
-facts — `age >= 50`, `flag in [high, critical]` — never a date; dates live on nodes. A rule set names
-the scale it adjusts (`score2-10y/1`), so two scales' deltas cannot be added together by accident.
+facts — `age >= 50`, `flag in [high, critical]` — never a date; dates live on nodes.
+
+A rule set names the scale it adjusts (`score2-10y/1`), and the scale travels with the rules: the
+engine takes the set, never a bare array of rules, one call applies one scale, and the estimate it
+returns carries `version`. So every number printed names the unit its deltas are in, and there is
+no call that takes two sets. Adding two scales therefore means hand-writing a third set whose
+version is false — a mistake that is visible in the diff that wrote it, not one the engine can make
+silently on a caller's behalf.
 
 The engine owns the arithmetic and one promise: the same facts and the same rules give the same
 number, bit for bit; a fact that is missing is not a default — the rule does not fire, and the

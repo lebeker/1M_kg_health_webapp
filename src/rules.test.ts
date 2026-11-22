@@ -16,7 +16,7 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { type Facts, RuleError, type Rule, applyRules, loadRules } from './rules'
+import { type Estimate, type Facts, RuleError, type Rule, type RuleSet, applyRules, loadRules } from './rules'
 
 const FIXTURES = 'tests/fixtures/rules'
 const read = (name: string): unknown => JSON.parse(readFileSync(join(FIXTURES, name), 'utf8'))
@@ -31,6 +31,10 @@ const TEMPLATE: Rule = {
 
 const rule = (over: Partial<Rule> = {}): Rule => ({ ...TEMPLATE, ...over })
 
+/** The engine's only door takes a set; most tests are about rules, so name the smallest set. */
+const apply = (rules: readonly Rule[], facts: Facts, base = 0): Estimate =>
+  applyRules({ version: 'demo-rules/1', rules }, facts, base)
+
 /** The refusal, as one string: what a reader of the error would see. */
 function refusal(input: unknown): string {
   try {
@@ -41,9 +45,10 @@ function refusal(input: unknown): string {
   return ''
 }
 
-function engineRefusal(rules: Rule[], facts: Facts, base = 0): string {
+/** A refusal from the engine itself, given a set that a cast would let a caller pass. */
+function engineRefusal(set: unknown, facts: Facts, base = 0): string {
   try {
-    applyRules(rules, facts, base)
+    applyRules(set as RuleSet, facts, base)
   } catch (error) {
     return error instanceof RuleError ? error.message : `not a RuleError: ${String(error)}`
   }
@@ -131,9 +136,9 @@ describe('the same input gives the same output', () => {
   test('evaluating the same facts twice gives byte-identical results', () => {
     const loaded = loadRules(read('synthetic.json'))
     const facts = read('synthetic-facts.json') as Facts
-    const first = JSON.stringify(applyRules(loaded.rules, facts, 4.2))
+    const first = JSON.stringify(apply(loaded.rules, facts, 4.2))
     for (let i = 0; i < 100; i += 1) {
-      expect(JSON.stringify(applyRules(loaded.rules, facts, 4.2))).toBe(first)
+      expect(JSON.stringify(apply(loaded.rules, facts, 4.2))).toBe(first)
     }
   })
 
@@ -148,8 +153,8 @@ describe('the same input gives the same output', () => {
     const reversed = [0.3, 0.2, 0.1].reduce((value, delta) => value + delta, 0)
     expect(inOrder).not.toBe(reversed)
 
-    const forwards = applyRules([a, b, c], facts)
-    const shuffled = applyRules([c, a, b], facts)
+    const forwards = apply([a, b, c], facts)
+    const shuffled = apply([c, a, b], facts)
     expect(shuffled.value).toBe(forwards.value)
     expect(JSON.stringify(shuffled)).toBe(JSON.stringify(forwards))
     expect(forwards.contributions.map((item) => item.rule)).toEqual(['a', 'b', 'c'])
@@ -158,86 +163,86 @@ describe('the same input gives the same output', () => {
   test('nothing in the engine reads the clock', () => {
     const loaded = loadRules(read('synthetic.json'))
     const facts = read('synthetic-facts.json') as Facts
-    const before = applyRules(loaded.rules, facts, 0)
+    const before = apply(loaded.rules, facts, 0)
     const startedAt = Date.now()
     while (Date.now() - startedAt < 3) {
       // a few milliseconds of wall clock, so a reading of "now" would have a chance to move
     }
-    expect(applyRules(loaded.rules, facts, 0)).toEqual(before)
+    expect(apply(loaded.rules, facts, 0)).toEqual(before)
   })
 })
 
 describe('a rule that does not fire', () => {
   test('no match leaves the number alone and is listed as not applied', () => {
-    const estimate = applyRules([rule({ when: { fact: 'x', op: 'gt', value: 10 } })], { x: 1 }, 7)
+    const estimate = apply([rule({ when: { fact: 'x', op: 'gt', value: 10 } })], { x: 1 }, 7)
     expect(estimate.value).toBe(7)
     expect(estimate.contributions).toEqual([])
     expect(estimate.notApplied).toEqual([{ rule: 'r', reason: 'no-match' }])
   })
 
   test('a missing fact is not false — and not <missing> does not fire either', () => {
-    const direct = applyRules([rule({ when: { fact: 'absent', op: 'gt', value: 1 } })], {}, 7)
+    const direct = apply([rule({ when: { fact: 'absent', op: 'gt', value: 1 } })], {}, 7)
     expect(direct.notApplied).toEqual([{ rule: 'r', reason: 'missing-fact' }])
 
-    const negated = applyRules([rule({ when: { not: { fact: 'absent', op: 'gt', value: 0 } } })], {}, 7)
+    const negated = apply([rule({ when: { not: { fact: 'absent', op: 'gt', value: 0 } } })], {}, 7)
     expect(negated.value).toBe(7)
     expect(negated.notApplied).toEqual([{ rule: 'r', reason: 'missing-fact' }])
   })
 
   test('a fact of the wrong type is not coerced into a comparison', () => {
-    expect(applyRules([rule({ when: { fact: 'x', op: 'gt', value: 0 } })], { x: 'high' }, 0).notApplied).toEqual([
+    expect(apply([rule({ when: { fact: 'x', op: 'gt', value: 0 } })], { x: 'high' }, 0).notApplied).toEqual([
       { rule: 'r', reason: 'type-mismatch' },
     ])
     // "sixty" is not older than 50, and neither is it younger: the rule cannot be decided.
-    expect(applyRules([rule({ when: { fact: 'age', op: 'ge', value: 50 } })], { age: 'sixty' }, 0).notApplied).toEqual([
+    expect(apply([rule({ when: { fact: 'age', op: 'ge', value: 50 } })], { age: 'sixty' }, 0).notApplied).toEqual([
       { rule: 'r', reason: 'type-mismatch' },
     ])
-    expect(applyRules([rule({ when: { fact: 'x', op: 'ne', value: 'male' } })], { x: true }, 0).notApplied).toEqual([
+    expect(apply([rule({ when: { fact: 'x', op: 'ne', value: 'male' } })], { x: true }, 0).notApplied).toEqual([
       { rule: 'r', reason: 'type-mismatch' },
     ])
   })
 
   test('all needs every child; one false child is a decision, one unknown child is not', () => {
     const both: Rule = { ...rule(), when: { all: [{ fact: 'age', op: 'ge', value: 50 }, { fact: 'flag', op: 'eq', value: 'high' }] } }
-    expect(applyRules([both], { age: 60, flag: 'high' }, 0).value).toBe(1)
-    expect(applyRules([both], { age: 40, flag: 'high' }, 0).notApplied).toEqual([{ rule: 'r', reason: 'no-match' }])
-    expect(applyRules([both], { age: 60 }, 0).notApplied).toEqual([{ rule: 'r', reason: 'missing-fact' }])
+    expect(apply([both], { age: 60, flag: 'high' }, 0).value).toBe(1)
+    expect(apply([both], { age: 40, flag: 'high' }, 0).notApplied).toEqual([{ rule: 'r', reason: 'no-match' }])
+    expect(apply([both], { age: 60 }, 0).notApplied).toEqual([{ rule: 'r', reason: 'missing-fact' }])
     // A false child decides the conjunction even when a sibling is undecidable: `any` is not at stake.
-    expect(applyRules([both], { age: 40 }, 0).notApplied).toEqual([{ rule: 'r', reason: 'no-match' }])
+    expect(apply([both], { age: 40 }, 0).notApplied).toEqual([{ rule: 'r', reason: 'no-match' }])
   })
 
   test('any needs one true child, and an unknown sibling cannot cancel it', () => {
     const either: Rule = { ...rule(), when: { any: [{ fact: 'a', op: 'eq', value: 1 }, { fact: 'b', op: 'eq', value: 2 }] } }
-    expect(applyRules([either], { a: 1 }, 0).value).toBe(1)
-    expect(applyRules([either], { a: 2, b: 2 }, 0).value).toBe(1)
-    expect(applyRules([either], { a: 2, b: 3 }, 0).notApplied).toEqual([{ rule: 'r', reason: 'no-match' }])
-    expect(applyRules([either], { a: 2 }, 0).notApplied).toEqual([{ rule: 'r', reason: 'missing-fact' }])
+    expect(apply([either], { a: 1 }, 0).value).toBe(1)
+    expect(apply([either], { a: 2, b: 2 }, 0).value).toBe(1)
+    expect(apply([either], { a: 2, b: 3 }, 0).notApplied).toEqual([{ rule: 'r', reason: 'no-match' }])
+    expect(apply([either], { a: 2 }, 0).notApplied).toEqual([{ rule: 'r', reason: 'missing-fact' }])
   })
 
   test('exists asks a question a missing fact answers', () => {
     const present = rule({ when: { fact: 'condition', op: 'exists' } })
-    expect(applyRules([present], { condition: false }, 0).value).toBe(1)
-    expect(applyRules([present], {}, 0).notApplied).toEqual([{ rule: 'r', reason: 'missing-fact' }])
+    expect(apply([present], { condition: false }, 0).value).toBe(1)
+    expect(apply([present], {}, 0).notApplied).toEqual([{ rule: 'r', reason: 'missing-fact' }])
   })
 
   test('in compares within the fact type and ignores members of other types', () => {
     const flagged = rule({ when: { fact: 'flag', op: 'in', value: ['high', 'critical'] } })
-    expect(applyRules([flagged], { flag: 'high' }, 0).value).toBe(1)
-    expect(applyRules([flagged], { flag: 'low' }, 0).notApplied).toEqual([{ rule: 'r', reason: 'no-match' }])
-    expect(applyRules([flagged], { flag: 3 }, 0).notApplied).toEqual([{ rule: 'r', reason: 'type-mismatch' }])
+    expect(apply([flagged], { flag: 'high' }, 0).value).toBe(1)
+    expect(apply([flagged], { flag: 'low' }, 0).notApplied).toEqual([{ rule: 'r', reason: 'no-match' }])
+    expect(apply([flagged], { flag: 3 }, 0).notApplied).toEqual([{ rule: 'r', reason: 'type-mismatch' }])
   })
 
   test('not inverts a decided condition and leaves an undecidable one undecidable', () => {
     const notHigh = rule({ when: { not: { fact: 'flag', op: 'eq', value: 'high' } } })
-    expect(applyRules([notHigh], { flag: 'low' }, 0).value).toBe(1)
-    expect(applyRules([notHigh], { flag: 'high' }, 0).notApplied).toEqual([{ rule: 'r', reason: 'no-match' }])
+    expect(apply([notHigh], { flag: 'low' }, 0).value).toBe(1)
+    expect(apply([notHigh], { flag: 'high' }, 0).notApplied).toEqual([{ rule: 'r', reason: 'no-match' }])
   })
 })
 
 describe('what the estimate records', () => {
   test('every fired rule carries its delta, its condition and its source', () => {
     const loaded = loadRules(read('synthetic.json'))
-    const estimate = applyRules(loaded.rules, read('synthetic-facts.json') as Facts, 2)
+    const estimate = apply(loaded.rules, read('synthetic-facts.json') as Facts, 2)
 
     expect(estimate.contributions.map((item) => item.rule)).toEqual(['demo-male', 'demo-older-and-flagged'])
     expect(estimate.contributions[0]).toEqual({
@@ -252,30 +257,66 @@ describe('what the estimate records', () => {
   })
 
   test('delta, value and base agree; the sum is the contributions in id order', () => {
-    const estimate = applyRules([rule({ id: 'a', delta: 0.4 }), rule({ id: 'b', delta: -0.1 })], { x: 1 }, 10)
+    const estimate = apply([rule({ id: 'a', delta: 0.4 }), rule({ id: 'b', delta: -0.1 })], { x: 1 }, 10)
     expect(estimate.base).toBe(10)
     expect(estimate.delta).toBeCloseTo(0.3, 10)
     expect(estimate.value).toBeCloseTo(10.3, 10)
   })
 
   test('confidence is the weakest rule that fired, and 1 when nothing moved the number', () => {
-    const estimate = applyRules([rule({ id: 'a', confidence: 0.9 }), rule({ id: 'b', confidence: 0.4 })], { x: 1 }, 0)
+    const estimate = apply([rule({ id: 'a', confidence: 0.9 }), rule({ id: 'b', confidence: 0.4 })], { x: 1 }, 0)
     expect(estimate.confidence).toBe(0.4)
-    const untouched = applyRules([], { x: 1 }, 3)
-    expect(untouched).toEqual({ base: 3, value: 3, delta: 0, confidence: 1, contributions: [], notApplied: [] })
+    const untouched = apply([], { x: 1 }, 3)
+    expect(untouched).toEqual({
+      version: 'demo-rules/1',
+      base: 3,
+      value: 3,
+      delta: 0,
+      confidence: 1,
+      contributions: [],
+      notApplied: [],
+    })
   })
 
-  test('a rule passed to the engine without a source is refused there too', () => {
+  test('the estimate names the scale it is on, so its deltas have a unit', () => {
+    const loaded = loadRules(read('synthetic.json'))
+    expect(applyRules(loaded, {}, 0).version).toBe('demo-rules/1')
+    // The version follows the set, not the shape of the rules: an empty set still knows its scale.
+    expect(applyRules({ version: 'lee-index/1', rules: [] }, {}, 0).version).toBe('lee-index/1')
+  })
+
+  test('a rule set passed to the engine without a source is refused there too', () => {
     const withoutSource: Record<string, unknown> = { ...TEMPLATE }
     delete withoutSource.source
-    const noSource = engineRefusal([withoutSource as unknown as Rule], { x: 1 })
+    const noSource = engineRefusal(set([withoutSource]), { x: 1 })
     expect(noSource).toContain('a rule without source does not load')
     expect(noSource).toContain('rules[0] ("r")')
-    expect(engineRefusal([{ ...TEMPLATE, source: '' }], { x: 1 })).toContain('source must be a non-empty string')
+    expect(engineRefusal(set([{ ...TEMPLATE, source: '' }]), { x: 1 })).toContain('source must be a non-empty string')
   })
 
   test('an estimate cannot start from a number that is not one', () => {
-    expect(engineRefusal([], {}, Number.NaN)).toContain('finite number')
-    expect(engineRefusal([], {}, Number.NEGATIVE_INFINITY)).toContain('finite number')
+    expect(engineRefusal(set([]), {}, Number.NaN)).toContain('finite number')
+    expect(engineRefusal(set([]), {}, Number.NEGATIVE_INFINITY)).toContain('finite number')
+  })
+
+  // The defect round 1 found: two scales concatenated into one array is the quiet way to add
+  // percent points to a deficit count. The engine's door takes a set, so the array is refused.
+  test('two scales cannot be added together by concatenating their rules', () => {
+    const score2 = loadRules(set([{ ...TEMPLATE, id: 'score2-smoker', delta: 1.5, source: 'synthetic:score2' }], 'score2-10y/1'))
+    const lee = loadRules(set([{ ...TEMPLATE, id: 'lee-smoker', delta: 7, source: 'synthetic:lee' }], 'lee-index/1'))
+
+    const concatenated = engineRefusal([...score2.rules, ...lee.rules], { x: 1 }, 0)
+    expect(concatenated).toContain('not a bare array of rules')
+    expect(concatenated).toContain('has to name the scale')
+
+    // Each set on its own still computes, and each number says which scale it is on.
+    expect(applyRules(score2, { x: 1 }, 0)).toMatchObject({ version: 'score2-10y/1', value: 1.5 })
+    expect(applyRules(lee, { x: 1 }, 0)).toMatchObject({ version: 'lee-index/1', value: 7 })
+  })
+
+  test('a rule set that does not name its scale is refused, since its deltas have no unit', () => {
+    expect(engineRefusal({ rules: [TEMPLATE] }, { x: 1 })).toContain('set.version')
+    expect(engineRefusal({ version: '  ', rules: [TEMPLATE] }, { x: 1 })).toContain('set.version')
+    expect(engineRefusal({ version: 'demo-rules/1', rules: { ...TEMPLATE } }, { x: 1 })).toContain('set.rules')
   })
 })

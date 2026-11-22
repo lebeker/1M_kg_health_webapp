@@ -9,6 +9,9 @@
  *   bun test scripts/rules.test.ts
  */
 import { describe, expect, test } from 'bun:test'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 const RULES = 'tests/fixtures/rules/synthetic.json'
 const FACTS = 'tests/fixtures/rules/synthetic-facts.json'
@@ -64,5 +67,29 @@ describe('bun run rules', () => {
     const usage = run([])
     expect(usage.exitCode).toBe(2)
     expect(usage.stderr).toContain('usage: bun scripts/rules.ts')
+  })
+
+  // Round 1: every refusal was printed as "<rules.json> does not load", including refusals that
+  // were not about the rule file. A reader who is told the wrong file is chasing the wrong bug.
+  test('a refusal names the thing that is actually wrong, not always the rule file', () => {
+    const badBase = run([RULES, FACTS, '--base=abc'])
+    expect(badBase.exitCode).toBe(1)
+    expect(badBase.stdout).toBe('')
+    expect(badBase.stderr).toContain('--base=abc')
+    expect(badBase.stderr).toContain('finite number')
+    expect(badBase.stderr).not.toContain('synthetic.json')
+
+    const missingFacts = run([RULES, 'tests/fixtures/rules/no-such-facts.json'])
+    expect(missingFacts.exitCode).toBe(1)
+    expect(missingFacts.stderr).toContain('tests/fixtures/rules/no-such-facts.json')
+    expect(missingFacts.stderr).toContain('ENOENT')
+    expect(missingFacts.stderr).not.toContain('synthetic.json')
+
+    const notAnObject = join(mkdtempSync(join(tmpdir(), 'rules-cli-')), 'facts.json')
+    writeFileSync(notAnObject, '[1, 2, 3]')
+    const arrayFacts = run([RULES, notAnObject])
+    expect(arrayFacts.exitCode).toBe(1)
+    expect(arrayFacts.stderr).toContain('flat JSON object')
+    expect(arrayFacts.stderr).toContain(notAnObject)
   })
 })

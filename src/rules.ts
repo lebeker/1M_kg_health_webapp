@@ -13,14 +13,15 @@
  *     facts look like this": every date in this app lives in a document node's own `when`, and a
  *     rule that carried a date would be the second kind of time the plan warns about.
  *   - `delta` — what the rule adds to the estimate, in the unit of the set's `version` (a risk in
- *     percent points, a deficit count, a year). One rule set is one scale, so units never mix.
+ *     percent points, a deficit count, a year). One rule set is one scale; see `RuleSet` for what
+ *     the engine does — and does not — do about a caller holding two of them.
  *   - `source` — the citation that justifies the delta: a PMID, a DOI, a URL. **Required.**
  *   - `confidence` — 0..1, the trust in this adjustment.
  *
  * A rule without a `source` does not load, and it does not load quietly: `loadRules` refuses the
  * whole set. Dropping the one rule and computing the estimate anyway would print a number whose
  * composition nobody was told — the exact failure this card exists to prevent. `applyRules`
- * refuses as well, at its own door, so a hand-built array cannot sneak one past the loader.
+ * refuses as well, at its own door, so a hand-built set cannot sneak one past the loader.
  *
  * Determinism. Same rule set + same facts + same base → the same number, bit for bit:
  *
@@ -69,8 +70,18 @@ export type Rule = {
 }
 
 /**
- * A loaded set: rules plus the scale they adjust. The version is what stops two scales' deltas
- * from being added together by a caller who did not notice he had both.
+ * A loaded set: rules plus the scale they adjust.
+ *
+ * The version is not decoration. It is the only thing that says what a delta is measured in, and
+ * it travels with the rules: `applyRules` takes the set, never a bare array, and copies `version`
+ * into the estimate. So every number this engine prints names its scale, and there is no call
+ * that takes two sets — one call, one scale, one unit.
+ *
+ * That is the whole of the guarantee. The engine cannot stop a caller who gathers rules from two
+ * sets by hand and writes `{ version: "score2-10y/1", rules: [...score2.rules, ...lee.rules] }`:
+ * that is a set whose label is false, and it is false in the diff that wrote it. What the shape
+ * does stop is the quiet version — passing concatenated rules as a plain array, which the engine
+ * refuses because the array carries no scale at all.
  */
 export type RuleSet = { version: string; rules: readonly Rule[] }
 
@@ -87,6 +98,8 @@ export type Contribution = {
 }
 
 export type Estimate = {
+  /** The scale this number is on, copied from the set: its unit is the unit of every delta. */
+  version: string
   base: number
   value: number
   delta: number
@@ -157,16 +170,20 @@ export function loadRules(input: unknown): RuleSet {
 }
 
 /**
- * Apply a rule set to the facts. `value = base + Σ delta`; the sum runs in id order so its
+ * Apply one rule set to the facts. `value = base + Σ delta`; the sum runs in id order so its
  * floating-point result does not depend on how the file happened to list the rules.
+ *
+ * The set, not the rules: a bare array has no `version`, so accepting one would let an estimate
+ * leave the engine without naming its scale. A caller who has two sets has to hand-write a third
+ * one to add them, and that third set's version is visible where it was written.
  */
-export function applyRules(rules: readonly Rule[], facts: Facts, base = 0): Estimate {
-  const problems = ruleSetProblems(rules, 'rules')
+export function applyRules(set: RuleSet, facts: Facts, base = 0): Estimate {
+  const problems = ruleSetShapeProblems(set)
   if (!isObject(facts)) problems.unshift('facts: the facts are a flat record of numbers, strings and booleans')
   if (!Number.isFinite(base)) problems.unshift(`base: an estimate starts from a finite number, found ${String(base)}`)
   if (problems.length > 0) throw new RuleError(problems)
 
-  const ordered = [...rules].sort(byId)
+  const ordered = [...set.rules].sort(byId)
   const contributions: Contribution[] = []
   const notApplied: Array<{ rule: string; reason: SkipReason }> = []
   let delta = 0
@@ -188,10 +205,35 @@ export function applyRules(rules: readonly Rule[], facts: Facts, base = 0): Esti
   }
 
   const confidence = contributions.reduce((worst, item) => Math.min(worst, item.confidence), 1)
-  return { base, value: base + delta, delta, confidence, contributions, notApplied }
+  return { version: set.version, base, value: base + delta, delta, confidence, contributions, notApplied }
 }
 
 const byId = (a: Rule, b: Rule): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+
+/**
+ * The set's shape, at the engine's own door. Written for the misuse that matters — rules taken
+ * from two sets and concatenated into one array — so the refusal says what to pass instead.
+ */
+function ruleSetShapeProblems(set: unknown): string[] {
+  if (!isObject(set)) {
+    return [
+      Array.isArray(set)
+        ? 'set: applyRules takes a rule set — { "version": "score2-10y/1", "rules": [...] } — not a bare array of rules; a number has to name the scale its deltas are in'
+        : 'set: applyRules takes a rule set — { "version": "score2-10y/1", "rules": [...] }',
+    ]
+  }
+
+  const problems: string[] = []
+  if (!isNonEmptyString(set.version)) {
+    problems.push('set.version: a rule set names the scale it adjusts, e.g. "score2-10y/1" — two scales\' deltas must not be added by accident')
+  }
+  if (!Array.isArray(set.rules)) {
+    problems.push('set.rules: a rule set is an array of rules')
+    return problems
+  }
+  problems.push(...ruleSetProblems(set.rules, 'set.rules'))
+  return problems
+}
 
 /** Every reason a rule set may not load: the structure, and the ids that have to stay unique. */
 function ruleSetProblems(rules: readonly unknown[], where: string): string[] {
