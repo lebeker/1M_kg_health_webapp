@@ -40,7 +40,7 @@ first, then in the engine, then in the template. Not the other way round.
 **No identity anywhere else.** Not in `nodes`, not in `desc`, not in the template's JavaScript. A birth
 date hard-coded in the page is a defect, not a default: the page used to carry `1984-03-01` in a
 constant, and T01 removed it. The birthday now appears once, in the document that invented the person
-(`body/demo/graph.json`, labelled `meta.demo: true`).
+(`body/demo/kg_demo.json`, labelled `meta.demo: true`).
 
 This file is one of the four in the contract set — `docs/PRODUCT.md` (what it is for),
 `docs/ARCHITECTURE.md` (how the parts fit), this file (what a document may contain), and
@@ -297,10 +297,10 @@ The document is valid when:
   `target` is a condition or an observation in the same document, its `horizon` is not before the
   date printed on its own document, and it carries no `when`.
 
-The document the page ships is the honest example of all of this: `body/demo/graph.json`, an invented
+The document the page ships is the honest example of all of this: `body/demo/kg_demo.json`, an invented
 65-year-old man with twenty years of records and `meta.demo: true` (its long form is
 `body/demo/README.md`). It is checked like any other document — `bun scripts/validate-kg-fixtures.ts
-body/demo/graph.json` reports 0 issues at 2.1.0 — so a reader who wants to see the contract applied
+body/demo/kg_demo.json` reports 0 issues at 2.1.0 — so a reader who wants to see the contract applied
 reads it, and an agent that wants to know whether a document is a real person looks for `meta.demo`
 first. `meta.demo` is not one of the envelope keys above: it is an extra key the schema carries
 through, and the page and its tests treat it as the mark of an invented person. The fixtures in

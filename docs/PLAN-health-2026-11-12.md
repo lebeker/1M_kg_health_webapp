@@ -108,7 +108,7 @@ Size: S ≤ half a day, M ≤ 2 days, L ≤ a week.
 
 | ID | Task | Why | Acceptance | Deps | Size |
 |---|---|---|---|---|---|
-| T01 | Move demo out of the page | A clean user must not start with someone else's labs | Runtime `grep` for `SAMPLE_ANALYSES` and `1984-03-01` = 0; demo loads only from `demo/graph.json`; empty start = empty timeline | — | S |
+| T01 | Move demo out of the page | A clean user must not start with someone else's labs | Runtime `grep` for `SAMPLE_ANALYSES` and `1984-03-01` in the template = 0; the template reads only the `#kg-graph` placeholder and fetches nothing; the demo is a build artifact (`body/demo.html`) produced from `body/demo/kg_demo.json`; empty start = empty timeline, no console errors | — | S |
 | T02 | `app.json` health-viewer | Without identity the app cannot be routed | `id: health-viewer`, own kinds/edges; `cmp` against science says "differs"; catalog validation passes | — | S |
 | T03 | Register health-viewer in `kg` catalog | `kg suggest` must land in health | `kg suggest` returns health-viewer; test in `1M_kg_skill` | T02 | S |
 | T04 | `kg/1-health` schema + validator | Contract: node, edge, event, snapshot, prediction | JSON Schema; validator rejects edge without `source`, event without date, `valid_from` on a non-temporal node; 6 fixtures pass/fail as expected | — | M |

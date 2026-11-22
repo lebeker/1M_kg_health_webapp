@@ -96,11 +96,11 @@ The shipped viewer inlines the document:
 ```
 
 because a page opened from `file://` cannot `fetch()` a sidecar. Whatever produces the final page
-replaces that text and changes nothing else. The checked-in `body/index.html` carries no placeholder:
-it is the demo artifact, so it opens with the invented case (`body/demo/graph.json`, `meta.demo:
-true`) fetched at launch. A renderer writes `<script id="kg-graph">` into a copy for the reader's own
-document; that page draws what it was handed and never fetches the demo, so a reader's document with
-no records still starts empty.
+replaces that text and changes nothing else. `body/index.html` is that template, placeholder included,
+and never fetches a document. The demo is an artifact built from `body/demo/kg_demo.json`:
+`bun scripts/build-demo.ts` writes the invented case (`meta.demo: true`) into the placeholder and
+produces `body/demo.html`. A renderer does the same for the reader's own document; that page draws
+what it was handed, so a document with no records still starts empty.
 
 The right panel (widgets 19–25) and the drift view are parked, so no score or forecast an engine
 computes is drawn yet: the ruler shades future years with the page's own `annualRisk(age)`, which is not

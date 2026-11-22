@@ -1,19 +1,21 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
+import { buildDemo } from './build-demo'
 import { validateKg } from './lib/kg-contract'
 
 /**
- * T01 — the demo is an artifact, not part of the page. SCRUM-48 — and the demo page opens with it.
+ * T01 — the demo is a build artifact, not part of the page.
  *
- * A reader who opens the viewer must not start with somebody else's lab results. The page used
- * to carry them inline (`SAMPLE_ANALYSES`, and a birth date written into a `const`), so a clean
- * start looked like a patient history. `demo/graph.json` is now the only copy, fetched when the
- * reader opens the checked-in demo page; the page itself carries no document, and a page rendered
- * with the reader's own document starts with that document and nothing else.
+ * A reader who opens the viewer must not start with somebody else's lab results. The template
+ * (`body/index.html`) carries the `#kg-graph` placeholder and no document at all — no sample set,
+ * no birth date, and no `fetch` that could pull one in at launch. The demo is built from
+ * `body/demo/kg_demo.json` into `body/demo.html`, so the invented case exists in exactly two
+ * places: the document and the artifact made from it. A page rendered for a reader carries that
+ * reader's document and nothing else.
  *
  * T21 — the demo case: a man of 65 with twenty years of records.
  *
- * The document behind the demo is a `kg/1-health` one now, not the page's old `analysis` shape:
+ * The document behind the demo is a `kg/1-health` one, not the page's old `analysis` shape:
  * 62 events, of which 3 conditions, 5 medications and 2 procedures, and every one of them a node
  * the contract accepts. That is why the gate below is `validateKg` and not a hand-written list of
  * keys: the case is the first real document in the repo, and a fixture that never meets the gate
@@ -21,8 +23,9 @@ import { validateKg } from './lib/kg-contract'
  *
  * Most of these checks stay static on purpose: they are the card's acceptance (counts and a `grep`
  * for the sample names), they run in G2 without a browser, and they fail on the exact mistake the
- * card exists to prevent — data put back into the page, or a demo that only looks like the
- * contract from a distance.
+ * card exists to prevent — data put back into the template, or an artifact that drifted from its
+ * source. The artifact check is byte-for-byte against the build function: a hand-edited demo page
+ * fails here, not on a reader's screen.
  *
  * The projection is the one thing a `grep` cannot hold. `projectionOf` below takes the adapter and
  * the arithmetic out of `body/index.html` verbatim and runs them over this document, because a
@@ -33,6 +36,7 @@ import { validateKg } from './lib/kg-contract'
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 const page = read('body/index.html')
+const artifact = read('body/demo.html')
 
 type Node = Record<string, unknown> & { id: string; kind: string; when?: unknown; source?: string }
 type Demo = {
@@ -41,7 +45,7 @@ type Demo = {
   edges?: Array<Record<string, unknown>>
 }
 
-const demo = JSON.parse(read('body/demo/graph.json')) as Demo
+const demo = JSON.parse(read('body/demo/kg_demo.json')) as Demo
 const nodes = demo.nodes ?? []
 
 /** The six kinds that are events (docs/DATA-CONTRACT.md §Node kinds); a summary and a prediction are not. */
@@ -106,34 +110,61 @@ function projectionOf(html: string): Projection {
 const dayOf = (node: Node): string =>
   typeof node.when === 'string' ? node.when : String((node.when as { from?: string } | undefined)?.from ?? '')
 
-describe('the page carries no records of anyone', () => {
+describe('the template carries a placeholder, not a document', () => {
   test('the inline sample set is gone', () => {
     expect(page).not.toContain('SAMPLE_ANALYSES')
     expect(page).not.toContain('1984-03-01')
   })
 
-  test('no analysis record is written into the page', () => {
+  test('no analysis record and no demo identity is written into the page', () => {
     // the page keeps the shape of an analysis (it still maps nodes), never the contents
     expect(page).not.toMatch(/id:\s*["']lab-/)
     expect(page).not.toMatch(/id:\s*["']bp-/)
     expect(page).not.toMatch(/evidence:\s*\d/)
+    expect(page).not.toContain('Andrei')
+    expect(page).not.toContain('1961')
   })
 
-  test('the demo is fetched from demo/graph.json and from nowhere else', () => {
-    // page-relative: the artifact is body/demo/graph.json, so the page works from its directory
-    // on any static host without climbing out of it
-    expect(page).toContain('fetch("demo/graph.json"')
-    expect(page.match(/fetch\(/g)?.length).toBe(1)
+  test('the document arrives through the one #kg-graph placeholder', () => {
+    // exactly one payload slot, with the placeholder still in it: a template with two slots would
+    // silently render whichever one the parser found first
+    const marker = '<script id="kg-graph" type="application/json">__KG_GRAPH__</script>'
+    expect(page.split(marker).length - 1).toBe(1)
+    expect(page).toContain('raw === "__KG_GRAPH__"')   // and the placeholder is not mistaken for a document
   })
 
-  test('nothing on the page writes storage, so a loaded demo is not user data', () => {
-    // the seed of T23: the demo is a view, never a record. If a later card gives the page a
-    // write path, it has to prove the demo did not go into it.
-    expect(page).not.toContain('localStorage.setItem')
+  test('the template has no way to fetch a document — no demo, no sidecar, no socket', () => {
+    expect(page).not.toMatch(/fetch\(/)
+    expect(page).not.toMatch(/XMLHttpRequest|sendBeacon|new WebSocket|import\(/)
+  })
+
+  test('nothing on the template writes storage, so no load can become user data', () => {
+    // the seed of T23: opening any page built from this template is a view, never a record.
+    expect(page).not.toMatch(/localStorage|sessionStorage|indexedDB|document\.cookie|navigator\.storage/)
   })
 })
 
-describe('demo/graph.json is the case the card names', () => {
+describe('body/demo.html is the artifact, built from body/demo/kg_demo.json', () => {
+  test('it is exactly what the build produces from this template and this document', () => {
+    // byte-for-byte: a hand-edited demo page fails here instead of drifting from its source
+    expect(artifact).toBe(buildDemo(page, demo))
+    expect(artifact).not.toContain('<script id="kg-graph" type="application/json">__KG_GRAPH__</script>')
+  })
+
+  test('the document in the artifact is the source document, not a copy of a copy', () => {
+    const m = artifact.match(/<script id="kg-graph" type="application\/json">([\s\S]*?)<\/script>/)
+    expect(m).not.toBeNull()
+    expect(JSON.parse((m as RegExpMatchArray)[1])).toEqual(demo)
+  })
+
+  test('the artifact carries the case and never reaches the network or storage', () => {
+    expect(artifact).toContain('Andrei')
+    expect(artifact).not.toMatch(/fetch\(|XMLHttpRequest|sendBeacon|new WebSocket/)
+    expect(artifact).not.toMatch(/localStorage|sessionStorage|indexedDB|document\.cookie|navigator\.storage/)
+  })
+})
+
+describe('body/demo/kg_demo.json is the case the card names', () => {
   test('it is a kg/1-health document, and the contract accepts every node of it', () => {
     expect(demo.meta?.app).toBe('health-viewer')
     // not a shape that looks close: the real gate, over the real document

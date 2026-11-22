@@ -10,11 +10,11 @@ template app has no write path, so there is nothing to reduce.
 
 ## The contract
 
-- **Read-only.** The view renders the document — `<script id="kg-graph">` when the page was rendered,
-  or `demo/graph.json` when the reader asks for the demo — and the page has no write path at all: no
-  add, no connect, no delete, no storage write, one `fetch` and it is a GET. The node panel's buttons
-  (take out of the body, put back, split into systems) move what is on screen; they never touch the
-  document.
+- **Read-only.** The view renders the document — the `#kg-graph` placeholder, replaced by the renderer
+  for a reader's document or by the demo build (`body/demo.html`) for the case — and the page has no
+  write path at all: no add, no connect, no delete, no storage write, and no `fetch`. The node panel's
+  buttons (take out of the body, put back, split into systems) move what is on screen; they never touch
+  the document.
 - **Never required.** The page builds the ruler, the records list and the centre view at launch.
   The models load only when the reader asks for the 3D layer inside this view — a second, separate
   toggle that is off by default (T28, below): a reader who never asks for it never downloads them,
