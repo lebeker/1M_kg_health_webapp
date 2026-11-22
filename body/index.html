@@ -3072,8 +3072,7 @@ function buildStateList() {
 function openLatestRecord() {
   const latest = STATE_ROWS.find(row => row.stored);
   if (!latest || state.event) return;
-  state.mainHidden = false;
-  selectDate(dayOf(latest.date), latest.id);
+  selectDate(dayOf(latest.date), latest.id);   // selectDate opens the view and marks the row
 }
 
 /* widget 8: exactly one row is marked. Picking a record marks that record; a date chosen on the

@@ -37,6 +37,11 @@ export const ASSETS: Array<{ from: string; to: string; link?: string }> = [
   { from: join(ROOT, 'body', 'models'), to: join(OUT, 'models'), link: join('..', 'body', 'models') },
 ]
 export const PLACEHOLDER = '__KG_GRAPH__'
+/**
+ * The page is UTF-8 and full of `·` and `—`: a string's `length` is not its size on disk, and the
+ * number this build prints should be the one `ls -l` prints.
+ */
+const byteSize = (text: string): number => Buffer.byteLength(text, 'utf8')
 
 const SCRIPT_OPEN = '<script id="kg-graph" type="application/json">'
 const SCRIPT_CLOSE = '</script>'
@@ -105,14 +110,14 @@ function main(argv: string[]): number {
       console.error('dist/demo.html is stale — run `bun run build:demo`')
       return 1
     }
-    console.log(`dist/demo.html is current (${built.length} bytes)`)
+    console.log(`dist/demo.html is current (${byteSize(built)} bytes)`)
     return 0
   }
 
   mkdirSync(OUT, { recursive: true })
   writeFileSync(ARTIFACT, built)
   installAssets()
-  console.log(`dist/demo.html <- kg_demo.json (${built.length} bytes)`)
+  console.log(`dist/demo.html <- kg_demo.json (${byteSize(built)} bytes)`)
   return 0
 }
 
