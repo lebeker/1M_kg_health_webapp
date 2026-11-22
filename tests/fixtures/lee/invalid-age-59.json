@@ -1,0 +1,15 @@
+{
+  "note": "Refused: the paper's cohort is over 50 but its printed table starts at 60–64, so a 59-year-old has no band to score and is refused rather than given 0 points for age.",
+  "age": 59,
+  "sex": "male",
+  "bmi": 24,
+  "diabetes": false,
+  "cancer": false,
+  "lung_disease": false,
+  "heart_failure": false,
+  "current_smoker": false,
+  "difficulty_bathing": false,
+  "difficulty_walking_several_blocks": false,
+  "difficulty_managing_money": false,
+  "difficulty_pushing_large_objects": false
+}
