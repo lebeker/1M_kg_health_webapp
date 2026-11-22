@@ -1,0 +1,15 @@
+{
+  "note": "Lee 2006, twelve items: a 65-year-old woman with BMI 24.1 and nothing else. Age 65–69 is 2 points and a BMI under 25 is 1, female sex 0; 3 points is the paper's first band (less than 4% over four years).",
+  "age": 65,
+  "sex": "female",
+  "bmi": 24.1,
+  "diabetes": false,
+  "cancer": false,
+  "lung_disease": false,
+  "heart_failure": false,
+  "current_smoker": false,
+  "difficulty_bathing": false,
+  "difficulty_walking_several_blocks": false,
+  "difficulty_managing_money": false,
+  "difficulty_pushing_large_objects": false
+}

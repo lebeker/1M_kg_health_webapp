@@ -98,7 +98,13 @@ The engine owns the arithmetic and one promise: the same facts and the same rule
 number, bit for bit; a fact that is missing is not a default — the rule does not fire, and the
 estimate says which rules did not fire and why. A rule without a `source` does not load. What counts
 as a risk factor is not the engine's claim to make: it arrives as a reviewed rule file with a
-citation and a confidence, with the scales that use it (T16 Lee index) and the explanation (T17).
+citation and a confidence.
+
+The first shipped set is the **Lee index** (T16, `src/lee.ts`, `docs/LEE.md`): twelve published
+weights, one citation each, seventeen rows of points over an index of 0–26. It is additive, so it is
+the set the engine was built for; it refuses a person with a missing item rather than score that
+item as zero, and it prints a band of a group's mortality, never a percentage for a person. The
+explanation (T17) is what is still missing.
 
 ### The one scale that is not a rule set
 

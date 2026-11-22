@@ -1,0 +1,14 @@
+{
+  "note": "Refused: no BMI. The index counts deficits over known items, and an absent BMI would be scored as 0 — a different person.",
+  "age": 70,
+  "sex": "male",
+  "diabetes": false,
+  "cancer": false,
+  "lung_disease": false,
+  "heart_failure": false,
+  "current_smoker": false,
+  "difficulty_bathing": false,
+  "difficulty_walking_several_blocks": false,
+  "difficulty_managing_money": false,
+  "difficulty_pushing_large_objects": false
+}
