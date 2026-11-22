@@ -17,6 +17,14 @@ hands to the `kg` skill**, never screens.
 Nothing else travels, which is why each skill carries its script inside its own `SKILL.md` and
 why `scripts/skills.ts --embed` keeps that copy equal to the `.py` the tests run.
 
+**Two steps of that chain are outside this repo and are not done here.** `bun scripts/bundle.mjs`
+in `1M_kg_skill` is what copies `requires` into the catalogue that `kg new` reads, and it runs at
+release (T26); until it does, the catalogue's `health-viewer` entry still lists `kg` alone. And a
+graph created before this change keeps the `meta.requires` it was seeded with — its `kg check`
+will not offer the export skills. Both are consequences of the handover being a document, not a
+service, and neither blocks the skills from working: they are run from `skills_url`, and the
+`kg` skill can install them by name.
+
 ## What a marker is, once
 
 `body/lib/main-view.js` decides it: `markers(node)` reads `values[]` (a panel) or a bare `value`
