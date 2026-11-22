@@ -22,14 +22,16 @@ const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.ur
 
 type Source = { label: string; link: string }
 type Cell = {
-  delta?: number
+  delta?: number | null
   date?: string
+  value?: string
+  source?: Source
   status?: string
   advisedOn?: string
   by?: string
-  source?: Source
 } | null
-type Row = { key: string; label: string; then: Cell; now: Cell }
+type Row = { key: string; label: string; value?: string; then: Cell; now: Cell }
+type GapRow = { key: string; text: string; then: { known: boolean; text: string }; now: { known: boolean; text: string } }
 type Forecast = { available: boolean; years: number | null; records: number; drivers: Array<{ track: string; label: string; date: string; delta: number }> }
 type Panel = {
   past: boolean
@@ -40,9 +42,9 @@ type Panel = {
   empty: boolean
   sections: {
     forecast: { then: Forecast; now: Forecast; delta: { total: string; because: string }; note: string }
-    moves: { rows: Row[] }
+    moves: { rows: Row[]; note: string }
     recommended: { rows: Row[] }
-    unknown: { rows: Row[] }
+    unknown: { rows: GapRow[] }
     grounds: { rows: Row[] }
   }
 }
@@ -142,18 +144,39 @@ describe('a past record: then solid, now paled', () => {
     )
   })
 
-  test('what moves it: aligned by track, a then value and a now value per row', () => {
+  test('what moves it: the factors, aligned by factor, a then value and a now value per row', () => {
     const rows = panel.sections.moves.rows
-    const bp = rows.find((r) => r.key === 'bp')
-    expect(bp?.then).toEqual({ delta: -1.0, date: '2012-03-14' })
-    expect(bp?.now).toEqual({ delta: -1.0, date: '2012-03-14' })
-    const lipids = rows.find((r) => r.key === 'lipids')
+    const bp = rows.find((r) => r.key === 'blood-pressure')
+    expect(bp?.then?.delta).toBe(-1.0)
+    expect(bp?.then?.date).toBe('2012-03-14')
+    expect(bp?.then?.value).toBe('158')
+    expect(bp?.now?.delta).toBe(-1.0)
+    // a lipid panel with no LDL marker is not an LDL row, but it does record an effect, so it is
+    // still explained — by its own row, because it moved the number
+    const lipids = rows.find((r) => r.key === 'effect:lipids')
     expect(lipids?.then).toBeNull()          // did not exist on the selected date
     expect(lipids?.now?.delta).toBe(0.6)
     // a drug's explicit effect moves the forecast too, which is how a recommendation is credited
-    const statin = rows.find((r) => r.key === 'med-statin')
+    const statin = rows.find((r) => r.key === 'statin')
     expect(statin?.then).toBeNull()
-    expect(statin?.now).toEqual({ delta: 3.6, date: '2016-10-11' })
+    expect(statin?.now?.delta).toBe(3.6)
+    expect(statin?.now?.date).toBe('2016-10-11')
+  })
+
+  test('a record that records no effect is not a row: +0.0 is not "nothing", it is "no number"', () => {
+    // the synthetic document's own lipid panel and eGFR record effects; nothing records zero
+    const rows = panel.sections.moves.rows
+    expect(rows.every((r) => r.then?.delta !== 0 && r.now?.delta !== 0)).toBe(true)
+    // and a record with neither `delta` nor `evidence` never becomes one
+    const withNeutral = RP.build({
+      ...INPUT,
+      nodes: [
+        ...NODES,
+        { id: 'obs-alt-2014', kind: 'observation', label: 'ALT', when: '2014-06-01', track: 'liver', value: 62 }
+      ]
+    })
+    expect(withNeutral.sections.moves.rows.some((r) => r.key === 'effect:liver')).toBe(false)
+    expect(withNeutral.sections.moves.rows.some((r) => r.label === 'ALT')).toBe(false)
   })
 
   test('recommended: status at that time, and status now, with the source', () => {
@@ -237,6 +260,77 @@ describe('the refusals', () => {
   })
 })
 
+describe('the owner\'s audit: what moves it names factors, not lab panels (2026-11-22)', () => {
+  const demo = JSON.parse(read('kg_demo.json')) as {
+    nodes: Array<Record<string, unknown>>
+    edges: Array<Record<string, unknown>>
+    meta: Record<string, unknown>
+  }
+  const panel = RP.build({
+    nodes: demo.nodes,
+    edges: demo.edges,
+    date: '2026-11-22',
+    today: '2026-11-22',
+    leBySex: { male: 74, female: 80 },
+    sex: 'male',
+    meta: demo.meta
+  })
+  const rows = panel.sections.moves.rows
+
+  test('the rows are the factors the owner named, and a lab panel is not one of them', () => {
+    expect(rows.map((r) => r.key)).toEqual(['ldl', 'age', 'blood-pressure', 'statin'])
+    // the defect: ALT, blood count, HbA1c and fasting glucose were listed, at +0.0
+    const analyses = /^(ALT|Blood count|HbA1c|Fasting glucose|eGFR|Troponin)/i
+    rows.forEach((row) => expect(analyses.test(row.label)).toBe(false))
+  })
+
+  test('no row prints +0.0: an unweighed record shows no number, not a zero', () => {
+    rows.forEach((row) => {
+      expect(row.now?.delta ?? null).toBeNull()
+      expect(row.then?.delta ?? null).toBeNull()
+    })
+  })
+
+  test('each row carries what the document says and the record it says it in', () => {
+    const by = (key: string) => rows.find((r) => r.key === key)
+    expect(by('ldl')?.value).toBe('3.6 mmol/L')
+    expect(by('ldl')?.now?.source?.link).toBe('sources/cardio-note-2026-11-19.pdf')
+    expect(by('blood-pressure')?.value).toBe('149/90 mm[Hg]')
+    expect(by('blood-pressure')?.now?.source?.link).toBe('sources/bp-diary-2025-11.pdf')
+    expect(by('age')?.value).toBe('65')
+    expect(by('statin')?.value).toBe('since 2016-10-11')
+    expect(by('statin')?.now?.source?.link).toBe('sources/gp-note-2016-09-20.pdf')
+  })
+
+  test('and the section says why nothing weighs instead of letting dashes mean "nothing matters"', () => {
+    expect(panel.sections.moves.note).toContain('no record here carries an effect size')
+  })
+
+  test('the sixth factor, steps, is named as a gap: a document carries no activity record', () => {
+    const steps = panel.sections.unknown.rows.find((r) => r.key === 'steps')
+    expect(steps?.then?.known).toBe(false)
+    expect(steps?.text).toContain('no step count')
+  })
+
+  test('a factor is read at the selected date: the then column shows the age and the value of that day', () => {
+    const past = RP.build({
+      nodes: demo.nodes,
+      edges: demo.edges,
+      date: '2021-03-30',
+      today: '2026-11-22',
+      leBySex: { male: 74, female: 80 },
+      sex: 'male',
+      meta: demo.meta
+    })
+    const age = past.sections.moves.rows.find((r) => r.key === 'age')
+    expect(age?.then?.value).toBe('60')
+    expect(age?.now?.value).toBe('65')
+    const ldl = past.sections.moves.rows.find((r) => r.key === 'ldl')
+    expect(ldl?.then?.value).toBe('3.2 mmol/L')   // the 2019 panel, the newest by then
+    expect(ldl?.now?.value).toBe('3.6 mmol/L')
+  })
+})
+
 describe('the screenshot fixture: a real document that can move the forecast', () => {
   const fixture = JSON.parse(read('tests/fixtures/page/then-now.json')) as {
     nodes: Array<Record<string, unknown>>
@@ -246,6 +340,22 @@ describe('the screenshot fixture: a real document that can move the forecast', (
 
   test('it is a kg/1-health document the contract accepts', () => {
     expect(validateKg(fixture)).toEqual([])
+  })
+
+  test('a row that moves the number carries the record it came from, with its link', () => {
+    const panel = RP.build({
+      nodes: fixture.nodes,
+      edges: fixture.edges,
+      date: '2021-05-14',
+      today: TODAY,
+      leBySex: LE,
+      sex: 'male'
+    })
+    const statin = panel.sections.moves.rows.find((r) => r.key === 'statin')
+    expect(statin?.now?.source?.label).toBe('Discharge note, cardiology, p.2')
+    expect(statin?.now?.source?.link).toBe('sources/discharge-2021-05-14.pdf')
+    const ldl = panel.sections.moves.rows.find((r) => r.key === 'ldl')
+    expect(ldl?.now?.value).toBe('4.9 mmol/L')
   })
 
   test('the past record on it shows the card\'s example: a statin recommended then, credited now', () => {
@@ -282,6 +392,12 @@ describe('the page spends the model, and the rejected ghost is gone', () => {
     expect(page).toContain('rpdelta')
     // the v12 ghost's honest-but-wrong label does not survive the correction
     expect(page).not.toContain("these are today's numbers")
+  })
+
+  test('a driver row draws the factor\'s value, a dash when nothing is recorded, and its source link', () => {
+    expect(page).toContain('state.delta == null')
+    expect(page).toContain('linkEl(state.source.label')
+    expect(page).toContain('row.value || ""')
   })
 
   test('the panel follows the same date as the main view', () => {

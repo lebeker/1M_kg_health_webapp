@@ -112,13 +112,29 @@ to subtract the two estimates above the rows, and a page that prints them at 2dp
 purpose is to be checkable. `scripts/explain.test.ts` parses the three numbers off the page and
 subtracts them, so the display cannot drift back.
 
+## Where this meets the panel (2026-11-22)
+
+The owner's audit found `what moves it` (widget 21) listing ALT, blood count, HbA1c and fasting
+glucose at `+0.0`. That section is now drawn from the factors the projection is explained by (LDL,
+blood pressure, age, statin, smoking, steps) plus every record that records an effect, with the
+record's link beside it; a record with no effect size shows a dash and the section says why. See
+`docs/MAIN-VIEW.md`.
+
+What the panel still does not draw is **these** rows — the Lee and SCORE2 explanation rows above,
+with their causes in the model's own vocabulary (`age_70_74`, `age_x_systolic_bp`) and their
+citations. The reason is structural, not cosmetic: the page is plain JavaScript over a `kg/1-health`
+document, the models that produce these rows are TypeScript over a **facts** record (`src/rules.ts`,
+`src/explain.ts`), and nothing yet turns a document into facts for them. So on the demo — a document
+with no `delta`, no `evidence` and no `prediction` — the factors are listed with what the record
+says, and no number is invented for them. Drawing the model rows needs that document→facts bridge
+and a decision on which scale the panel reports (years today; Lee is points, SCORE2 is a 10-year
+percentage). Both are recorded as follow-up work, not guessed here.
+
 ## What this does not do
 
 - **It renders nothing.** The drift view is T13 in the plan and is parked with T08 behind the
-  owner's decision; rev 5 forbids any task depending on them. Widgets 19–25 (the right panel,
-  including 21 "what moves it") are candidates and not approved. So the rows exist, are tested and
-  can be printed; a screen that draws them waits for the view to be approved, and that screen lives
-  in `body/index.html`, which is `right`'s file, not this card's.
+  owner's decision; rev 5 forbids any task depending on them. So the rows exist, are tested and
+  can be printed. The panel draws the *factor* rows described above, not these model rows.
 - **It does not choose the two dates.** An explanation compares two fact records; which dates those
   are, and where the facts come from, is the caller's modelling decision. That includes the
   documented gap in `docs/LEE.md`: matching an ICD-10 code or a free-text label to `diabetes`,

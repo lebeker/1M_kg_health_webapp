@@ -3474,7 +3474,10 @@ function renderRightPanel() {
     today: today,
     leBySex: LE_BY_SEX,
     sex: state.sex || profile.sex || "",
-    byId: docById
+    byId: docById,
+    /* the profile is where the age comes from: widget 21 lists age as a factor, and a document
+       carries a birth year, not an age */
+    meta: TL_META
   });
   box.dataset.past = panel.past ? "yes" : "no";
   box.dataset.states = String(panel.states.length);
@@ -3528,20 +3531,33 @@ function renderRightPanel() {
       }
       section.appendChild(mk("p", "rpnote", f.note));
     } else if (sec.key === "moves") {
+      /* widget 21: the factors the estimate is explained by — LDL, blood pressure, age, statin,
+         smoking, steps — each with what the document says about it and the record it says it in.
+         A lab panel that records no effect is not a driver and is not drawn; a factor the document
+         records without an effect size shows a dash, never "+0.0", because the column is "how much
+         did this move it" and a record that says nothing about how much has no number to show. */
       rpHead(section, panel);
-      const rows = panel.sections.moves.rows;
+      const moves = panel.sections.moves;
+      const rows = moves.rows;
       if (!rows.length) rpRow(section, panel, "nothing moves the forecast yet", "",
-        rpCell("no record with an effect", "then rpgap"), rpCell("no record with an effect", "now rpgap"));
+        rpCell("no factor recorded", "then rpgap"), rpCell("no factor recorded", "now rpgap"));
       rows.forEach(row => {
         const cell = key => {
           const state = row[key];
           if (!state) return rpCell("\u2014", key + " rpgap");
-          const el = rpCell(rpSigned(state.delta), key);
-          el.appendChild(mk("span", "rpsrc", state.date));
+          const el = rpCell(state.delta == null ? "\u2014" : rpSigned(state.delta),
+                            key + (state.delta == null ? " rpgap" : ""));
+          const src = mk("span", "rpsrc", state.date);
+          if (state.source && state.source.link) {
+            src.appendChild(document.createTextNode(" "));
+            src.appendChild(linkEl(state.source.label || "source", state.source.link));
+          }
+          el.appendChild(src);
           return el;
         };
-        rpRow(section, panel, row.label, "", cell("then"), cell("now"));
+        rpRow(section, panel, row.label, row.value || "", cell("then"), cell("now"));
       });
+      if (moves.note) section.appendChild(mk("p", "rpnote moves", moves.note));
     } else if (sec.key === "recommended") {
       rpHead(section, panel);
       const rows = panel.sections.recommended.rows;
