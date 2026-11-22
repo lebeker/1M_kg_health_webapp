@@ -76,7 +76,7 @@ One JSON file, one strategy:
 | `confidence` | 0..1, your trust in the delta as a forecast for a person | you — not the paper's, and not a p-value |
 | `limits` | what the effect does not cover | the abstract's own caveats; at least one |
 | `paper.pmid` | the PubMed id, bare digits | the PubMed record |
-| `paper.title` | the title **as the record prints it** | the record — the script compares it, character for character, with the one PubMed returns |
+| `paper.title` | the title **as the record prints it** | the record — the script compares it with the one PubMed returns after normalising markup, entities, quotes, case and a trailing period |
 | `paper.citation` | authors, title, journal, year, volume, pages | the record |
 | `paper.when` | the date printed on the paper | the record |
 | `paper.link` | exactly `https://pubmed.ncbi.nlm.nih.gov/<pmid>/` | built from the PMID |
@@ -136,12 +136,16 @@ One JSON file, one strategy:
    - the cohort check passed on every dimension, or says *not checked* and why;
    - the delta is `ln(ratio)` on a scale you can name (see below);
    - the quote really is the sentence the numbers came from.
-7. **Write.** `--write` appends the three objects and reads them back; a node that came back
-   `confirmed` fails the run. Then validate with `kg.py validate`, or the app's own gate
-   (`bun run test:contract` in the health repo).
-8. **Hand the review to a person.** The forecast and its paper are `not confirmed`. Say what you
-   read, which sentence you took the numbers from, and what the cohort check could *not* check. The
-   human confirms — in the document, with `kg set-node --set confirmed=true` — or sends it back.
+7. **Write.** `--write` appends the objects and reads the forecast back; one that came back
+   `confirmed` fails the run. If the paper is already in the document, its node is reused untouched —
+   even when a human has already confirmed it — and the plan's `effect` has to agree with the numbers
+   that node records, or the run is refused. Then validate with `kg.py validate`, or the app's own
+   gate (`bun run test:contract` in the health repo).
+8. **Hand the review to a person.** The forecast is `not confirmed`; its paper is too, unless that
+   paper was already in the document, in which case its node is left exactly as the earlier review
+   left it. Say what you read, which sentence you took the numbers from, and what the cohort check
+   could *not* check. The human confirms — in the document, with `kg set-node --set confirmed=true` —
+   or sends it back.
 
 ## Why the delta is a logarithm
 
@@ -185,6 +189,10 @@ condition, add the missing year of birth, or accept that this paper is not this 
 - **A `confirmed` in the plan is refused.** See the second rule above.
 - **An id that is already in the document is refused**, never rewritten. Two forecasts under one
   id cannot be told apart later, and "it was updated" is not a story a record can tell.
+- **A second forecast from a paper already in the document reuses its node, and must agree with its
+  numbers.** The node is left exactly as it stands, `confirmed` included; a `ratio`, `interval`,
+  `outcome`, `measure` or `per` that differs from what that paper's node records is refused by name,
+  because one of the two copies is wrong and the document is the one a reader has already seen.
 - **It does not fetch the abstract for you.** The numbers come from a reader; the script checks that
   they are internally consistent and that the paper is the one the PMID names.
 
@@ -223,8 +231,8 @@ is the write path for the paper a user brings — the sixth, or the fiftieth.
 
 The order is the card's — **PubMed → HR + CI → cohort check → node** — and every step can stop.
 
-  1. **PubMed.** The paper must have a PMID. The plan carries it, and `--verify-pmid` (the default)
-     fetches the record from PubMed's E-utilities and compares the title and the year with what the
+  1. **PubMed.** The paper must have a PMID. The plan carries it, and by default the script fetches
+     the record from PubMed's E-utilities and compares the title and the year with what the
      plan says: a citation that does not match its PMID is a copy error, and this is where it is
      caught. `--offline` skips the fetch and the report says the PMID is unverified — unverified is
      not verified-by-absence.
@@ -663,6 +671,57 @@ def document_id(pmid: str) -> str:
     return f"src-pmid-{pmid}"
 
 
+def folded(text: object) -> str:
+    """A sentence comparable across two writes of it: case, quotes and whitespace out."""
+    return " ".join(text.split()).strip().lower() if isinstance(text, str) else ""
+
+
+def reused_effect_problems(source_id: str, existing: dict, effect: dict) -> list[str]:
+    """Every way a second forecast's numbers disagree with the paper already in the document.
+
+    A document node is one paper's published effect, and a second forecast from that paper reads
+    the numbers the first one recorded. Two plans citing one PMID with different ratios are not two
+    forecasts of one effect; they are one of them being wrong, and the document is the copy a reader
+    has already seen.
+    """
+    recorded = existing.get("effect")
+    if not is_object(recorded):
+        return [
+            f"{source_id}: the paper is already in this document without its `effect`, so a second "
+            "forecast would carry numbers the document does not record — add the paper's effect to "
+            f"{source_id} first, or use a fresh document"
+        ]
+
+    problems: list[str] = []
+    for field in ("outcome", "measure", "per"):
+        if folded(recorded.get(field)) != folded(effect.get(field)):
+            problems.append(
+                f'{source_id}: the plan\'s effect.{field} is {effect.get(field)!r}, the document records '
+                f"{recorded.get(field)!r} — this paper is already here with its published effect, and a "
+                "second forecast reads it rather than replacing it"
+            )
+
+    recorded_interval = recorded.get("interval")
+    plan_interval = effect.get("interval")
+    if not is_object(recorded_interval):
+        recorded_interval = {}
+    if not is_object(plan_interval):
+        plan_interval = {}
+    if recorded.get("ratio") != effect.get("ratio"):
+        problems.append(
+            f"{source_id}: the plan's effect.ratio is {json.dumps(effect.get('ratio'))}, the document "
+            f"records {json.dumps(recorded.get('ratio'))} — one of the two numbers is not this paper's"
+        )
+    for field in ("level", "low", "high"):
+        if recorded_interval.get(field) != plan_interval.get(field):
+            problems.append(
+                f"{source_id}: the plan's effect.interval.{field} is {json.dumps(plan_interval.get(field))}, "
+                f"the document records {json.dumps(recorded_interval.get(field))} — one of the two numbers "
+                "is not this paper's"
+            )
+    return problems
+
+
 def graph_problems(plan: dict, graph: object) -> tuple[list[str], dict | None]:
     """Refusals that need the document: app, ids, the target, the horizon, the profile."""
     if not is_object(graph):
@@ -713,6 +772,7 @@ def graph_problems(plan: dict, graph: object) -> tuple[list[str], dict | None]:
             )
 
     pmid = paper.get("pmid") if is_object(paper) else None
+    effect = plan.get("effect")
     if is_non_empty(pmid) and re.fullmatch(r"\d{7,8}", pmid):
         existing = by_id.get(document_id(pmid))
         if existing is not None and existing.get("pmid") != pmid:
@@ -720,6 +780,10 @@ def graph_problems(plan: dict, graph: object) -> tuple[list[str], dict | None]:
                 f'{document_id(pmid)} is already in this document as a different paper (pmid '
                 f'"{existing.get("pmid")}") — two papers cannot share one document id'
             )
+        elif existing is not None and is_object(effect):
+            # A second forecast from the same paper reuses its document node untouched — including
+            # when a human has already confirmed it — but only the numbers that node records.
+            problems.extend(reused_effect_problems(document_id(pmid), existing, effect))
 
     profile = meta.get("profile") if is_object(meta) else None
     if not is_object(profile):
@@ -1096,11 +1160,24 @@ def report_text(report: dict) -> str:
             f"  node     {node['id']} → {node['target']}, horizon {node['horizon']}",
             f"           delta_median ln({effect['ratio']:g}) = {node['delta_median']:.6f}, confidence {node['confidence']:g}",
             source_line,
-            "  review   both nodes are `not confirmed`. Read the abstract, check the sentence the numbers came",
-            "           from, then confirm them in the document:",
-            f'           "{effect["quote"]}"',
         ]
     )
+    if report["document_reused"]:
+        lines.extend(
+            [
+                "  review   the forecast is `not confirmed`; the paper's node was already in the document and",
+                "           is left as it stands. Read the abstract, check the sentence the numbers came from,",
+                "           then confirm the forecast:",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "  review   both nodes are `not confirmed`. Read the abstract, check the sentence the numbers came",
+                "           from, then confirm them in the document:",
+            ]
+        )
+    lines.append(f'           "{effect["quote"]}"')
     return "\n".join(lines)
 
 
@@ -1183,8 +1260,15 @@ def main(argv: list[str]) -> int:
         "review": {
             "required": True,
             "confirmed": False,
-            "ids": [document["id"], prediction["id"]],
-            "message": "both nodes are written `confirmed: false`; a human reads the paper and confirms them",
+            # A reused paper's node is not rewritten, so it is not part of what the review has to
+            # confirm: it already carries whatever confirmation a person gave it the first time.
+            "ids": [prediction["id"]] if reused else [document["id"], prediction["id"]],
+            "message": (
+                "the forecast is written `confirmed: false`; the paper was already in the document and its "
+                "node is left as it stands — a human reads the paper and confirms the forecast"
+                if reused
+                else "both nodes are written `confirmed: false`; a human reads the paper and confirms them"
+            ),
         },
     }
 
@@ -1210,7 +1294,13 @@ def main(argv: list[str]) -> int:
         if read_back is None:
             print(f"error: written, but {prediction['id']} is not in {graph_path} on read-back", file=sys.stderr)
             return EXIT_USAGE
-        if read_back.get("confirmed") is not False or back.get(document["id"], {}).get("confirmed") is not False:
+        # Only the nodes this run wrote are this script's to vouch for. A reused document node is
+        # the caller's: a human may have confirmed the paper on the first forecast, and that is the
+        # normal state a second forecast arrives in — it is not a thing this script wrote.
+        confirmed_somewhere = read_back.get("confirmed") is not False or (
+            document_added and back.get(document["id"], {}).get("confirmed") is not False
+        )
+        if confirmed_somewhere:
             print("error: a node came back confirmed, which this script never writes", file=sys.stderr)
             return EXIT_USAGE
         report["wrote"] = True

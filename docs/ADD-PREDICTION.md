@@ -77,6 +77,22 @@ document: DATA-CONTRACT says every edge carries `source` and `confidence` when t
 **T19's five built-in `projected` edges do not carry a `source`** — that is a small difference between
 the two writers, recorded here rather than copied; nothing depends on it today.
 
+## A second forecast from a paper already in the document
+
+One document node per paper, under `src-pmid-<pmid>`. A second plan citing that PMID does not write a
+second paper node: the existing one is reused, byte for byte, and only the new `prediction` and its
+edge are appended. Reuse is the normal case for a paper somebody already reviewed — the document node
+is `confirmed: true` by then, and the skill has no business rewriting it, so the read-back only
+vouches for the forecast it wrote. `tests/fixtures/add-prediction/graph-reviewed.json` is that state
+(the after-fixture with the paper and its first forecast confirmed) and the test writes a second
+forecast into a copy of it.
+
+The plan's `effect` has to agree with the numbers the reused node records — `outcome`, `measure`,
+`ratio`, `interval` and `per`, compared after folding case and whitespace on the prose fields. A
+disagreement is exit 1 and names both values: two plans citing one PMID with different ratios are not
+two forecasts of one effect, they are one of them being wrong, and the document is the copy a reader
+has already seen.
+
 ## PubMed: the PMID is an identifier, not a claim
 
 The record is fetched from PubMed's E-utilities, which needs no key and no registration:
@@ -161,12 +177,14 @@ inside, 1 not checked" are different sentences and should not read the same.
 
 ## How it is checked
 
-- `bun test scripts/add-prediction.test.ts` — 42 cases. The happy path (offline, and again with
+- `bun test scripts/add-prediction.test.ts` — 45 cases. The happy path (offline, and again with
   `--write`); the app's own `validateKg` over the written document; the committed fixture equal to
   what the skill writes, node for node; deterministic bytes; a second run refused; a second forecast
-  reusing the first's document node; every refusal above, each asserting the sentence a person can
-  act on; and the PubMed step against a stub record served by a real process — a match, a wrong
-  title, a wrong year, a PMID with no record, an unreachable host and an HTTP 500.
+  reusing the first's document node, and a second forecast into a document whose paper a human has
+  already confirmed (reused untouched, exit 0); a second forecast whose numbers disagree with the
+  reused paper refused before anything is written; every refusal above, each asserting the sentence a
+  person can act on; and the PubMed step against a stub record served by a real process — a match, a
+  wrong title, a wrong year, a PMID with no record, an unreachable host and an HTTP 500.
 - `bun run test:contract` — `tests/fixtures/kg/valid/health-add-prediction.json` is the
   before-document plus what the skill writes, so G1 refuses the build if the skill ever produces a
   document the app would not accept. `tests/fixtures/add-prediction/graph-before.json` is the input

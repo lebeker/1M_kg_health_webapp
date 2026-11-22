@@ -42,6 +42,8 @@ const BASE_GRAPH = join(ROOT, 'tests', 'fixtures', 'add-prediction', 'graph-befo
 const PLAN = JSON.parse(readFileSync(join(ROOT, 'tests', 'fixtures', 'add-prediction', 'plan-nordicc.json'), 'utf8'))
 const FACTS = join(ROOT, 'tests', 'fixtures', 'add-prediction', 'facts-screening.json')
 const AFTER_FIXTURE = join(ROOT, 'tests', 'fixtures', 'kg', 'valid', 'health-add-prediction.json')
+/** The same document after a person did the review the skill asks for: the paper and its forecast confirmed. */
+const REVIEWED_FIXTURE = join(ROOT, 'tests', 'fixtures', 'add-prediction', 'graph-reviewed.json')
 const SCRATCH = join(ROOT, '.cache', 'add-prediction-test')
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
@@ -128,12 +130,23 @@ function run(args: (string | number)[]): { code: number; out: string; err: strin
 const hash = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex')
 const read = (path: string) => JSON.parse(readFileSync(path, 'utf8')) as Obj
 
-/** A fresh copy of the before-document in the scratch space, so no test can spoil another. */
+/**
+ * A fresh copy of the before-document in the scratch space, so no test can spoil another. A test
+ * that needs a state the skill did not write (a reviewed document, for instance) copies a fixture
+ * through `copyFile` instead.
+ */
 function graphFile(name: string, change?: (graph: Obj) => void): string {
   const graph = structuredClone(base)
   change?.(graph)
   const path = join(SCRATCH, `graph-${name}.json`)
   writeFileSync(path, `${JSON.stringify(graph, undefined, 2)}\n`)
+  return path
+}
+
+/** A committed fixture copied into the scratch space, byte for byte, so the write cannot edit it. */
+function copyFile(name: string, source: string): string {
+  const path = join(SCRATCH, `graph-${name}.json`)
+  writeFileSync(path, readFileSync(source))
   return path
 }
 
@@ -301,6 +314,68 @@ describe('PubMed → HR + CI → cohort check → node', () => {
       .map(obj)
       .filter((node) => node.id === 'src-pmid-36214590')
     expect(documents.length).toBe(1)
+  })
+
+  test('the reviewed fixture is the after-fixture with the paper and its forecast confirmed', () => {
+    const reviewed = read(REVIEWED_FIXTURE)
+    const expected = list(after.nodes).map((node) => {
+      const copy = obj(node)
+      const confirmed = copy.id === 'src-pmid-36214590' || copy.id === 'pred-colonoscopy-36214590'
+      return confirmed ? { ...copy, confirmed: true } : copy
+    })
+    expect(reviewed.nodes).toEqual(expected)
+    expect(reviewed.edges).toEqual(after.edges)
+  })
+
+  test('a paper a human already confirmed still takes a second forecast, and its node is left alone', () => {
+    // The state a document is in after the review step: the paper and the first forecast are
+    // `confirmed: false` no longer. A second forecast has to arrive here, reuse the paper untouched,
+    // and exit 0 — this is the case the read-back used to fail after writing.
+    const graph = copyFile('reviewed', REVIEWED_FIXTURE)
+    const paperBefore = list(read(graph).nodes)
+      .map(obj)
+      .find((node) => node.id === 'src-pmid-36214590')
+
+    const second = planFile('reviewed-second', (plan) => {
+      plan.id = 'pred-colonoscopy-second'
+      plan.label = 'The same screening, written down after the review'
+    })
+    const done = run(['--graph', graph, '--plan', second, '--facts', FACTS, '--offline', '--write', '--json'])
+    expect(done.err).toBe('')
+    expect(done.code).toBe(0)
+    expect(report(done.out).document_reused).toBe(true)
+    // The report says what is true of this run: the forecast is what a person has to confirm, not a
+    // paper node the script left exactly as it found it.
+    const review = obj(report(done.out).review)
+    expect(list(review.ids)).toEqual(['pred-colonoscopy-second'])
+    expect(str(review.message)).toContain('left as it stands')
+
+    const written = read(graph)
+    const nodes = list(written.nodes).map(obj)
+    expect(nodes.filter((node) => node.id === 'src-pmid-36214590')).toEqual([paperBefore])
+    expect(nodes.find((node) => node.id === 'pred-colonoscopy-36214590')?.confirmed).toBe(true)
+    expect(nodes.find((node) => node.id === 'pred-colonoscopy-second')?.confirmed).toBe(false)
+    expect(nodes.find((node) => node.id === 'pred-colonoscopy-second')?.delta_median).toBe(Math.log(0.82))
+    const edges = list(written.edges).map(obj).filter((edge) => edge.from === 'pred-colonoscopy-second')
+    expect(edges.length).toBe(1)
+    expect(edges[0]?.to).toBe('cond-adenoma-2026-03')
+  })
+
+  test('a second forecast from the same paper with different numbers is refused, and nothing is written', () => {
+    const graph = graphFile('reuse-mismatch')
+    expect(run(['--graph', graph, '--plan', PLAN_FILE, '--facts', FACTS, '--offline', '--write']).code).toBe(0)
+    const before = hash(graph)
+    const second = planFile('reuse-mismatch', (plan) => {
+      plan.id = 'pred-colonoscopy-mismatch'
+      obj(plan.effect).ratio = 0.7
+      obj(obj(plan.effect).interval).low = 0.6
+    })
+    const done = run(['--graph', graph, '--plan', second, '--facts', FACTS, '--offline', '--write'])
+    expect(done.code).toBe(1)
+    expect(done.err).toContain('effect.ratio')
+    expect(done.err).toContain('0.7')
+    expect(done.err).toContain('0.82')
+    expect(hash(graph)).toBe(before)
   })
 
   test('a paper the abstract prints no age range for is recorded as not checked, not as passed', () => {
