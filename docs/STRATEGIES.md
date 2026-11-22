@@ -26,10 +26,10 @@ pinned in `src/strategies.test.ts` so a transcription error is a failing test an
 | id | what somebody does | outcome | published | PMID |
 |---|---|---|---|---|
 | `statin-ldl` | a statin, LDL cholesterol down 1.0 mmol/L | major vascular events | rate ratio 0.78 (95% CI 0.76–0.80) per 1.0 mmol/L | [21067804](https://pubmed.ncbi.nlm.nih.gov/21067804/) |
-| `quit-smoking` | stop smoking (having smoked), within 5 years | incident cardiovascular disease | hazard ratio 0.61 (0.49–0.76) vs continuing | [31429895](https://pubmed.ncbi.nlm.nih.gov/31429895/) |
+| `quit-smoking` | stop smoking (having smoked ≥20 pack-years), within 5 years | incident cardiovascular disease | hazard ratio 0.61 (0.49–0.76) vs continuing | [31429895](https://pubmed.ncbi.nlm.nih.gov/31429895/) |
 | `colonoscopy-screening` | invitation to one screening colonoscopy | colorectal cancer incidence at 10 years | risk ratio 0.82 (0.70–0.93) | [36214590](https://pubmed.ncbi.nlm.nih.gov/36214590/) |
 | `intensive-hba1c` | an intensive glycaemic target | composite microvascular complications | risk ratio 0.88 (0.79–0.97) | [22115901](https://pubmed.ncbi.nlm.nih.gov/22115901/) |
-| `bp-lowering` | antihypertensive treatment, systolic pressure down 10 mmHg | major cardiovascular disease events | rate ratio 0.80 (0.77–0.83) per 10 mmHg | [26724178](https://pubmed.ncbi.nlm.nih.gov/26724178/) |
+| `bp-lowering` | antihypertensive treatment, systolic pressure down 10 mmHg | major cardiovascular disease events | relative risk 0.80 (0.77–0.83) per 10 mmHg | [26724178](https://pubmed.ncbi.nlm.nih.gov/26724178/) |
 
 The citations, in the order the fixture writes them:
 
@@ -124,9 +124,10 @@ is a claim it cannot make:
   differ and this module does not turn any of them into a claim about a person. The demo's horizons
   are demo data.
 - **No population beyond the paper's.** Each strategy says who was studied: raised-risk trial
-  participants (statin), middle-aged adults in four US communities with self-reported smoking
-  (smoking), 55–64-year-olds in three European countries invited once (colonoscopy), adults with type
-  2 diabetes (HbA1c), 123 trials pooled by meta-regression (blood pressure).
+  participants (statin), heavy ever smokers (≥20 pack-years) in Framingham, Massachusetts, with
+  self-reported smoking (smoking), 55–64-year-olds in three European countries invited once
+  (colonoscopy), adults with type 2 diabetes (HbA1c), 123 trials pooled by meta-regression (blood
+  pressure).
 - **The weakest evidence is labelled as such.** `quit-smoking` is an association in a cohort, not a
   randomised effect, and its confidence is 0.7. `intensive-hba1c` is the least certain of the five: no
   mortality benefit (risk ratio 1.02, 0.91–1.13), a trial sequential analysis that did not reach a

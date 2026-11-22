@@ -60,7 +60,7 @@ import { type Facts, type Predicate, conditionProblems } from './rules'
 export type StrategyEffect = {
   /** The outcome the paper measured, in its own words. */
   outcome: string
-  /** The measure as printed: "rate ratio", "risk ratio", "hazard ratio". */
+  /** The measure as printed: "relative risk", "rate ratio", "risk ratio", "hazard ratio". */
   measure: string
   /** The point estimate, on the ratio scale, as printed. */
   ratio: number
@@ -217,10 +217,11 @@ const BUILT_INS: readonly Strategy[] = [
       link: 'https://pubmed.ncbi.nlm.nih.gov/31429895/',
     },
     limits: [
-      'an association in a cohort (ARIC, 8,770 people, median 26.4 years), not a randomised effect: people who quit differ from people who do not in ways this number cannot separate',
+      'an association in a cohort (Framingham Heart Study, original and offspring cohorts pooled, 8,770 people, mean age 42.2 years, median 26.4 years of follow-up), not a randomised effect: people who quit differ from people who do not in ways this number cannot separate',
+      'the paper’s primary analysis was restricted to heavy ever smokers (≥20 pack-years): 0.61 is that restricted estimate, and this strategy says nothing about lighter smokers',
       'smoking status was self-reported, and the comparison is with current smokers, not with never smokers',
       'quitting within 5 years is the exposure; the effect takes 10–15 years to approach never-smoker rates, which is a fact about time this single ratio does not carry',
-      'middle-aged adults at baseline in four US communities; not a claim about any other population',
+      'middle-aged adults at baseline in Framingham, Massachusetts; not a claim about any other population',
     ],
   },
   {
@@ -292,7 +293,7 @@ const BUILT_INS: readonly Strategy[] = [
     scale: SCALE.mve,
     effect: {
       outcome: 'major cardiovascular disease events',
-      measure: 'rate ratio',
+      measure: 'relative risk',
       ratio: 0.8,
       interval: { level: 0.95, low: 0.77, high: 0.83 },
       per: '10 mmHg lower systolic blood pressure',
@@ -345,7 +346,7 @@ function strategyProblems(strategy: Record<string, unknown>, path: string): stri
     problems.push(`${path}.effect: missing effect — the published ratio, its interval, and what it is per`)
   } else {
     if (!isNonEmptyString(effect.outcome)) problems.push(`${path}.effect.outcome: missing outcome — what the paper measured`)
-    if (!isNonEmptyString(effect.measure)) problems.push(`${path}.effect.measure: missing measure — "rate ratio", "risk ratio", "hazard ratio"`)
+    if (!isNonEmptyString(effect.measure)) problems.push(`${path}.effect.measure: missing measure — "relative risk", "rate ratio", "risk ratio", "hazard ratio"`)
     if (!isNonEmptyString(effect.per)) {
       problems.push(`${path}.effect.per: missing per — a relative risk is per a change, and a ratio without it is applied to the wrong thing`)
     }

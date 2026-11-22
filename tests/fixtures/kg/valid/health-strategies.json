@@ -167,7 +167,7 @@
       "citation": "Ettehad D, Emdin CA, Kiran A, Anderson SG, Callender T, Emberson J, Chalmers J, Rodgers A, Rahimi K. Blood pressure lowering for prevention of cardiovascular disease and death: a systematic review and meta-analysis. Lancet 2016;387(10022):957–67.",
       "effect": {
         "outcome": "major cardiovascular disease events",
-        "measure": "rate ratio",
+        "measure": "relative risk",
         "ratio": 0.8,
         "interval": { "level": 0.95, "low": 0.77, "high": 0.83 },
         "per": "10 mmHg lower systolic blood pressure"

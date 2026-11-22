@@ -100,6 +100,25 @@ describe('the five', () => {
     })
   })
 
+  test('the measure is the word the paper prints, not a synonym chosen for tidiness', () => {
+    const measures = Object.fromEntries(STRATEGIES.map((strategy) => [strategy.id, strategy.effect.measure]))
+    expect(measures).toEqual({
+      'statin-ldl': 'rate ratio',
+      'quit-smoking': 'hazard ratio',
+      'colonoscopy-screening': 'risk ratio',
+      'intensive-hba1c': 'risk ratio',
+      'bp-lowering': 'relative risk',
+    })
+  })
+
+  test('the smoking paper’s limits name the cohort it came from and the restriction its estimate came from', () => {
+    const limits = (STRATEGIES.find((strategy) => strategy.id === 'quit-smoking')?.limits ?? []).join('\n')
+    expect(limits).toContain('Framingham Heart Study')
+    expect(limits).toContain('≥20 pack-years')
+    expect(limits).not.toContain('ARIC')
+    expect(limits).not.toContain('four US communities')
+  })
+
   test('each says what it does not cover, and the scale is a log relative risk', () => {
     for (const strategy of STRATEGIES) {
       expect(strategy.limits.length).toBeGreaterThan(0)
