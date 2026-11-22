@@ -1,0 +1,299 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1480" height="900" viewBox="0 0 1480 900" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <rect width="1480" height="900" fill="#ffffff"/>
+  <style>
+    .t { font-size: 12px; fill: #111; }
+    .ts { font-size: 10px; fill: #777; }
+    .tm { font-size: 9px; fill: #999; letter-spacing: .06em; }
+    .faint { font-size: 11px; fill: #b5b5b5; }
+    .box { fill: #fff; stroke: #d9d9d9; }
+    .soft { fill: #f6f6f6; stroke: none; }
+    .line { stroke: #c9c9c9; fill: none; }
+    .dash { stroke: #c9c9c9; fill: none; stroke-dasharray: 3 3; }
+    .num { font-size: 9px; fill: #fff; font-weight: 700; }
+    .badge { fill: #111; }
+  </style>
+
+  <text x="40" y="16" class="tm">WIREFRAME v13 · PAST DATE · SOLID THEN, PALED NOW · ONE PANEL, ONE SCALE</text>
+
+  <!-- 1 graph -->
+  <rect x="1214" y="24" width="30" height="30" rx="4" fill="#111"/>
+  <circle cx="1214" cy="24" r="7" class="badge"/><text x="1214" y="27" class="num" text-anchor="middle">1</text>
+  <polygon points="1229,30 1237,34.5 1237,43.5 1229,48 1221,43.5 1221,34.5" fill="none" stroke="#fff" stroke-width="1.2"/>
+  <circle cx="1229" cy="30" r="1.9" fill="#fff"/><circle cx="1237" cy="34.5" r="1.9" fill="#fff"/>
+  <circle cx="1237" cy="43.5" r="1.9" fill="#fff"/><circle cx="1229" cy="48" r="1.9" fill="#fff"/>
+  <circle cx="1221" cy="43.5" r="1.9" fill="#fff"/><circle cx="1221" cy="34.5" r="1.9" fill="#fff"/>
+
+  <!-- 2 profile -->
+  <rect x="1250" y="24" width="190" height="30" rx="4" class="box"/>
+  <circle cx="1394" cy="24" r="7" class="badge"/><text x="1394" y="27" class="num" text-anchor="middle">2</text>
+  <circle cx="1270" cy="39" r="8" fill="#eee" stroke="#ccc"/>
+  <text x="1286" y="43" class="ts">male · 1961 (65)</text>
+
+  <!-- 3 timeline -->
+  <text x="40" y="78" class="tm">3 · TIMELINE · ONE MARK PER EVENT</text>
+  <rect x="40" y="86" width="1392" height="52" class="soft"/>
+  <g stroke="#c3c3c3">
+    <line x1="60" y1="100" x2="60" y2="122"/><line x1="120" y1="100" x2="120" y2="122"/>
+    <line x1="180" y1="100" x2="180" y2="122"/><line x1="240" y1="100" x2="240" y2="122"/>
+    <line x1="300" y1="100" x2="300" y2="122"/><line x1="360" y1="100" x2="360" y2="122"/>
+    <line x1="420" y1="100" x2="420" y2="122"/><line x1="480" y1="100" x2="480" y2="122"/>
+    <line x1="540" y1="100" x2="540" y2="122"/><line x1="600" y1="100" x2="600" y2="122"/>
+    <line x1="660" y1="100" x2="660" y2="122"/>
+  </g>
+  <g class="tm">
+    <text x="60" y="136" text-anchor="middle">1985</text>
+    <text x="180" y="136" text-anchor="middle">1995</text>
+    <text x="300" y="136" text-anchor="middle">2005</text>
+    <text x="420" y="136" text-anchor="middle">2015</text>
+    <text x="540" y="136" text-anchor="middle">2025</text>
+  </g>
+
+  <circle cx="486" cy="78" r="7" class="badge"/><text x="486" y="81" class="num" text-anchor="middle">4</text>
+  <g stroke="#111" stroke-width="1.4">
+    <line x1="470" y1="92" x2="470" y2="108"/><line x1="505" y1="92" x2="505" y2="108"/>
+    <line x1="560" y1="92" x2="560" y2="108"/><line x1="612" y1="92" x2="612" y2="108"/>
+    <line x1="648" y1="92" x2="648" y2="108"/><line x1="682" y1="92" x2="682" y2="108"/>
+  </g>
+  <circle cx="470" cy="90" r="3" fill="#111"/><circle cx="505" cy="90" r="3" fill="#111"/>
+  <circle cx="560" cy="90" r="3" fill="#111"/><circle cx="612" cy="90" r="3" fill="#111"/>
+  <circle cx="648" cy="90" r="3" fill="#111"/><circle cx="682" cy="90" r="3" fill="#111"/>
+
+  <circle cx="700" cy="80" r="7" class="badge"/><text x="700" y="83" class="num" text-anchor="middle">5</text>
+  <rect x="700" y="90" width="206" height="44" fill="#fff" stroke="#111"/>
+  <g stroke="#bdbdbd">
+    <line x1="714" y1="96" x2="714" y2="118"/><line x1="732" y1="96" x2="732" y2="118"/>
+    <line x1="750" y1="96" x2="750" y2="118"/><line x1="768" y1="96" x2="768" y2="118"/>
+    <line x1="786" y1="96" x2="786" y2="118"/><line x1="804" y1="96" x2="804" y2="118"/>
+    <line x1="822" y1="96" x2="822" y2="118"/><line x1="840" y1="96" x2="840" y2="118"/>
+    <line x1="858" y1="96" x2="858" y2="118"/><line x1="876" y1="96" x2="876" y2="118"/>
+    <line x1="894" y1="96" x2="894" y2="118"/>
+  </g>
+  <text x="803" y="132" class="tm" text-anchor="middle">±2 years, by month</text>
+
+  <g stroke="#2b2b2b" opacity="0.5">
+    <line x1="930" y1="86" x2="930" y2="132"/><line x1="952" y1="86" x2="952" y2="132"/>
+    <line x1="974" y1="86" x2="974" y2="132"/><line x1="996" y1="86" x2="996" y2="132"/>
+    <line x1="1018" y1="86" x2="1018" y2="132"/><line x1="1040" y1="86" x2="1040" y2="132"/>
+    <line x1="1062" y1="86" x2="1062" y2="132"/><line x1="1084" y1="86" x2="1084" y2="132"/>
+    <line x1="1106" y1="86" x2="1106" y2="132"/><line x1="1128" y1="86" x2="1128" y2="132"/>
+    <line x1="1150" y1="86" x2="1150" y2="132"/><line x1="1172" y1="86" x2="1172" y2="132"/>
+    <line x1="1194" y1="86" x2="1194" y2="132"/><line x1="1216" y1="86" x2="1216" y2="132"/>
+    <line x1="1238" y1="86" x2="1238" y2="132"/><line x1="1260" y1="86" x2="1260" y2="132"/>
+    <line x1="1282" y1="86" x2="1282" y2="132"/><line x1="1304" y1="86" x2="1304" y2="132"/>
+    <line x1="1326" y1="86" x2="1326" y2="132"/><line x1="1348" y1="86" x2="1348" y2="132"/>
+    <line x1="1370" y1="86" x2="1370" y2="132"/><line x1="1392" y1="86" x2="1392" y2="132"/>
+    <line x1="1414" y1="86" x2="1414" y2="132"/>
+  </g>
+  <text x="930" y="80" class="tm">future · risk colour</text>
+  <line x1="906" y1="84" x2="906" y2="150" stroke="#111" stroke-width="1.5"/>
+  <text x="912" y="150" class="ts">today</text>
+  <g class="tm">
+    <text x="960" y="148" text-anchor="middle">2035</text>
+    <text x="1140" y="148" text-anchor="middle">2055</text>
+    <text x="1320" y="148" text-anchor="middle">2075</text>
+  </g>
+
+  <!-- ================= COLUMN 1: vertical related list ================= -->
+  <rect x="40" y="180" width="300" height="690" rx="6" class="box"/>
+  <circle cx="54" cy="194" r="7" class="badge"/><text x="54" y="197" class="num" text-anchor="middle">7</text>
+  <text x="70" y="198" class="tm">RELATED RECORDS · LDL</text>
+
+  <!-- one list: future above, past below, relative to the selected date -->
+  <line x1="68" y1="212" x2="68" y2="700" stroke="#e2e2e2"/>
+  <polygon points="68,208 64,216 72,216" fill="#d0d0d0"/>
+
+  <circle cx="68" cy="236" r="5" fill="#fff" stroke="#111" stroke-dasharray="2 2"/>
+  <text x="82" y="232" class="ts">2026-11-12 · today summary</text>
+  <text x="82" y="248" class="t">3 moved, 1 ignored</text>
+
+  <circle cx="68" cy="292" r="4" fill="#111"/>
+  <text x="82" y="288" class="ts">2026-11-12 · analysis</text>
+  <text x="82" y="304" class="t">lipid panel</text>
+
+  <circle cx="68" cy="338" r="4" fill="#111"/>
+  <text x="82" y="334" class="ts">2025-09-03 · decision</text>
+  <text x="82" y="350" class="t">Mediterranean diet</text>
+
+  <circle cx="68" cy="384" r="4" fill="#111"/>
+  <text x="82" y="380" class="ts">2025-07-02 · analysis</text>
+  <text x="82" y="396" class="t">LDL 4.6</text>
+
+  <circle cx="68" cy="430" r="4" fill="#111"/>
+  <text x="82" y="426" class="ts">2024-06-03 · analysis</text>
+  <text x="82" y="442" class="t">LDL 4.6</text>
+
+  <rect x="56" y="462" width="268" height="58" rx="4" fill="#111"/>
+  <circle cx="322" cy="462" r="7" class="badge"/><text x="322" y="465" class="num" text-anchor="middle">8</text>
+  <text x="70" y="480" class="ts" style="fill:#cfcfcf">SELECTED · PAST</text>
+  <text x="70" y="500" style="font-size:12px; fill:#ffffff; font-weight:600">2023-02-17 · diagnosis</text>
+  <text x="70" y="514" class="ts" style="fill:#cfcfcf">hyperlipidaemia, confirmed</text>
+
+  <circle cx="68" cy="552" r="4" fill="#111"/>
+  <text x="82" y="548" class="ts">2021-05-14 · diagnosis</text>
+  <text x="82" y="564" class="t">first note, statin advised</text>
+
+  <line x1="56" y1="590" x2="322" y2="590" class="line"/>
+  <text x="70" y="612" class="tm">NOTES</text>
+  <text x="70" y="630" class="ts">the list is relative to the selected date</text>
+  <text x="70" y="648" class="ts">everything after it sits above</text>
+  <text x="70" y="666" class="ts">dashed edge = has not happened yet</text>
+  <text x="70" y="684" class="ts">annual summary stamped 01-01</text>
+  <text x="70" y="702" class="ts">today summary is always the first row</text>
+
+  <!-- ================= COLUMN 2 · DIAGNOSIS ================= -->
+  <rect x="360" y="180" width="460" height="690" rx="6" class="box"/>
+  <circle cx="374" cy="194" r="7" class="badge"/><text x="374" y="197" class="num" text-anchor="middle">9</text>
+  <text x="390" y="198" class="tm">MAIN VIEW · DIAGNOSIS · HYPERLIPIDAEMIA</text>
+  <!-- 6 player controls -->
+  <circle cx="676" cy="192" r="7" class="badge"/><text x="676" y="195" class="num" text-anchor="middle">6</text>
+  <rect x="688" y="186" width="26" height="28" rx="3" class="box"/>
+  <rect x="694" y="193" width="2" height="14" fill="#111"/>
+  <polygon points="706,193 706,207 697,200" fill="#111"/>
+  <rect x="720" y="186" width="26" height="28" rx="3" class="box"/>
+  <polygon points="730,193 730,207 722,200" fill="#111"/>
+  <rect x="750" y="186" width="26" height="28" rx="3" class="box"/>
+  <polygon points="754,193 754,207 762,200" fill="#111"/>
+  <rect x="780" y="186" width="26" height="28" rx="3" class="box"/>
+  <polygon points="786,193 786,207 794,200" fill="#111"/>
+  <rect x="796" y="193" width="2" height="14" fill="#111"/>
+
+  <!-- 14 verdict -->
+  <circle cx="374" cy="234" r="7" class="badge"/><text x="374" y="237" class="num" text-anchor="middle">14</text>
+  <text x="390" y="238" class="tm">VERDICT</text>
+  <rect x="372" y="248" width="436" height="26" rx="13" fill="#111"/>
+  <text x="386" y="265" class="ts" style="fill:#fff">official · written by a doctor</text>
+  <text x="794" y="265" class="tm" text-anchor="end" style="fill:#b9b9b9">or: generated on request</text>
+
+  <rect x="372" y="286" width="436" height="110" rx="4" class="soft"/>
+  <text x="386" y="306" class="tm">FULL TEXT</text>
+  <text x="386" y="326" class="ts">"…total cholesterol 7.1, LDL 4.8, HDL 0.9.</text>
+  <text x="386" y="344" class="ts">Atherogenic dyslipidaemia. Recommend statin therapy…"</text>
+  <text x="386" y="366" class="ts" style="fill:#111; text-decoration:underline">doctor: I. Petrova, cardiotherapist ↗   ·   clinic ↗</text>
+  <text x="386" y="386" class="tm">2021-05-14 · discharge note page 2 of 3</text>
+<polygon points="388,405 395,418 381,418" fill="#f0c419" stroke="#b8901a" stroke-width="0.8"/><text x="388" y="416" style="font-size:9px; font-weight:700; fill:#111" text-anchor="middle">!</text>
+  <text x="402" y="416" class="ts">warning on a doctor's note too: a later panel contradicts the dose</text>
+
+  <line x1="388" y1="434" x2="792" y2="434" class="line"/>
+
+  <!-- 15 assignments -->
+  <circle cx="374" cy="454" r="7" class="badge"/><text x="374" y="457" class="num" text-anchor="middle">15</text>
+  <text x="390" y="458" class="tm">WHAT WAS DECIDED TO DO</text>
+  <text x="390" y="482" class="ts">tests to clarify · repeat lipid panel in 3 months</text>
+  <text x="390" y="504" class="ts">drugs · atorvastatin 20 mg at night</text>
+<polygon points="386,516 393,529 379,529" fill="#f0c419" stroke="#b8901a" stroke-width="0.8"/><text x="386" y="527" style="font-size:9px; font-weight:700; fill:#111" text-anchor="middle">!</text>
+  <text x="400" y="526" class="ts">known side effects · muscle pain, liver enzymes</text>
+  <text x="390" y="546" class="ts">diet · less saturated fat, more fibre</text>
+  <text x="390" y="568" class="ts">activity · 150 min a week, brisk walking</text>
+  <text x="390" y="590" class="ts">restrictions · none stated in this note</text>
+<circle cx="388" cy="612" r="5.5" fill="#111"/><circle cx="386" cy="611" r="1.4" fill="#fff"/><circle cx="390" cy="611" r="1.4" fill="#fff"/><rect x="385.5" y="616" width="5" height="2" fill="#111"/><line x1="382" y1="620" x2="394" y2="624" stroke="#111" stroke-width="1.4"/><line x1="382" y1="624" x2="394" y2="620" stroke="#111" stroke-width="1.4"/>
+  <text x="402" y="618" class="ts">skull: a generated assignment that can hurt — do not act on it</text>
+
+  <line x1="388" y1="638" x2="792" y2="638" class="line"/>
+
+  <!-- 13 linked: links that open in the centre, hover highlights the row in 7 -->
+  <circle cx="374" cy="658" r="7" class="badge"/><text x="374" y="661" class="num" text-anchor="middle">13</text>
+  <text x="390" y="662" class="tm">LINKED · CLICK OPENS IT HERE, HOVER LIGHTS THE ROW IN 7</text>
+  <text x="390" y="686" class="ts" style="fill:#111; text-decoration:underline">→ Mediterranean diet · 2025-09-03</text>
+  <text x="390" y="704" class="ts" style="fill:#111; text-decoration:underline">→ statin started · 2026-08-19</text>
+  <text x="390" y="722" class="ts" style="fill:#111; text-decoration:underline">→ hyperlipidaemia · 2021-05-14</text>
+
+    <!-- ================= COLUMN 3: then solid / now paled =================
+       Owner correction 2026-11-22: v12's ghost copy is rejected. A past record shows the two
+       states together, in one panel, in the same sections and on one scale. SOLID = what was
+       known on that date; PALED (42%) = what we know now. Today's record draws one solid state. -->
+  <rect x="840" y="180" width="592" height="690" rx="6" class="box"/>
+  <circle cx="854" cy="194" r="7" class="badge"/><text x="854" y="197" class="num" text-anchor="middle">19</text>
+  <text x="870" y="198" class="tm">FORECAST AND RECOMMENDATIONS · ON THIS DATE</text>
+
+  <!-- 20 forecast: one scale, two states -->
+  <circle cx="854" cy="222" r="7" class="badge"/><text x="854" y="225" class="num" text-anchor="middle">20</text>
+  <text x="870" y="226" class="tm">FORECAST</text>
+  <text x="1040" y="243" class="tm">THEN · 2023-02-17</text>
+  <text x="1224" y="243" class="tm">NOW · 2026-11-22</text>
+  <text x="1040" y="272" font-size="30" font-weight="600" fill="#111">76.4</text>
+  <text x="1134" y="272" class="t">years</text>
+  <g opacity="0.42">
+    <text x="1224" y="272" font-size="30" font-weight="600" fill="#111">80.0</text>
+    <text x="1318" y="272" class="t">years</text>
+  </g>
+  <rect x="870" y="284" width="530" height="40" rx="4" fill="#f6f6f6"/>
+  <text x="882" y="300" class="t">+3.6 years since 2023-02-17</text>
+  <text x="882" y="316" class="ts">+3.6 of it — the statin recommended on 2022-06-14</text>
+  <text x="870" y="340" class="ts">one scale · no interval is published for this baseline · not a promise</text>
+
+  <line x1="870" y1="352" x2="1400" y2="352" class="line"/>
+
+  <!-- 21 what moves it: same tracks, then left, now right -->
+  <circle cx="854" cy="368" r="7" class="badge"/><text x="854" y="371" class="num" text-anchor="middle">21</text>
+  <text x="870" y="372" class="tm">WHAT MOVES IT</text>
+  <text x="1040" y="372" class="tm" text-anchor="end">THEN</text>
+  <text x="1400" y="372" class="tm" text-anchor="end">NOW</text>
+  <g class="ts">
+    <text x="870" y="392">LDL 4.9, no statin</text><text x="1040" y="392" text-anchor="end">−2.1</text>
+    <text x="870" y="410">BP 158/96</text><text x="1040" y="410" text-anchor="end">−1.4</text>
+    <text x="870" y="428">statin, started 2022</text><text x="1040" y="428" text-anchor="end">—</text>
+    <text x="870" y="446">stopped smoking 2018</text><text x="1040" y="446" text-anchor="end">+1.2</text>
+  </g>
+  <g class="ts" opacity="0.42">
+    <text x="1400" y="392" text-anchor="end">+0.8</text>
+    <text x="1400" y="410" text-anchor="end">−1.4</text>
+    <text x="1400" y="428" text-anchor="end">+2.8</text>
+    <text x="1400" y="446" text-anchor="end">+1.2</text>
+  </g>
+
+  <line x1="870" y1="458" x2="1400" y2="458" class="line"/>
+
+  <!-- 22 recommended on this date: the advice and its status then; the same row, its status now -->
+  <circle cx="854" cy="474" r="7" class="badge"/><text x="854" y="477" class="num" text-anchor="middle">22</text>
+  <text x="870" y="478" class="tm">RECOMMENDED ON THIS DATE</text>
+  <g class="ts">
+    <text x="870" y="500">statins · GP note 2022-06-14</text>
+    <text x="1180" y="500" text-anchor="end">recommended, not started</text>
+    <text x="870" y="518">colonoscopy · NordICC</text>
+    <text x="1180" y="518" text-anchor="end">not yet</text>
+    <text x="870" y="536">HbA1c yearly · GP note</text>
+    <text x="1180" y="536" text-anchor="end">next 2022-06</text>
+  </g>
+  <g class="ts" opacity="0.42">
+    <text x="1400" y="500" text-anchor="end">since 2022-06-14</text>
+    <text x="1400" y="518" text-anchor="end">done 2023-05-16</text>
+    <text x="1400" y="536" text-anchor="end">next 2027-06</text>
+  </g>
+
+  <line x1="870" y1="548" x2="1400" y2="548" class="line"/>
+
+  <!-- 23 what we do not know: a gap that closed reads "recorded" on the right -->
+  <circle cx="854" cy="564" r="7" class="badge"/><text x="854" y="567" class="num" text-anchor="middle">23</text>
+  <text x="870" y="568" class="tm">WHAT WE DO NOT KNOW</text>
+  <g class="ts">
+    <text x="870" y="588">no family history recorded</text><text x="1180" y="588" text-anchor="end">missing</text>
+    <text x="870" y="606">no smoking record</text><text x="1180" y="606" text-anchor="end">missing</text>
+    <text x="870" y="624">depression, loneliness (not in the model)</text>
+    <text x="1180" y="624" text-anchor="end">not in the model</text>
+  </g>
+  <g class="ts" opacity="0.42">
+    <text x="1400" y="588" text-anchor="end">missing</text>
+    <text x="1400" y="606" text-anchor="end">recorded 2019-03-04</text>
+    <text x="1400" y="624" text-anchor="end">not in the model</text>
+  </g>
+
+  <line x1="870" y1="636" x2="1400" y2="636" class="line"/>
+
+  <!-- 24 on what grounds: the same rows, the count differs -->
+  <circle cx="854" cy="652" r="7" class="badge"/><text x="854" y="655" class="num" text-anchor="middle">24</text>
+  <text x="870" y="656" class="tm">ON WHAT GROUNDS</text>
+  <g class="ts">
+    <text x="870" y="676">baseline · male 74 years</text>
+    <text x="870" y="694">records behind it · 11</text>
+    <text x="870" y="712">every number carries a source or it is not shown</text>
+  </g>
+  <g class="ts" opacity="0.42">
+    <text x="1400" y="676" text-anchor="end">male 74 years</text>
+    <text x="1400" y="694" text-anchor="end">27</text>
+  </g>
+
+  <!-- the rule the correction fixes: today has one solid state; the rejected v12 ghost is not a state -->
+  <rect x="870" y="726" width="530" height="56" rx="4" fill="#f6f6f6"/>
+  <text x="882" y="744" class="ts">today's record: one solid column, no paled one</text>
+  <text x="882" y="762" class="ts">v12's ghost copy is rejected — it showed today's numbers in the past's place</text>
+</svg>

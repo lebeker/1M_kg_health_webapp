@@ -102,6 +102,27 @@ that item in this view (the ruler moves to its day, the row is marked); hovering
 matching row in the left list. A linked document that never became a row opens its file instead; an
 item with neither a record nor a file is shown, not clickable, and says why.
 
+## The right column follows the selected date (SCRUM-47)
+
+The right column (widgets 19–25) is not part of the main view's container, but it reads the same
+date. On a past record it shows both states at once: the `then` column is solid and computed from
+the records that existed on that date; the `now` column is paled and computed from today's. Both
+are in the same sections, with the same rows and on one scale, so a number is read against the
+number it became instead of against a memory of it. On today's record there is one solid column.
+
+The panel's forecast is the page's own projection in years — the life-expectancy table moved by
+each record's `delta`, or by `evidence` when the record has no explicit delta — and it says so. It
+does not publish an interval for this baseline, so it shows none rather than inventing one. Its
+`recommended on this date` rows are the `advised` edges into the record, each carrying the advising
+document and the advised item's status on that date; the `now` column carries the later advice and
+the status today. Missing data stays visible: `what we do not know` lists the gaps at each date, and
+a gap that has been filled since reads as known in the paled column only.
+
+The panel is hidden in the graph view, like everything else that belongs to the product view
+(`.only-main`). Its model is `body/lib/right-panel.js`, pure like `state-list.js` and `main-view.js`,
+so the two states can be tested without a browser. The layout is
+`docs/wireframe-health-v13-past-then-now.svg`.
+
 ## Demo
 
 `body/demo/graph.json` is the T21 case — a `kg/1-health` document of 62 events over twenty years —
