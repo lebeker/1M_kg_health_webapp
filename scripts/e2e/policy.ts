@@ -114,15 +114,21 @@ export const OUTSIDE_ROOM_PATHS: Array<[RegExp, string]> = [
  * Which commands are judged is a question about operands, not about permission: `find`, `ls`,
  * `grep` and `rg` were the whole list, so `-exec ls /` failed while `-exec rm -rf /` — the same
  * walk, destructive instead of readable — passed. The table below names the commands whose
- * operands *are* places, and `echo` (whose words are a line to print) is not one of them.
+ * operands *are* places, and `echo` (whose words are a line to print), `awk` (whose first operand
+ * is a program) and a `sed` script (the same) are not places. A command that acts on a program
+ * *and* on files — `sed` — is read at both: the script position is skipped and every operand left
+ * is a file, so `sed -i '' '/^$/d' kg/notes.md` edits a file in the room instead of being read as
+ * an operation on the root, while `sed -n '/^x/p' /` still is one.
  *
  * Two places are not out of the room even though they look like it. The room is one directory,
  * `<tmp>/kg-e2e-room-XXXX/`, holding `work/` — where the agent stands — `home/` (the HOME the
  * harness gives it: `hermes.ts` sets `env.HOME = home`) and the installed skill under `work/kg`.
- * So one `..` is the room's own root and `~`/`$HOME` is inside it, and only `../..` is out.
- * `find` keeps the stricter reading of both, because the card names `find ..` and `find $HOME` as
- * positives; every other command reads the room the way the room is built. Failing them was the
- * same false positive as `2D / 3D`: five calls in recorded runs whose agent never left the room.
+ * So a word is resolved from the place the command starts at and judged where each `..` lands: one
+ * `..` is the room's own root, `../home/../skills` climbs out and back in, and `~`/`$HOME` is
+ * inside it — only a word that ends above `<room>/` is out. `find` keeps the stricter reading of
+ * both, because the card names `find ..` and `find $HOME` as positives; every other command reads
+ * the room the way the room is built. Failing them was the same false positive as `2D / 3D`: five
+ * calls in recorded runs whose agent never left the room.
  *
  * This is not a whitelist of permitted commands: any command may run. What changed is where the
  * check looks for a path — at the arguments a search will actually act on — not how strictly it
@@ -138,20 +144,33 @@ interface PathCommand {
   root: string
   patterns: 'none' | 'first-operand' | 'predicate-values'
   /**
-   * How far a relative or home-relative place can reach from where the agent stands.
+   * How a relative or home-relative place is read from where the agent stands.
    *
    * `'strict'`: any `..` and any `~`/`$HOME` is out. `find` is read this way because the card names
    * `find ..` and `find $HOME` as positives, and a `find ~` that walked the operator's home is the
    * failure this guard was written for.
    *
-   * `'room'`: the room is one directory — `<tmp>/kg-e2e-room-XXXX/` — holding `work/` (where the
-   * agent stands), `home/` (the HOME the harness gives it: `hermes.ts` sets `env.HOME = home`) and
-   * the installed skill under `work/kg`. So one `..` is the room's own root, `~` and `$HOME` are
-   * inside it, and only `../..` — the temp directory above — is out.
+   * `'room'`: the word is *resolved*, segment by segment, from the place the agent stands — `work/`
+   * for a relative word, `<room>/home` for `~`/`$HOME` — against the room the harness builds:
+   * `<tmp>/kg-e2e-room-XXXX/` holding `work/` (where the agent stands), `home/` (the HOME the
+   * harness gives it: `hermes.ts` sets `env.HOME = home`) and the installed skill under `work/kg`.
+   * So `..` is the room's own root and comes back inside it, `../home/../skills` climbs out and
+   * back in, and only a word that ends above `<room>/` — `../..`, `../home/../../etc`, `~/../..`,
+   * `..//..` — is out.
    */
   reach: 'strict' | 'room'
   /** Options that take a value, so the value is not read as an operand. */
   valueOptions?: string[]
+  /**
+   * The operand that is a *program* over the command's data, and the options that carry one instead.
+   *
+   * `sed`'s first operand is a script, not a file: `sed -n '/^graph/p' file` searches `file` with
+   * the script, and reading the script as a place made `sed -i '' '/^$/d' notes.md` — an edit inside
+   * the room — an operation on the filesystem root, because the script starts with `/`. `awk` is
+   * read the same way and for the same reason (its first operand is the program); the difference is
+   * that `sed` also acts on files, so its operands are judged too, with the script position skipped.
+   */
+  program?: { options: string[] }
 }
 
 /**
@@ -173,13 +192,22 @@ const PATH_COMMANDS = new Map<string, PathCommand>([
   ['ls', { root: 'a listing of the filesystem root', patterns: 'none', reach: 'room' }],
   ['grep', { root: 'a search from the filesystem root', patterns: 'first-operand', reach: 'room' }],
   ['rg', { root: 'a search from the filesystem root', patterns: 'first-operand', reach: 'room' }],
+  // `sed` acts on files, but its first operand is the script — a program over the lines, not a
+  // place. Reading it as a place made `sed -i '' '/^$/d' kg/notes.md`, an edit inside the room, an
+  // "operation on the filesystem root", because the script starts with `/`. With `-e`/`-f` the
+  // option carries the script and every operand left is a file.
+  ['sed', {
+    root: 'an operation on the filesystem root',
+    patterns: 'none',
+    reach: 'room',
+    program: { options: ['-e', '--expression', '-f', '--file'] },
+  }],
   // The same operand read for the commands that act on a place instead of searching it. The card
   // asks for the tail of an `-exec` to be judged; the reading is the same one the top level gets.
   ...(
     [
       'rm', 'rmdir', 'unlink', 'cp', 'mv', 'mkdir', 'touch', 'ln', 'chmod', 'chown', 'chgrp',
       'cat', 'head', 'tail', 'less', 'more', 'wc', 'du', 'df', 'dd', 'tar', 'rsync', 'stat',
-      'sed',
     ] as const
   ).map((name): [string, PathCommand] => [
     name,
@@ -187,7 +215,6 @@ const PATH_COMMANDS = new Map<string, PathCommand>([
       root: 'an operation on the filesystem root',
       patterns: 'none',
       reach: 'room',
-      valueOptions: name === 'sed' ? ['-e', '--expression', '-f', '--file'] : undefined,
     },
   ]),
 ])
@@ -376,20 +403,41 @@ const AT_ROOT = /^\/(?![A-Za-z0-9._-])/
 const AT_HOME = /^(?:~|\$HOME|\$\{HOME\})(?:\/|$)/
 
 /**
- * How many `..` segments a word climbs: `..` and `../kg` climb one, `../..` climbs two.
+ * Whether a relative or home-relative word ends up above the room once it is resolved.
  *
  * The room is `<tmp>/kg-e2e-room-XXXX/` with `work/` and `home/` side by side and the agent
- * standing in `work/`, so one `..` is the room's own root — `../home/skills/kg` is where the skill
- * is installed on purpose — and two is `<tmp>`, which is outside it.
+ * standing in `work/`, so a word is resolved from the place the command starts at — `work/` for a
+ * relative word, `home/` for a `~`/`$HOME` word — one segment at a time. Counting *leading* `../`
+ * was not resolution: `..//..`, `../home/../../etc`, `../kg/../../x`, `~/../..` and `.././/..` all
+ * climb past the room's root and were read as if they stayed, because the `..` that leaves comes
+ * after another segment. `../home/../skills` is the other direction: it climbs to the room's root
+ * and back down inside it, and it is inside.
+ *
+ * An absolute word is resolved from the system root and has no room segments to fall back on.
  */
-function parentDepth(word: string): number {
-  let depth = 0
-  let rest = word
-  while (rest === '..' || rest.startsWith('../')) {
-    depth += 1
-    rest = rest.slice(3)
+function leavesRoom(word: string): boolean {
+  let depth: number
+  let rest: string
+  if (word.startsWith('/')) {
+    depth = 0
+    rest = word
+  } else if (AT_HOME.test(word)) {
+    depth = 1
+    rest = word.replace(AT_HOME, '')
+  } else {
+    depth = 1
+    rest = word
   }
-  return depth
+  for (const segment of rest.split('/')) {
+    if (segment === '' || segment === '.') continue
+    if (segment !== '..') {
+      depth += 1
+      continue
+    }
+    if (depth === 0) return true
+    depth -= 1
+  }
+  return false
 }
 
 /**
@@ -397,19 +445,18 @@ function parentDepth(word: string): number {
  *
  * `reach` is the command's reading of `..` and of `~`/`$HOME`. `find` is judged at every climb and
  * on every home reference because the card names `find ..` and `find $HOME` as positives; every
- * other path command reads them as the room's own — one `..` and the harness's HOME are inside it,
- * and failing those made runs that ran `ls -la ..` or `mkdir -p "$HOME/cache/scratch"` to work in
+ * other path command reads them as the room's own — resolved from `work/` or the harness's `home/`
+ * — and failing those made runs that ran `ls -la ..` or `mkdir -p "$HOME/cache/scratch"` to work in
  * the room fail for leaving a room they never left.
  */
 function wordEscape(word: string, root: string, reach: 'strict' | 'room'): string | null {
   if (AT_ROOT.test(word)) return root
   if (reach === 'strict') {
     if (AT_HOME.test(word)) return 'a search of a home directory'
-    if (parentDepth(word) > 0) return 'a search above the room'
+    if (word.split('/').includes('..')) return 'a search above the room'
     return null
   }
-  if (parentDepth(word) > 1) return 'a search above the room'
-  return null
+  return leavesRoom(word) ? 'a search above the room' : null
 }
 
 /**
@@ -549,6 +596,7 @@ function commandName(word: string): string {
 /** The arguments a path command will act on, with its pattern operands left out. */
 function operandsEscape(name: string, spec: PathCommand, operands: ShellWord[], depth: number): string | null {
   let patternSeen = false
+  let programSeen = false
   let skipValue = false
   for (let i = 0; i < operands.length; i += 1) {
     const word = operands[i]
@@ -556,7 +604,17 @@ function operandsEscape(name: string, spec: PathCommand, operands: ShellWord[], 
       skipValue = false
       continue
     }
+    // An empty argument names nothing: `sed -i '' file` passes the in-place suffix as a word of its
+    // own on macOS, and it is not the script.
+    if (word === '') continue
     if (word.startsWith('-')) {
+      // The option that carries the program (`sed -e '…'`, `--expression=…`) is not a place either,
+      // and once it is given every operand left is a file.
+      if (spec.program?.options.some((option) => word === option || word.startsWith(`${option}=`))) {
+        programSeen = true
+        if (!word.includes('=')) skipValue = true
+        continue
+      }
       if (spec.valueOptions?.includes(word)) {
         skipValue = true
         continue
@@ -585,6 +643,12 @@ function operandsEscape(name: string, spec: PathCommand, operands: ShellWord[], 
         if (inner) return inner
         continue
       }
+      continue
+    }
+    if (spec.program && !programSeen) {
+      // The program position: `sed -n '/^graph/p' file` hands `file` to a script, and the script is
+      // read as a program — the same line the interpreter reading draws — not as a place.
+      programSeen = true
       continue
     }
     if (spec.patterns === 'first-operand' && !patternSeen) {

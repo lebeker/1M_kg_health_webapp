@@ -313,6 +313,70 @@ describe('the guard reads a command, not the shape of a string', () => {
     }
   })
 
+  test('reads a sed script as a program, and the files it edits as places', () => {
+    // Round 5's review measured this as a new false positive of the card's own class: `sed` was a
+    // path command whose *first operand* — the script — was judged as a place, so an in-room edit
+    // whose script starts with `/` (`sed -i '' '/^$/d' notes.md`) failed as an operation on the
+    // root. `awk` gets a program position for the same reason; `sed` acts on files too, so the
+    // script is skipped and every operand left is judged.
+    const allowed = [
+      'sed -n "/^graph/p" kg/assets/health-viewer.html',
+      "sed -i '' '/^$/d' kg/notes.md",
+      "sed -n '/^##/p' kg/README.md",
+      "sed -n '/^- /p' kg/notes.md",
+      'sed -n "/\\//p" kg/assets/health-viewer.html',
+      'sed -n "/2D \\/ 3D/p" kg/assets/health-viewer.html',
+      "find . -name '*.md' -exec sed -n '/^#/p' {} \\;",
+      "find . -name '*.md' -exec sed -i '' '/^$/d' {} \\;",
+      "sed -e 's/2D \\/ 3D/2D/' kg/assets/health-viewer.html",
+      "sed --expression='/^$/d' kg/notes.md",
+    ]
+    for (const command of allowed) {
+      expect([command, outsideRoomCalls([call('terminal', { command })])]).toEqual([command, []])
+    }
+    // The read that matters is unchanged: the script is not a place, the file it is handed is.
+    const escapes = [
+      "sed -n '/^x/p' /",
+      "sed -n '/x/p' /Volumes/disk/x.html",
+      "sed -e 's/x/y/' /",
+      "sed --expression='/^$/d' /",
+      "find . -name '*.md' -exec sed -n '/^#/p' / {} \\;",
+    ]
+    for (const command of escapes) {
+      expect([command, outsideRoomCalls([call('terminal', { command })]).length]).toEqual([command, 1])
+    }
+  })
+
+  test('resolves every `..` where it sits, not only the leading run', () => {
+    // Round 5's review measured six words that climb past the room's root and were read as if they
+    // stayed inside it: counting a leading run of `../` cannot see a `..` that comes after another
+    // segment. The word is resolved from the place the command starts at — `work/` for a relative
+    // word, the room's `home/` for `~`/`$HOME` — so the climb is judged where it lands.
+    const allowed = [
+      'ls ../home/../skills',
+      'ls ../home/../work/kg',
+      'cat ../kg/../kg/x',
+      'mkdir -p "$HOME/../work/storage"',
+      'ls ~/skills/kg',
+    ]
+    for (const command of allowed) {
+      expect([command, outsideRoomCalls([call('terminal', { command })])]).toEqual([command, []])
+    }
+    const escapes = [
+      'ls ..//..',
+      'ls ${HOME}/../..',
+      'ls ../home/../../etc',
+      'ls ../kg/../../x',
+      'ls ~/../..',
+      'ls .././/..',
+      'cat ../home/../../etc/hosts',
+      'find ..//.. -name "*.json"',
+    ]
+    for (const command of escapes) {
+      expect([command, outsideRoomCalls([call('terminal', { command })]).length]).toEqual([command, 1])
+    }
+  })
+
   test('judges the operands of the command an -exec tail or a shell string reaches', () => {
     // The path commands used to be four search commands, so `-exec ls /` failed while
     // `-exec rm -rf /` — the same walk, destructive instead of readable — passed. The command an
