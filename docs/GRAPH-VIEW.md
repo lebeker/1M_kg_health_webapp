@@ -68,11 +68,17 @@ The body is a layer of that map, behind a second toggle in the same bar (`#layer
   one of the two bodies. `scripts/graph-view.test.ts` holds every byte in the table to the file on
   disk, so the number cannot drift from the files.
 - **Off is not unloaded.** Unticking the toggle hides the anatomy — `tick()` clears the layers, the
-  organ nodes and the edges — and keeps it in memory, so ticking it again is free. A sex switch
-  after the layer has loaded does not ask again: the reader has already said yes to the layer. It
-  fetches the other body's shell, skeleton fit and tract only when that body would be on screen;
-  with the layer off or the graph closed the switch just marks the loaded body stale, and the fetch
-  happens the next time the layer is turned on (or the graph reopened with the layer on).
+  organ nodes and the edges — and keeps it in memory, so ticking it again is free *for the body that
+  is loaded*. A sex switch after the layer has loaded does not ask again: the reader has already
+  said yes to the layer. It fetches the other body's shell, skeleton fit and tract only when that
+  body would be on screen; with the layer off or the graph closed the switch just marks the loaded
+  body stale, and the fetch happens the next time the layer is turned on (or the graph reopened
+  with the layer on).
+- **The bar says what the next toggle will cost.** With the layer off, `#foot` names the price of
+  turning it back on: "its models are already here, so turning it back on costs nothing" only while
+  the loaded body is the reader's body, and after a deferred switch "turning it back on loads her
+  body, 20.6 MB" — the same number that toggle fetches. The `.hint` beside it carries the camera
+  controls and nothing else; the two boxes never print the same sentence.
 - **The `kg` skill asks too.** `app.json` declares this layer under `models` — its files, their
   bytes, which body each belongs to, and where they are served from — and says in the same sentence
   that it is never downloaded implicitly. A skill that installs an app must read that block and ask

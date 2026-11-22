@@ -1177,10 +1177,20 @@ function applySex() {
   document.getElementById("foot").textContent = footBody();
 }
 
-/* T28: the footer describes the body; with the 3D layer off there is no body on screen to describe */
-const LAYER_OFF_NOTE = "the 3D layer is off · its models are already here, so turning it back on costs nothing";
+/* T28: the footer describes the body; with the 3D layer off there is no body on screen to describe.
+   The cost sentence has to be true for the body that would actually load: the models are only
+   "already here" while the loaded body IS the reader's body. After a switch that was deferred (the
+   layer was off or the graph closed) they are not, and turning the layer on fetches the reader's
+   body — so the note names that body and its size instead of promising a free toggle. */
+function layerOffNote() {
+  if (anatomyStale()) {
+    return "the 3D layer is off · turning it back on loads " +
+      (state.sex === "female" ? "her" : "his") + " body, " + megabytes(anatomyBytes(state.sex));
+  }
+  return "the 3D layer is off · its models are already here, so turning it back on costs nothing";
+}
 function footBody() {
-  if (viewerStarted && !state.anatomy3d) return LAYER_OFF_NOTE;
+  if (viewerStarted && !state.anatomy3d) return layerOffNote();
   return state.sex === "male" ? "male — the atlas body and its 12 reproductive organs"
     : "female — rebuilt tract · 18 separate structures · CC0 surface";
 }
@@ -3558,12 +3568,13 @@ function set3dButton() {
       ? "3D layer — the shell, the skeleton and the organs are on"
       : "3D layer — show where organs and diagnoses live (" + megabytes(anatomyBytes(state.sex)) + ")";
   }
+  /* The hint tells the reader how to drive the camera, and it is the only thing it says: the
+     layer-off/cost sentence belongs to #foot, which sits on the same bar. Printing the same
+     sentence in both boxes said the same thing twice and left no room for the controls. */
   const hint = document.querySelector(".hint");
-  if (hint) hint.textContent = state.anatomy3d
+  if (hint) hint.textContent = viewerStarted
     ? "drag to orbit · scroll to zoom · double-click a node to frame it"
-    : viewerStarted
-      ? LAYER_OFF_NOTE
-      : "the 3D layer is off · nothing is downloaded until it is loaded";
+    : "the 3D layer is off · nothing is downloaded until it is loaded";
 }
 
 /* the question: it names the size of this body's 3D layer, and the yes button carries the same

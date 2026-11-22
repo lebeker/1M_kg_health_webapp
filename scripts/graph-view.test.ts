@@ -225,6 +225,40 @@ describe('T28: the 3D layer is a layer, off by default, and the only download', 
     expect(bytes('female')).toBeGreaterThan(bytes('male'))
   })
 
+  test('the layer-off note is printed once, and never by the hint', () => {
+    // #foot and .hint are siblings on the same bar: the same sentence in both read as a stutter.
+    // The hint owns the camera controls; #foot owns what the layer costs.
+    const set3d = page.slice(page.indexOf('function set3dButton()'), page.indexOf('/* the question:'))
+    expect(set3d).not.toContain('footBody()')
+    expect(set3d).not.toContain('already here')
+    expect(set3d).toContain('drag to orbit · scroll to zoom · double-click a node to frame it')
+    // and the sentence lives in footBody(), which is the only place that writes it
+    expect(page.match(/already here, so turning it back on costs nothing/g)?.length).toBe(1)
+    const foot = page.slice(page.indexOf('function layerOffNote()'), page.indexOf('function anatomyStale()'))
+    expect(foot).toContain('the 3D layer is off')
+  })
+
+  test('the layer-off note tells the truth about the body that would load', () => {
+    // load his body, go back, turn the layer off, switch to hers, reopen: the next toggle-on
+    // fetches her 20.6 MB. The bar must say so instead of "its models are already here".
+    const foot = page.slice(page.indexOf('function layerOffNote()'), page.indexOf('function anatomyStale()'))
+    expect(foot).toContain('anatomyStale()')
+    expect(foot).toMatch(/megabytes\(anatomyBytes\(state\.sex\)\)/)
+    expect(foot).toContain('"her"')
+    expect(foot).toContain('"his"')
+    // "already here / costs nothing" is the fall-through, reachable only when the loaded body is
+    // the reader's body: the stale branch returns before it
+    expect(foot.indexOf('anatomyStale()')).toBeLessThan(foot.indexOf('already here'))
+    // and the note is re-written whenever the state behind it changes
+    expect(page).toMatch(/function applySex\(\)[\s\S]*?document\.getElementById\("foot"\)\.textContent = footBody\(\);/)
+    const set3d = page.slice(page.indexOf('function setAnatomy3d('), page.indexOf('/* what the map draws'))
+    expect(set3d).toContain('document.getElementById("foot").textContent = footBody();')
+    // two bodies, two sizes, so the sentence is observable
+    const table = new Map([...page.matchAll(/"([a-z0-9-]+\.glb)": (\d+)/g)].map((m) => [m[1], Number(m[2])]))
+    const bytes = (s: 'male' | 'female') => anatomyRows(s).reduce((n, f) => n + (table.get(f.file) ?? 0), 0)
+    expect(bytes('female')).not.toBe(bytes('male'))
+  })
+
   test('with the layer off or the graph closed a body switch downloads nothing', () => {
     // the other body's files are fetched only while that body would be on screen
     const sex = page.slice(page.indexOf('function applySex()'), page.indexOf('function fitDistance('))
