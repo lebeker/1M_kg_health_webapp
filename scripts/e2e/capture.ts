@@ -294,8 +294,16 @@ export function captureWithBinary(input: { url: string; out: string; binary: str
             : ''
   if (refusal) return { ok: false, bytes: 0, detail: refusal }
 
-  const env: NodeJS.ProcessEnv = { ...process.env, ...browserEnv([]) }
-  const timeout = input.timeoutMs ?? 60_000
+  const env: NodeJS.ProcessEnv = { ...process.env, PATH: browserEnv([]).PATH }
+  // Deliberately *not* `AGENT_BROWSER_EXECUTABLE_PATH`, which is what Hermes sets for its own
+  // browser: pointing it at the packaged `Google Chrome for Testing` makes this CLI's `screenshot`
+  // hang here (`open` still answers in 1.4 s, `screenshot` never returns; measured at 40 s and at
+  // the 60 s kill). Left unset, the same CLI launches its own managed Chromium — visible in `ps`
+  // as `~/.hermes/tools/chromium-…/Google Chrome for Testing --headless=new`, never
+  // `/Applications/Google Chrome.app` — and photographs the same page in under a second. So the
+  // browser is the harness's, chosen by the harness's own CLI, not the operator's.
+  delete env.AGENT_BROWSER_EXECUTABLE_PATH
+  const timeout = input.timeoutMs ?? 45_000
   const session = ['--session', input.session]
   const started = Date.now()
   const open = spawnSync(input.binary, [...session, 'open', input.url], { encoding: 'utf8', env, timeout })
@@ -310,6 +318,18 @@ export function captureWithBinary(input: { url: string; out: string; binary: str
   if (shot.status !== 0) {
     const why = `${shot.error ? String(shot.error.message) : ''}${shot.stderr ?? ''}`.trim().split('\n')[0]
     return { ok: false, bytes: 0, detail: `agent-browser screenshot exited ${shot.status ?? 'killed'}${why ? `: ${why}` : ''}` }
+  }
+  // The CLI exits 0 on a browser it could not start and says so in the JSON instead
+  // (`{"success":false,"error":"Chrome exited early…"}`); a non-zero exit is not the only failure.
+  const reported = (() => {
+    try {
+      return JSON.parse(String(shot.stdout ?? '')) as { success?: boolean; error?: string | null }
+    } catch {
+      return null
+    }
+  })()
+  if (reported && reported.success === false) {
+    return { ok: false, bytes: 0, detail: `agent-browser reported failure: ${String(reported.error ?? 'no message').split('\n')[0]}` }
   }
   const png = pngState(input.out)
   if (!png.ok) return { ok: false, bytes: png.bytes, detail: `agent-browser wrote ${input.out}, which is ${png.why}` }
