@@ -127,11 +127,13 @@ describe('the player in the main view header', () => {
     const head = page.slice(page.indexOf('<section id="main"'), page.indexOf('id="mainBody"'))
     expect(head).toContain('id="tlPlayer"')
     expect(head).toContain('id="tlDate"')
-    // the header reads left to right: the subject line, the date, the four buttons, then the page's
-    // own close control at the very edge
+    // the header reads left to right: the subject line, then the right-hand cluster — the date, the
+    // four buttons — and the centre's own collapse control at the edge (SCRUM-66: a column
+    // collapses, so the centre carries ‹collapse› there instead of an ✕ that closed it)
     expect(head.indexOf('id="mainKicker"')).toBeLessThan(head.indexOf('id="tlDate"'))
     expect(head.indexOf('id="tlDate"')).toBeLessThan(head.indexOf('id="tlPlayer"'))
-    expect(head.indexOf('id="tlPlayer"')).toBeLessThan(head.indexOf('id="mainClose"'))
+    expect(head.indexOf('id="tlPlayer"')).toBeLessThan(head.indexOf('id="collapseCentre"'))
+    expect(head).not.toContain('id="mainClose"')
   })
 
   test('the column keeps its header, and the player with it, when the date has no record', () => {

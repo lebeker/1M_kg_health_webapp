@@ -431,12 +431,21 @@ describe('three columns side by side (docs/wireframe-health-v13-past-compared.sv
 
   test('a narrower window shrinks the panel before it hides it', () => {
     expect(style).toContain('@media (max-width:1560px) { :root { --panelw:460px; } }')
-    expect(style).toContain('@media (max-width:1180px)')
+    expect(style).toContain('@media (max-width:1280px) { :root { --panelw:372px; } }')
+    expect(style).toContain('@media (max-width:1080px) { :root { --panelw:296px; } }')
+    // SCRUM-66: the 1180px breakpoint that deleted the panel is gone. A narrow window narrows the
+    // column; no breakpoint takes one off the page.
+    expect(style).not.toContain('@media (max-width:1180px)')
+    expect(style).toContain('width:var(--panelw)')
   })
 
-  test('closing the centre lets the panel take its place instead of floating', () => {
-    expect(style).toContain('body.centre-closed #rightCol')
-    expect(page).toContain('classList.toggle("centre-closed"')
+  test('collapsing the centre gives it a rail, and the panel keeps its own column', () => {
+    // SCRUM-66: the centre has no ✕ and never closes. It collapses to a 44px rail at the left
+    // edge of its own column, and the panel stays where it was instead of sliding over it.
+    expect(style).toContain('body.centre-collapsed #main > .rail')
+    expect(style).toContain('body.centre-collapsed #main { right: calc(100% - var(--leftw) - 8px - var(--railw)); }')
+    expect(page).toContain('classList.toggle("centre-collapsed", COLLAPSE.centre)')
+    expect(page).not.toMatch(/body\.centre-closed #rightCol/)
   })
 
   test('the page opens on its latest item, so the centre is filled without a click', () => {
