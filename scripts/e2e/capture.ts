@@ -280,14 +280,17 @@ export function captureWithBinary(input: { url: string; out: string; binary: str
   // apps to find out. Refused either way, and refused without touching it.
   const hostHit = hostAppHit(input.binary)
   const refusal =
-    process.env.E2E_CAPTURE_PROBE === 'broken'
-      ? 'the capture probe was deliberately broken (E2E_CAPTURE_PROBE=broken)'
-      : hostHit
-        ? `refused to run ${input.binary}: ${hostHit} is a desktop application, and the capture may only use the harness's own headless binary`
-        : !input.binary || !existsSync(input.binary)
-          ? 'no bundled agent-browser binary was found (set E2E_AGENT_BROWSER)'
-          : !isAbsolute(input.out)
-            ? `refused a relative screenshot path ${input.out}: agent-browser resolves it against its own working directory, not the harness's`
+    hostHit
+      ? `refused to run ${input.binary}: ${hostHit} is a desktop application, and the capture may only use the harness's own headless binary`
+      : !input.binary || !existsSync(input.binary)
+        ? 'no bundled agent-browser binary was found (set E2E_AGENT_BROWSER)'
+        : !isAbsolute(input.out)
+          ? `refused a relative screenshot path ${input.out}: agent-browser resolves it against its own working directory, not the harness's`
+          : // The negative control is last on purpose: it breaks a route that is otherwise valid, so
+            // the other refusals keep their own words and the probe cannot be mistaken for one of
+            // them. It also stops leaking into anything that runs `bun run verify` beside the run.
+            process.env.E2E_CAPTURE_PROBE === 'broken'
+            ? 'the capture probe was deliberately broken (E2E_CAPTURE_PROBE=broken)'
             : ''
   if (refusal) return { ok: false, bytes: 0, detail: refusal }
 

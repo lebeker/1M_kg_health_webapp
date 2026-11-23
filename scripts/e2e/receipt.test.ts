@@ -181,7 +181,10 @@ describe('the capture refused before it spawns anything', () => {
     const previous = process.env.E2E_CAPTURE_PROBE
     process.env.E2E_CAPTURE_PROBE = 'broken'
     try {
-      const result = captureWithBinary({ url: 'file:///tmp/page.html', out, binary: packaged, session: 't' })
+      // An otherwise valid route: existing binary, absolute output. The probe is the last refusal,
+      // so it is the one that fires — and a broken probe must not be mistaken for a missing binary
+      // or a host application when `bun run verify` inherits the variable from an e2e run.
+      const result = captureWithBinary({ url: 'file:///tmp/page.html', out, binary: process.execPath, session: 't' })
       expect(result.ok).toBe(false)
       expect(result.detail).toContain('deliberately broken')
     } finally {
