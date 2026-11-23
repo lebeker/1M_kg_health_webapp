@@ -1,11 +1,11 @@
 {
   "reviewer": "lia (liamijatovich)",
-  "when": "2026-11-23T20:56:50.373Z",
-  "passed": false,
-  "conclusions": "Ten scenario rows on the rendered page: 2, 4, 5 and 6 fail. A real pointer click on a marker opens the month's first day instead of the record (the strip's pointerdown handler rebuilds the track before the mark's click lands): ALT 2026-10-21 gave 2026-10-01, no record, no current marker. 27 markers against 59 records-list rows, and inside the two-year window every day of a month lands on one x, so different days print on top of each other. The gold 1961 birth label overlaps the 1970 label by 12 px, and January 2027 loses its label to the today label.",
-  "surface": "0651939af68739e4",
-  "tested_sha": "a401928f75407751a585239cc171f3b8c1eadf66",
+  "when": "2026-11-23T21:25:15.191Z",
+  "passed": true,
+  "conclusions": "Round 2, execution lens: all ten docs/components/timeline.md Scenarios rows pass on the page rendered from this branch through 1M_kg_skill @30d8971 with kg_demo.json (297,485 bytes, 1280 px), measured in my own run. Strip 10..1270 above all three columns and clear of the header; 26 labels with zero overlapping boxes (birth 26..79.7 gold, 1965/1970 moved to a second line); named blue today line; 48 month ticks with Januaries 2025-2028 labelled; 59 markers against 59 records-list rows including diagnoses, visits, medications, procedures and summaries; a real pointer click on ALT 2026-10-21 opens the analysis, marks its row, moves the panel to 2026-10-21 -> 2026-11-23 and turns that marker 9 px blue; the bare strip picks the day under it; the player's four buttons each land on a record and the readout agrees with the centre; both columns collapse without moving a marker; the empty template says no records yet. Caveat recorded, not a row: at the year scale 32 of the 59 markers are covered by a neighbour, so aiming at one can open the record on top of it - the fan for records sharing a day is about a year wide there. bun run verify exits 0.",
+  "surface": "7ea1d69068af3c11",
+  "tested_sha": "0d42e635cd73ea63d0b4ae21c8026d7ede85fb63",
   "artifacts": [
-    "review/artifacts/2026-11-23/timeline-scenarios.log"
+    "review/artifacts/2026-11-23/timeline-scenarios-round2.log"
   ]
 }
