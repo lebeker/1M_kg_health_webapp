@@ -16,8 +16,10 @@ day the centre and the panel are talking about.
    is drawn year by year. The window is a band on the ruler, not a second widget.
 3. **Label what matters.** Decades carry a label; the birth year carries its own, in its own colour;
    today carries its own, in its own colour. Labels never print on top of each other.
-4. **One marker per record.** Every analysis, diagnosis and summary in the document is one marker on
-   its own day. Two records in one month are two markers, not one.
+4. **One marker per record.** Every record the records list carries — analysis, diagnosis, visit,
+   medication, procedure, summary — is one marker on its own day. Two records in one month are two
+   markers, not one; two records on one day are fanned either side of it, because a dot hidden
+   under another dot is a record nobody can click.
 5. **The marker opens the record.** Clicking a marker opens *that record* in the centre, highlights
    its row in the records list, and moves the panel to its date. Clicking the bare strip picks the
    day, which is a different thing.
@@ -48,9 +50,6 @@ from a one-line story ("at date X I had an analysis Y with results Z").
 
 ## What is still missing
 
-- The computed "today summary" that the centre shows at launch is a record in the list but has no
-  marker of its own, so a page at rest shows no current marker. Either it gets a marker at today, or
-  the list's today row stops being selectable.
-- The hover card lists the records of a month; it should list one record, now that markers are
-  per record.
 - The month window is ±2 years by arithmetic, not by the wireframe's own reading of "recent".
+- The fan for two records on one day is a few pixels either side of that day; at the far end of the
+  ruler, where a year is a few pixels wide, that fan is wider than the days it separates.
