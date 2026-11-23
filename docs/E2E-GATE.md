@@ -138,3 +138,33 @@ request.
   `ci-gate.ts` by hand. Whether they should join the surface list (cost: a clean-room run for every
   gate-maintenance branch) is an owner trade-off recorded on card t_036c0001, not something this
   list decides by itself.
+
+## Why `completion_contract` stays `local-only`
+
+Settled 2026-11-23, twice, after two cards asked the owner to decide it. Neither answer needs the
+owner or the kernel, so this section exists to stop the question coming back.
+
+`hermes_cli/kanban_pr_acceptance.py::collect_acceptance` resolves a non-`local-only` contract by
+reading the required status checks of the PR's base branch. `main` is protected by classic branch
+protection, not by rulesets — `rules/branches/main` returns `[]`, while
+`branches/main/protection` carries `branch-name`, `verify` and `sync-selftest`. Reading that
+endpoint needs repository admin, and a worker identity does not have it: it can see
+`"protected": true` and gets an empty required set, so `collect_acceptance` returns
+*"No repository-required checks are configured"* and **refuses every completion**. A repo contract
+therefore does not gate the bad completions, it blocks all of them.
+
+What was learned the hard way: verifying that path as `lebeker` proves nothing, because `lebeker` is
+the owner. The card that reported it was right and the dismissal was wrong.
+
+The gate is CI and it is already upstream of completion:
+
+1. `verify` is a required check on `main`.
+2. `verify` runs the e2e receipt step and fails without a green `e2e` status on the PR head.
+3. `e2e` is posted only by `scripts/e2e/run.ts` passing against that head.
+
+So a PR that can merge is a PR that passed a clean-room run, and a card that cannot merge cannot
+honestly be done. Product cards keep `completion_contract: local-only` and land their PR; the merge
+gate does the gating.
+
+If a future card wants kernel-level completion gating, it is a kernel change the owner must
+authorise — but it buys nothing until workers can read the protection rule, and today they cannot.
