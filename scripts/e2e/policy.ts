@@ -142,8 +142,11 @@ export const OUTSIDE_ROOM_PATHS: Array<[RegExp, string]> = [
  *
  * An absolute word is a place in every reading. `/` was the only one that was read — a word *below*
  * it was not read at all, so `cat /etc/hosts` passed while `cat /` failed — and the room is a
- * directory, not a jail, but `/etc` is a host read however it is spelled. The one absolute tree the
- * room contains is the temp directory it is built in, and it is resolved before it is compared, so
+ * directory, not a jail, but `/etc` is a host read however it is spelled. The one absolute tree
+ * that is not a host read is the room itself, and it is *named by the caller* rather than assumed
+ * to be under a fixed temp directory: `mkdtemp` honours `TMPDIR`, and a worker's scratch files live
+ * under its own home, so `outsideRoomCalls(calls, room)` is what tells an in-room absolute path
+ * from a home path that merely shares the prefix. It is resolved before it is compared, so
  * `/tmp/../etc` is `/etc` and not a prefix of the room. The devices that only swallow output are
  * the other exception, named one by one (`/dev/null` is how a run checks that the app is up).
  *
@@ -152,7 +155,8 @@ export const OUTSIDE_ROOM_PATHS: Array<[RegExp, string]> = [
  * and `xargs -a / ls` passed while `cp -r /` failed — the same walk through a different binary, and
  * a coverage gap in the table rather than a decision. A word that is *only* a place has no position
  * to get wrong, so it is judged in any argument list except the ones whose words are data
- * (`echo`, `printf`, `tr`, and the programs `awk`/`python3 -c` are handed). A heredoc or herestring
+ * (`echo`, `printf`, `tr`, and the programs `awk`/`python3 -c` are handed) — and a predicate's
+ * operand is not data, because `[ -e /etc ]` is a question about `/etc`. A heredoc or herestring
  * body is data of that same kind — a written file — unless the command reading it is a shell,
  * because then the body *is* a command line. A container's own `/` is the container's root: the
  * host reaches a container through a bind mount, and a mount is judged where it is made.

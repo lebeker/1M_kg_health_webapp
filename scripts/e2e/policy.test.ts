@@ -550,8 +550,13 @@ describe('the guard reads a command, not the shape of a string', () => {
   })
 })
 
-const room = '/private/var/folders/wj/9sk4v59j2pn2xt6xszpqnn0c0000gn/T/kg-e2e-room-6W2xt6'
-const escapes = (command: string) => outsideRoomCalls([call('terminal', { command })]).length
+// The room is where `mkdtemp` put it, and with a worker's `TMPDIR` that is under its own home —
+// not under the system temp directory a fixed temp-root list would name. Every reading of a place
+// below is made both ways: the room named, and not named (which is the reading a caller that has
+// only the command can make, and the one the temp trees stand in for).
+const room = '/Users/operator/.hermes/profiles/worker/cache/scratch/e2e-tmp/kg-e2e-room-abc123'
+const escapes = (command: string, named: string | null = null) =>
+  outsideRoomCalls([call('terminal', { command })], named).length
 
 describe('a word is judged by the walk it makes, not only by where it lands', () => {
   test('fails a find that climbs above the room and comes back down into it', () => {
@@ -612,13 +617,27 @@ describe('an absolute path names the host, and the temp tree is not a prefix to 
     // resolved before it is compared.
     expect(escapes('cat /tmp/../etc/hosts')).toBe(1)
     // Seven `..` from the room's own directory is `/`; a prefix test never saw it leave.
-    expect(escapes(`cat ${room}/../../../../../../../etc/hosts`)).toBe(1)
+    expect(escapes(`cat ${room}/../../../../../../../etc/hosts`, room)).toBe(1)
+    // A sibling whose name starts with the room's is not the room: `…/kg-e2e-room-abc123-other`
+    // is a different directory, and the exemption is about the directory, not about the spelling.
+    expect(escapes(`cat ${room}-other/work/kg/notes.md`, room)).toBe(1)
+    // The named room is the rule; the temp trees are the fallback for a caller that has no room.
+    const tempRoom = '/var/folders/wj/9sk4v59j2pn2xt6xszpqnn0c0000gn/T/kg-e2e-room-6W2xt6'
+    expect(escapes(`cat ${tempRoom}/work/kg/notes.md`)).toBe(0)
+    expect(escapes(`cat ${room}/work/kg/notes.md`)).toBe(1)
   })
 
   test("passes the room's own absolute path, which is the one it is given", () => {
-    expect(escapes(`cd ${room}/work && ls storage`)).toBe(0)
-    expect(escapes(`cat ${room}/work/kg/notes.md`)).toBe(0)
-    expect(outsideRoomCalls([call('read_file', { path: `${room}/work/kg/notes.md` })])).toEqual([])
+    expect(escapes(`cd ${room}/work && ls storage`, room)).toBe(0)
+    expect(escapes(`cat ${room}/work/kg/notes.md`, room)).toBe(0)
+    expect(escapes(`find ${room}/work/kg -name "*.py"`, room)).toBe(0)
+    expect(outsideRoomCalls([call('read_file', { path: `${room}/work/kg/notes.md` })], room)).toEqual([])
+    expect(outsideRoomCalls([call('write_file', { path: `${room}/work/notes.md`, content: 'x' })], room)).toEqual([])
+    // The same command with no room named is the false positive the naming closes: a room under
+    // the worker's home reads as a home path outside the room.
+    expect(escapes(`cd ${room}/work && ls storage`)).toBe(1)
+    // Naming a *different* room does not exempt this one.
+    expect(escapes(`cd ${room}/work && ls storage`, '/tmp/kg-e2e-room-zzz')).toBe(1)
   })
 
   test('leaves a sink that moves nothing out of the room alone, and no other device', () => {
@@ -652,6 +671,33 @@ describe('a bare / operand is a place for a command the table does not describe'
 
   test('does not read a data option value as a place', () => {
     for (const command of ['sort -t / kg/notes.md', 'cut -d / -f1 kg/notes.md', 'sort -t/ kg/notes.md', 'od -t x1 kg/backup.tar']) {
+      expect([command, escapes(command)]).toEqual([command, 0])
+    }
+  })
+
+  test('reads the attached spelling of a wrapper place option as the same file', () => {
+    // `xargs` takes its arguments from a file, and the option that names it has four spellings:
+    // `-a /etc/x`, `-a/etc/x`, `--arg-file /etc/x`, `--arg-file=/etc/x`. Only the two that pass the
+    // file as the next word were read, so `-a/etc/x` walked the host unjudged.
+    for (const command of ['xargs -a /etc/x ls', 'xargs -a/etc/x ls', 'xargs --arg-file /etc/x ls', 'xargs --arg-file=/etc/x ls', 'xargs --arg-file=/ ls', 'xargs -a/ ls']) {
+      expect([command, escapes(command)]).toEqual([command, 1])
+    }
+  })
+
+  test('passes the wrapper place option that names a file inside the room', () => {
+    for (const command of ['xargs -a kg/list.txt rm', 'xargs -akg/list.txt rm', 'xargs --arg-file=kg/list.txt rm']) {
+      expect([command, escapes(command)]).toEqual([command, 0])
+    }
+  })
+
+  test('reads a predicate operand as the place it asks about', () => {
+    // `[ -e /etc ]` asks the host whether `/etc` exists — the operand is the file the command acts
+    // on, so a predicate is not a command whose words are data. `test -f kg/README.md` is the same
+    // question about a file inside the room and stays a pass.
+    for (const command of ['test -f /', 'test -e /etc/hosts', '[ -e /etc ]', '[ -f /etc/passwd ]', '[[ -d /etc ]]', '[[ -f / ]]']) {
+      expect([command, escapes(command)]).toEqual([command, 1])
+    }
+    for (const command of ['test -f kg/README.md', '[ -f kg/README.md ]', '[[ -f kg/README.md ]]', '[ "$a" = "$b" ]', 'test -n "$x"', '[ 1 -eq 1 ]', 'test -d ..']) {
       expect([command, escapes(command)]).toEqual([command, 0])
     }
   })
