@@ -1,0 +1,98 @@
+SCRUM-70 review run — docs/components/timeline.md, section Scenarios, all ten rows
+card: t_d5bc0053   reviewer: lia (liamijatovich)   branch: fix/SCRUM-70_timeline-full-width @ a401928
+browser: Hermes-managed isolated browser, viewport 1280 x 577, file:// pages only (no host apps)
+
+WHAT WAS DONE (the card's own five steps)
+1. empty room = .../t_d5bc0053/room ; the only skill in it:
+   git clone git@github.com:lebeker/1M_kg_skill.git -> 1M_kg_skill @ 30d8971 (catalogue: health-viewer)
+2. cp -R <repo>/body room/body            # the template needs its lib/ siblings; the strip is not the problem
+   cp assets/health-viewer.html <- <repo>/body/index.html   (cmp: identical to the branch)
+   cp <repo>/kg_demo.json room/kg_demo.json
+   python3 1M_kg_skill/scripts/kg.py render --graph ../kg_demo.json --app health-viewer --out ../body/rendered.html
+   -> rendered 62 nodes / 71 edges -> 294,007 bytes, 18 notes from docs/ inlined
+   (a first render into room/rendered.html, beside the skill but away from body/lib/, loads no page script and
+    draws an empty strip — recorded, not counted as a finding: the template's <script src="lib/..."> are relative)
+3. opened file:///.../room/body/rendered.html at 1280 px, ran the ten rows by hand (measurements below)
+   and then the same rows against a document the skill produced from a one-line story:
+   kg.py new --id story --app health-viewer ; set-meta profile {"sex":"female","year_of_birth":1980} ;
+   add-node obs-alt-2024 observation when=2024-05-14 value=52 unit=U/L source=doc-story ; validate: conformant
+   kg.py render -> 1 node -> room/body/story.html
+
+WHAT I SAW — the ten rows
+
+1. strip spans the page: PASS. #tl rect left 10, right 1270, width 1260 at a 1280 px window (was 244..876,
+   pinned between the columns); top 46, bottom 120; the three columns start at y=120/122, so the strip is
+   above all three; the header's own controls are at y 10..40 and the player at y 131..154, so nothing overlaps.
+   Note: 10 px inset at both ends, the page's own padding, not literally x=0..1280.
+
+2. birth year gold, anchored, nothing on it: FAIL.
+   "1961 · birth" is gold rgb(201,162,39), box x 26.0..79.7, anchored at the left (transform:none), not clipped.
+   The very next label, "1970", has box x 67.4..89.9 on the same 76..88.8 line: the two print over each other
+   by 12.3 px. Seen on the rendered page and again on the story page (gold "1980 · birth" 26.0..81.2 over
+   "1985" 45.3..68.7). Cause: the label-priority pass keeps labels whose *left* edges are >26 px apart and
+   never looks at a label's width, so an anchored 54 px label passes the test and still lands on its neighbour.
+
+3. today, blue line, named, nothing over it: PASS (with a note). One .now line, rgb(127,179,224), 1 px, x 737,
+   y 54..80; one "today" label, same blue, centred at 723.8..750.2. No label prints over another there.
+   Note: the line's last 4 px (76..80) enter the label's own line box, so the word sits astride the foot of
+   the line; the glyphs themselves are clear.
+
+4. one tick per month in the window, every January labelled: FAIL (the Januarys are not all labelled).
+   Window 2024-11-01 .. 2028-11-30, stepM 10 px: 49 monthly ticks (correct). Januarys in the window and their
+   x: 2025 @507 labelled, 2026 @627 labelled, 2027 @747 NOT labelled, 2028 @867 labelled.
+   Cause: "today" is at x 727 and the same priority pass drops any label within 26 px of a kept one, so
+   January 2027 (20 px from "today") is removed. The ruler contradicts its own scenario 4 and its own
+   behaviour 3 at the same time.
+
+5. one marker per record, and two records in one month are two markers: FAIL on both halves.
+   - 27 markers against 59 rows in the records list (kinds present: today, visit, analysis, summary,
+     medication, procedure, diagnosis). Only observation/analysis nodes get a marker (isMark); the three
+     diagnoses (hypertension, hyperlipidaemia, type 2 diabetes), the visits, the medications, the two
+     procedures and the computed today summary have none. The card says "every analysis, diagnosis and
+     summary in the document is one marker"; the doc says "everything the document records sits on it as a
+     marker". On the story page it is 1 marker against 3 rows (analysis, annual summary, today).
+   - inside the ±2 y window xOf() is month-granular, so two records in one month are two *elements* at one
+     x, printed on top of each other: xOf(2026-10-01) = xOf(2026-10-05) = xOf(2026-10-21) = 717.03;
+     xOf(2026-11-12) = xOf(2026-11-23) = 727.03 — the HbA1c marker of 12 Nov sits on the today line.
+     Only outside the window is the scale per-day (2011-02-01 382.13 vs 2011-02-15 382.42).
+
+6. click the ALT 2026-10-21 marker: FAIL. A real pointer click on that marker (the visible topmost element at
+   its centre, elementFromPoint = div.mark "ALT · 2026-10-21") selected 2026-10-01: centre "NO RECORD ON THIS
+   DATE", no row marked, no current marker, readout "2026-10-01 · 65 y". Repeated on another marker
+   ("ALT · 2016-09-14"): 2016-09-01, same result. Cause: the strip's pointerdown handler returns only for
+   .tick targets; for a .mark it runs selectDate(month-day) and rebuilds the track (T.innerHTML="") before the
+   click lands, so the mark's own click listener never fires. Calling .click() on the element directly does
+   give 2026-10-21 / centre "2026-10-21 · ANALYSIS / ALT / 44 U/L / 0 – 41 / high", panel
+   "2026-10-21 → 2026-11-23", row obs-alt-2026 marked, marker 9 px in rgb(127,179,224) — the wiring is right,
+   the pointer path is not. For a person with a mouse the marker does not open the record.
+
+7. click the bare strip between two markers: PASS. pointerdown at x 640 on the bare track moved the date
+   2016-09-01 -> 2026-02-01, no marker in the current colour, centre "NO RECORD ON THIS DATE" (nothing stands
+   on that day). Note: the handler always sets the day to the 1st, so on the ±2 y band the strip can only
+   pick month starts.
+
+8. the player's four buttons: PASS. start -> 2006-04-18 · Lipid panel; next -> 2009-05-20; prev -> 2026-10-21 ·
+   Lipid panel; end -> 2026-11-12 · HbA1c. Every step landed on a record, the readout equalled the centre's
+   date each time, the row was marked and one marker was current.
+
+9. collapse the records list and the panel: PASS. body classes left-collapsed right-collapsed; the left rail is
+   44 px and the right 44 px; the strip stays 10..1270 (1260 px) and all 27 marker lefts are unchanged
+   (345.6, 369.1, ... 727, 717 before and after).
+
+10. the template with no document: PASS. file:///.../room/body/index.html (placeholder still __KG_GRAPH__):
+    strip empty and saying "no records yet", 0 markers, 0 ticks, 0 labels, no today line, profile button
+    "no profile", the four player buttons disabled. Nothing invented.
+
+Also checked, not one of the ten rows:
+- the label priority pass runs over three loops (decades, window years, the two named ends) and the today
+  year "2026" survives next to "today"; the pass is deterministic, the failures above are not resize flakes.
+- the strip is rebuilt on every selectDate, so the current marker does follow a date set from the list or
+  the player; only the pointer path to a marker is broken (row 6).
+- bun run verify on a401928: EXIT=0 (lint 1 warning, typecheck, check:case "the published case page is
+  current at both addresses (293519 bytes)", build:demo, unit, contract, branch-name, split).
+- bun run review:gate on a401928 BEFORE this verdict: red — "the page changed since it was reviewed:
+  verdict covers surface 6b170fdf35c62182, HEAD is 0651939af68739e4". The verdict on the branch was the
+  previous card's pass, stale for this page.
+
+VERDICT: fail. Rows 2, 4, 5 and 6 do not hold on the rendered page; row 6 breaks the card's own promise
+that clicking a marker opens that record, and row 5 is the card's headline ("one marker per record").

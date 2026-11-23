@@ -1,11 +1,11 @@
 {
-  "reviewer": "Denis Tatarenko",
-  "when": "2026-11-23T20:08:20.886Z",
-  "passed": true,
-  "conclusions": "Ran the skill in an empty room (lebeker/1M_kg_skill @30d8971) against this template: kg.py rendered 62 nodes / 71 edges into a 291,249-byte page, and the page opened with all three columns, the records rail, the today summary and the forecast panel. The rails collapse and expand with the same chevron. Two things are wrong and neither is this change: the forecast still prints 74.0 years, which is the male sex baseline, and the document's own title wins over My health story.",
-  "surface": "6b170fdf35c62182",
-  "tested_sha": "6b1bb64cba0c64ca4c0980b3530d8d0ca6b7042b",
+  "reviewer": "lia (liamijatovich)",
+  "when": "2026-11-23T20:56:50.373Z",
+  "passed": false,
+  "conclusions": "Ten scenario rows on the rendered page: 2, 4, 5 and 6 fail. A real pointer click on a marker opens the month's first day instead of the record (the strip's pointerdown handler rebuilds the track before the mark's click lands): ALT 2026-10-21 gave 2026-10-01, no record, no current marker. 27 markers against 59 records-list rows, and inside the two-year window every day of a month lands on one x, so different days print on top of each other. The gold 1961 birth label overlaps the 1970 label by 12 px, and January 2027 loses its label to the today label.",
+  "surface": "0651939af68739e4",
+  "tested_sha": "a401928f75407751a585239cc171f3b8c1eadf66",
   "artifacts": [
-    "review/artifacts/2026-11-23/chat.log"
+    "review/artifacts/2026-11-23/timeline-scenarios.log"
   ]
 }
