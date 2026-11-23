@@ -53,7 +53,7 @@
      one collapse button: the same width the stage's layout maths has always assumed. */
   #leftCol { position:fixed; left:0; top:120px; bottom:0; width:var(--leftw); display:flex; flex-direction:column; overflow:hidden;
     background:var(--panel); border-top:1px solid var(--line); border-right:1px solid var(--line);
-    overflow:hidden; transition:width .18s ease; z-index:2; }
+    overflow:hidden; z-index:2; }
   #state { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; min-width:0; }
   #leftCol header { display:flex; align-items:center; justify-content:space-between; padding:8px 10px;
     border-bottom:1px solid var(--line); font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--mut); }
@@ -335,8 +335,16 @@
     display:flex; align-items:center; justify-content:center; flex:none; }
   /* the centre's control hangs off the column edge, not out of the header: at a 20px column it is
      still inside the column and still clickable */
-  .cbtn.float { position:absolute; top:10px; right:3px; z-index:7; width:16px; height:16px; padding:0;
+  /* one control, one look, three columns: a bordered square that reads as a button even at a glance,
+     instead of a glyph that disappears into whatever sits next to it */
+  .cbtn { background:rgba(255,255,255,.045); border:1px solid var(--line); border-radius:5px;
+    color:var(--fg); }
+  .cbtn:hover { background:rgba(255,255,255,.12); border-color:#4a5a6a; }
+  .cbtn.float { position:absolute; top:9px; right:4px; z-index:7; width:18px; height:18px; padding:0;
     display:flex; align-items:center; justify-content:center; }
+  .cbtn.float:hover { background:rgba(255,255,255,.07); border-color:var(--line); color:#eaf1f8; }
+  /* the player ends at a divider so the collapse control does not read as a fifth player button */
+  #main header .player { border-right:1px solid var(--line); padding-right:8px; margin-right:10px; }
   .cbtn svg { display:block; }
   .cbtn svg.flip { transform:rotate(180deg); }
   body.right-collapsed #rightCol > .rail { justify-content:center; }
@@ -535,7 +543,7 @@
   <aside id="state" aria-label="records">
     <header><span>records</span><button class="cbtn" id="collapseLeft" title="collapse the list" aria-label="collapse the records list"><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></header>
     <div class="rows" id="stateRows"></div>
-    <div class="rail"><button class="cbtn" id="expandLeft" title="expand the list" aria-label="expand the records list"><svg class="flip" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="v" id="railLeftDate"></div></div>
+    <div class="rail" data-expand="left" title="expand this column"><button class="cbtn" id="expandLeft" title="expand the list" aria-label="expand the records list"><svg class="flip" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="v" id="railLeftDate"></div></div>
     <!-- the legend v11 draws under the list, in its own words. Not a widget and not a second list:
          four lines that say what the one list is doing, so a reader never needs a caption row. -->
     <div class="notes" id="stateNotes">
@@ -579,7 +587,7 @@
   <!-- v11/SCRUM-66: the centre has no x. The control is a child of #main, not of the header, so it
        stays at the column's edge at any width - the header's contents may squeeze, this may not. -->
   <button class="cbtn float" id="collapseCentre" title="collapse the record" aria-label="collapse the record"><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-  <div class="rail"><button class="cbtn" id="expandCentre" title="expand the record" aria-label="expand the record"><svg class="flip" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="v" id="railCentreType"></div></div>
+  <div class="rail" data-expand="centre" title="expand this column"><button class="cbtn" id="expandCentre" title="expand the record" aria-label="expand the record"><svg class="flip" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="v" id="railCentreType"></div></div>
   <div class="mbody" id="mainBody"></div>
 
   <!-- widget 2, the profile view (SCRUM-52's wireframe: docs/wireframe-health-v11d-profile.svg). It
@@ -656,7 +664,7 @@
   <header><span>forecast and recommendations</span><span class="rpasof" id="rpAsOf"></span>
     <button class="cbtn" id="collapseRight" title="collapse the panel" aria-label="collapse the forecast panel"><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></header>
   <div id="rightBody"></div>
-  <div class="rail"><button class="cbtn" id="expandRight" title="expand the panel" aria-label="expand the forecast panel"><svg class="flip" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="years" id="railYearsThen"></div><div class="years pale" id="railYearsNow"></div></div>
+  <div class="rail" data-expand="right" title="expand this column"><button class="cbtn" id="expandRight" title="expand the panel" aria-label="expand the forecast panel"><svg class="flip" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="years" id="railYearsThen"></div><div class="years pale" id="railYearsNow"></div></div>
 </aside>
 
 <div id="tl"><div class="track" id="tlTrack"></div></div>
@@ -1357,10 +1365,40 @@ function updateRails() {
   const d = document.getElementById("railLeftDate");
   if (d) d.textContent = state.date || "";
 }
-function applyCollapse() {
+/* v11: three columns in one row. The list keeps its width; the record and the panel divide everything
+   that is left. Laid out in one function, because every attempt to express this as breakpoints was
+   right at one window width and overlapping at the next, and two people then argued about which
+   build they were looking at. */
+const COLGAP = 12;
+function layoutColumns() {
+  const rail = 44, listW = 236;
+  const leftW = COLLAPSE.left ? rail : listW;
+  const avail = Math.max(120, window.innerWidth - leftW - COLGAP * 2);
+  let centreW, rightW;
+  if (COLLAPSE.centre && COLLAPSE.right) {
+    centreW = rail; rightW = rail;
+  } else if (COLLAPSE.centre) {
+    centreW = rail; rightW = Math.max(rail, avail - COLGAP - rail);
+  } else if (COLLAPSE.right) {
+    rightW = rail; centreW = Math.max(rail, avail - COLGAP - rail);
+  } else {
+    const usable = Math.max(160, avail - COLGAP);
+    centreW = Math.round(usable * 0.58);
+    rightW = usable - centreW;
+    if (rightW < 180) { rightW = Math.min(180, usable); centreW = usable - rightW; }
+  }
+  const L = document.getElementById("leftCol"), M = document.getElementById("main");
+  const R = document.getElementById("rightCol"), TL = document.getElementById("tl");
+  if (L) { L.style.left = "0px"; L.style.width = leftW + "px"; }
+  if (M) { M.style.left = (leftW + COLGAP) + "px"; M.style.width = centreW + "px"; M.style.right = "auto"; }
+  if (R) { R.style.left = (leftW + COLGAP + centreW + COLGAP) + "px"; R.style.width = rightW + "px"; R.style.right = "auto"; }
+  if (TL) { TL.style.left = (leftW + COLGAP) + "px"; TL.style.right = (COLGAP + rightW) + "px"; }
+}
+function applyCollapse(){
   document.body.classList.toggle("left-collapsed", COLLAPSE.left);
   document.body.classList.toggle("centre-collapsed", COLLAPSE.centre);
   document.body.classList.toggle("right-collapsed", COLLAPSE.right);
+  layoutColumns();
   updateRails();
 }
 document.getElementById("collapseLeft").onclick = () => { COLLAPSE.left = !COLLAPSE.left; applyCollapse(); };
@@ -1370,6 +1408,20 @@ document.getElementById("collapseRight").onclick = () => { COLLAPSE.right = !COL
 document.getElementById("expandLeft").onclick = () => { COLLAPSE.left = false; applyCollapse(); };
 document.getElementById("expandCentre").onclick = () => { COLLAPSE.centre = false; applyCollapse(); };
 document.getElementById("expandRight").onclick = () => { COLLAPSE.right = false; applyCollapse(); };
+/* the rail is a target the whole way down: a 16px glyph in a 44px strip is a small thing to ask a
+   reader to hit, and the strip is empty anyway */
+document.querySelectorAll(".rail[data-expand]").forEach(rail => {
+  rail.addEventListener("click", () => {
+    const side = rail.dataset.expand;
+    if (side === "left") COLLAPSE.left = false;
+    else if (side === "centre") COLLAPSE.centre = false;
+    else COLLAPSE.right = false;
+    applyCollapse();
+  });
+});
+/* the first layout, and every resize after it */
+layoutColumns();
+window.addEventListener("resize", layoutColumns);
 
 /* the notepad: the person's story, not a dump of the file.
    Every sentence is built from the document — it says what is recorded, what moved, what is still out
