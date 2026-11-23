@@ -151,7 +151,7 @@
   .bootbar i { display:block; height:100%; width:0; background:#7fb3e0; transition:width .2s ease; }
   .bootnum { color:#5f7183; font-size:11px; margin-top:7px; }
 
-#tl { position:fixed; left:calc(var(--leftw) + 8px); right:calc(var(--panelw) + var(--colgap) * 2); top:46px; height:74px; z-index:26;
+#tl { position:fixed; left:10px; right:10px; top:46px; height:74px; z-index:26;
       pointer-events:auto; overflow:hidden; }   /* the strip is a scrubber over the centre column: it must receive the click */
 #tl .track { position:relative; height:44px; pointer-events:none; }
 #tl .base { position:absolute; left:0; right:0; top:26px; height:1px; background:#3a3a44; }
@@ -160,11 +160,16 @@
 #tl .tick.y5 { height:14px; top:13px; background:#4d4d59; }
 #tl .tick.m { top:20px; height:7px; background:#41414c; }
 #tl .tick.has { background:#d8d8e2; }
-#tl .tick.has::after { content:""; position:absolute; left:-2px; top:-5px; width:5px; height:5px;
-                       border-radius:50%; background:#fff; }
+#tl .tick.has { background:#d8d8e2; }
+#tl .mark { position:absolute; top:11px; width:7px; height:7px; border-radius:50%; background:#9a9aa8;
+           transform:translateX(-50%); cursor:pointer; z-index:2; pointer-events:auto; }
+#tl .mark:hover { background:#fff; }
+#tl .mark.cur { top:10px; width:9px; height:9px; background:#7fb3e0; box-shadow:0 0 0 2px rgba(127,179,224,.3); }
+#tl .lbl.birth { color:#c9a227; transform:none; }   /* the left end of the life: anchored, not centred, or half of it hangs off the page */
+#tl .lbl.today { color:#7fb3e0; }
 #tl .tick.pick { background:#fff; height:15px; top:12px; width:2px; }
 #tl .tick:hover { background:#fff; }
-#tl .now { position:absolute; top:8px; width:1px; height:26px; background:#fff; opacity:.55; }
+#tl .now { position:absolute; top:8px; width:1px; height:26px; background:#7fb3e0; opacity:.9; }
 #tl .lbl { position:absolute; top:30px; font-size:9px; color:#77777f; transform:translateX(-50%);
            letter-spacing:.04em; }
 #tl .lbl.big { color:#a9a9b4; }
@@ -1402,7 +1407,9 @@ function layoutColumns() {
   if (L) { L.style.left = "0px"; L.style.width = leftW + "px"; }
   if (M) { M.style.left = (leftW + COLGAP) + "px"; M.style.width = centreW + "px"; M.style.right = "auto"; }
   if (R) { R.style.left = (leftW + COLGAP + centreW + COLGAP) + "px"; R.style.width = rightW + "px"; R.style.right = "auto"; }
-  if (TL) { TL.style.left = (leftW + COLGAP) + "px"; TL.style.right = (COLGAP + rightW) + "px"; }
+  // the ruler is the page's, not the centre column's: it spans the window at both ends, so the
+  // life it draws is not squeezed into a third of it whenever the side columns are wide
+  if (TL) { const pad = 10; TL.style.left = pad + "px"; TL.style.right = pad + "px"; }
 }
 function applyCollapse(){
   document.body.classList.toggle("left-collapsed", COLLAPSE.left);
@@ -3457,7 +3464,10 @@ function buildTimeline() {
   const wfRaw = new Date(now.getFullYear() - 2, now.getMonth(), 1);
   const wf = +wfRaw < +BIRTH ? new Date(BIRTH.getFullYear(), BIRTH.getMonth(), 1) : wfRaw;
   const wt = new Date(now.getFullYear() + 2, now.getMonth() + 1, 0);
-  const W = Math.max(560, window.innerWidth - 244 - (window.innerWidth > 1180 ? 404 : 14));
+  /* the strip spans the page now: measure the element it lives in, not the centre column it
+     used to be pinned to, or the life it draws stays squeezed into a third of the window */
+  const strip = document.getElementById("tl");
+  const W = Math.max(320, strip ? strip.clientWidth : window.innerWidth - 20);
   const months = monthDiff(wf, wt) + 1;
   TL.winFrom = wf; TL.winTo = wt;
   TL.stepM = Math.max(4, Math.min(12, Math.floor((W * 0.42) / months)));
@@ -3505,7 +3515,6 @@ function buildTimeline() {
     el.style.left = xOf(d).toFixed(1) + "px";
     const k = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
     const hits = perMonth.get(k) || [];
-    if (cls === "m" && hits.length) el.classList.add("has");
     if (state.date === iso(d)) el.classList.add("pick");
     el._date = d; el._hits = hits;
     if (+d > Date.now()) el.style.background = riskColour(annualRisk(ageAt(d)));
@@ -3536,7 +3545,7 @@ function buildTimeline() {
     el.addEventListener("click", () => { selectDate(d); });
     T.appendChild(el);
     const every = Math.max(5, Math.ceil(26 / Math.max(1, TL.stepY)));   // a label needs ~26 px
-    if (y % every === 0 || y === now.getFullYear()) {
+    if ((y % every === 0 || y === now.getFullYear()) && y !== BIRTH.getFullYear()) {
       const l = document.createElement("div");
       l.className = "lbl" + (y === now.getFullYear() ? " big" : "");
       l.style.left = labelX(xOf(d), T.clientWidth).toFixed(1) + "px"; l.textContent = y;
@@ -3551,6 +3560,46 @@ function buildTimeline() {
 
   const nw = document.createElement("div"); nw.className = "now";
   nw.style.left = xOf(now).toFixed(1) + "px"; T.appendChild(nw);
+  const nowLbl = document.createElement("div");
+  nowLbl.className = "lbl today";
+  nowLbl.style.left = labelX(xOf(now), T.clientWidth).toFixed(1) + "px";
+  nowLbl.textContent = "today";
+  T.appendChild(nowLbl);
+  /* the birth year is not a decade: it is the left end of the life, and it says so */
+  const birthLbl = document.createElement("div");
+  birthLbl.className = "lbl birth";
+  birthLbl.style.left = labelX(xOf(BIRTH), T.clientWidth).toFixed(1) + "px";
+  birthLbl.textContent = BIRTH.getFullYear() + " · birth";
+  T.appendChild(birthLbl);
+  /* One marker per record, on its own day. A tick per month drew a dot for the month and sent a
+     click to the month, so two analyses in one month were one dot and neither could be opened
+     from the ruler. The marker carries the record; the record is what it opens. */
+  ANALYSES.forEach(a => {
+    const mark = document.createElement("div");
+    mark.className = "mark" + (state.event === a.id ? " cur" : "");
+    mark.style.left = xOf(a.at).toFixed(1) + "px";
+    mark.title = a.label + " · " + iso(a.at);
+    mark.addEventListener("click", e => {
+      e.stopPropagation();
+      selectDate(a.at, a.id);
+    });
+    mark.addEventListener("mouseenter", e => tlCard(e, a.at, [a]));
+    mark.addEventListener("mouseleave", () => { TL.card.hidden = true; });
+    T.appendChild(mark);
+  });
+  /* The labels arrive from three loops - decades, the month window, and the two named ends - so
+     they can land on top of each other: the birth label under the first decade, "today" through a
+     January label of the window. Keep the
+     two that name the ruler's ends, then whatever fits. */
+  const kept = [];
+  const prio = l => (l.classList.contains("birth") ? 0 : l.classList.contains("today") ? 1 : 2);
+  [...T.querySelectorAll(".lbl")]
+    .sort((a, b) => prio(a) - prio(b) || parseFloat(a.style.left) - parseFloat(b.style.left))
+    .forEach(l => {
+      const x = parseFloat(l.style.left);
+      if (kept.some(k => Math.abs(k - x) < 26)) { l.remove(); return; }
+      kept.push(x);
+    });
   refreshPick();          // the ruler always shows where it is pointing, not only after a click
 }
 
