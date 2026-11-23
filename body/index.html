@@ -3203,7 +3203,7 @@ const KGDATA = (() => {
 })();
 
 /* The template carries a placeholder, not a document (T01). Whoever emits the final page replaces
-   the text of `<script id="kg-graph">` and touches nothing else: a real render writes the reader's
+   the text of the kg-graph script element and touches nothing else: a real render writes the reader's
    own kg/1 document. The page draws whatever it
    finds and has no way to ask for another file — no fetch, no sidecar, no document at launch. A
    document with no records stays empty: no profile, no analyses, an empty ruler.
