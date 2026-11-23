@@ -9,10 +9,11 @@
        panel is the width the compared pair needs (docs/wireframe-health-v13-past-compared.svg).
        #main's right edge and #rightCol's width are both written from these two, so the columns
        tile instead of one floating beside the other. */
-    --colgap:12px; --panelw:592px; --leftw:236px; --railw:44px; }
-  @media (max-width:1560px) { :root { --panelw:460px; } }
-  @media (max-width:1280px) { :root { --panelw:372px; } }
-  @media (max-width:1080px) { :root { --panelw:296px; } }
+    /* widths are fractions of the window, not breakpoints: three fixed px columns + gaps exceed the
+       viewport the moment it is narrower than their sum (or zoomed), and the centre then draws over
+       the panel. clamp() cannot overlap at any width. */
+    --colgap:12px; --panelw:clamp(220px, 30vw, 592px); --leftw:clamp(148px, 17vw, 236px);
+    --railw:44px; }
   /* v11: three columns at every width. A column may COLLAPSE to a rail - it is never removed, so
      there is no breakpoint anywhere below that hides one. On a narrow window the panel narrows and
      the centre takes what is left; the page keeps all three. */
@@ -50,10 +51,10 @@
 
   /* the left column: the records list (widget 7) on top, the body's layer list under it. One column,
      one collapse button: the same width the stage's layout maths has always assumed. */
-  #leftCol { position:fixed; left:0; top:120px; bottom:0; width:var(--leftw); display:flex; flex-direction:column;
+  #leftCol { position:fixed; left:0; top:120px; bottom:0; width:var(--leftw); display:flex; flex-direction:column; overflow:hidden;
     background:var(--panel); border-top:1px solid var(--line); border-right:1px solid var(--line);
     overflow:hidden; transition:width .18s ease; z-index:2; }
-  #state { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
+  #state { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; min-width:0; }
   #leftCol header { display:flex; align-items:center; justify-content:space-between; padding:8px 10px;
     border-bottom:1px solid var(--line); font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--mut); }
   #leftCol header .btn { padding:2px 6px; border:1px solid transparent; background:transparent; color:var(--mut); }
@@ -208,9 +209,14 @@
     box-shadow:0 18px 48px rgba(0,0,0,.55); }
   #main[hidden] { display:none; }
   #main header { display:flex; align-items:center; justify-content:space-between; gap:10px;
+    flex-wrap:nowrap; min-width:0;
     padding:8px 12px; border-bottom:1px solid var(--line); font-size:10.5px; letter-spacing:.09em;
     text-transform:uppercase; color:var(--mut); }
   #main header .btn { padding:2px 6px; border:1px solid transparent; background:transparent; color:var(--mut); }
+  /* the kicker gives way before the controls do: a long date · type string was squeezing the player and
+     the collapse control off the edge of a narrow centre column */
+  #mainKicker { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; }
+  #main header .mheadright { flex:none; display:flex; align-items:center; gap:8px; }
   /* the header's right-hand cluster, in the order v11 reads it: the date the timeline points at, the
      player (four buttons), then the page's own close control at the very edge */
   .mheadright { display:flex; align-items:center; gap:8px; margin-left:auto; }
@@ -322,6 +328,9 @@
   body.right-collapsed #rightCol > .rail {
     display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
     gap:10px; padding:10px 0; min-height:0; overflow:hidden; }
+  /* the rail is how you get the column back: the expand control is the first thing in it */
+  .rail .cbtn { font-size:12px; line-height:1; }
+  body.right-collapsed #rightCol > .rail { justify-content:center; }
   body.centre-collapsed #main > .rail { justify-content:flex-start; align-items:flex-start;
     padding-left:14px; }
   /* collapsed, the centre is a rail too - 44px at the left edge of its own column, not a wide panel
@@ -517,7 +526,7 @@
   <aside id="state" aria-label="records">
     <header><span>records</span><button class="cbtn" id="collapseLeft" title="collapse the list" aria-label="collapse the records list">&#9664;</button></header>
     <div class="rows" id="stateRows"></div>
-    <div class="rail" aria-hidden="true"><div class="v" id="railLeftDate"></div></div>
+    <div class="rail"><button class="cbtn" id="expandLeft" title="expand the list" aria-label="expand the records list">&#9654;</button><div class="v" id="railLeftDate"></div></div>
     <!-- the legend v11 draws under the list, in its own words. Not a widget and not a second list:
          four lines that say what the one list is doing, so a reader never needs a caption row. -->
     <div class="notes" id="stateNotes">
@@ -560,7 +569,7 @@
       <button class="cbtn" id="collapseCentre" title="collapse the record" aria-label="collapse the record">&#8250;</button>
     </div>
   </header>
-  <div class="rail" aria-hidden="true"><div class="v" id="railCentreType"></div></div>
+  <div class="rail"><button class="cbtn" id="expandCentre" title="expand the record" aria-label="expand the record">&#8249;</button><div class="v" id="railCentreType"></div></div>
   <div class="mbody" id="mainBody"></div>
 
   <!-- widget 2, the profile view (SCRUM-52's wireframe: docs/wireframe-health-v11d-profile.svg). It
@@ -637,7 +646,7 @@
   <header><span>forecast and recommendations</span><span class="rpasof" id="rpAsOf"></span>
     <button class="cbtn" id="collapseRight" title="collapse the panel" aria-label="collapse the forecast panel">&#9654;</button></header>
   <div id="rightBody"></div>
-  <div class="rail" aria-hidden="true"><div class="years" id="railYearsThen"></div><div class="years pale" id="railYearsNow"></div></div>
+  <div class="rail"><button class="cbtn" id="expandRight" title="expand the panel" aria-label="expand the forecast panel">&#9664;</button><div class="years" id="railYearsThen"></div><div class="years pale" id="railYearsNow"></div></div>
 </aside>
 
 <div id="tl"><div class="track" id="tlTrack"></div></div>
@@ -1347,34 +1356,194 @@ function applyCollapse() {
 document.getElementById("collapseLeft").onclick = () => { COLLAPSE.left = !COLLAPSE.left; applyCollapse(); };
 document.getElementById("collapseCentre").onclick = () => { COLLAPSE.centre = !COLLAPSE.centre; applyCollapse(); };
 document.getElementById("collapseRight").onclick = () => { COLLAPSE.right = !COLLAPSE.right; applyCollapse(); };
+/* the rail is the way back: the same control, on the other side of the collapse */
+document.getElementById("expandLeft").onclick = () => { COLLAPSE.left = false; applyCollapse(); };
+document.getElementById("expandCentre").onclick = () => { COLLAPSE.centre = false; applyCollapse(); };
+document.getElementById("expandRight").onclick = () => { COLLAPSE.right = false; applyCollapse(); };
 
-/* the notepad: a summary of the whole document, built from the document and nothing else */
-document.getElementById("summaryBtn").onclick = () => {
+/* the notepad: the person's story, not a dump of the file.
+   Every sentence is built from the document — it says what is recorded, what moved, what is still out
+   of range and what was never recorded. It never invents a diagnosis, a cause or a number. */
+function whenDate(w) {
+  if (!w) return "";
+  if (typeof w === "string") return w;
+  return String(w.from || w.at || w.date || w.since || "");
+}
+function storyMarkers(n) {
+  /* the reference range is written three different ways in this document: a pair of numbers on the
+     node, a pair on the value, or ref:[low,high]. Read all three, or every marker looks like it has
+     no range and nothing can be called out of range. */
+  const refOf = (v, node) => {
+    let lo = v.ref_low != null ? v.ref_low : node.ref_low;
+    let hi = v.ref_high != null ? v.ref_high : node.ref_high;
+    if (Array.isArray(v.ref)) { lo = v.ref[0]; hi = v.ref[1]; }
+    else if (Array.isArray(node.ref)) { lo = node.ref[0]; hi = node.ref[1]; }
+    return [typeof lo === "number" ? lo : null, typeof hi === "number" ? hi : null];
+  };
+  if (Array.isArray(n.values) && n.values.length) {
+    return n.values.map(v => {
+      const rr = refOf(v, n);
+      return { name: String(v.name || n.label || n.id), value: v.value,
+               unit: v.unit || n.unit || "", low: rr[0], high: rr[1] };
+    });
+  }
+  const rr = refOf(n, n);
+  return [{ name: String(n.label || n.id), value: n.value, unit: n.unit || "",
+            low: rr[0], high: rr[1] }];
+}
+function buildStory() {
   const meta = TL_META || {};
   const p = meta.profile || {};
+  const today = iso(new Date());
+  const nodes = DOC_NODES || [];
+  const kindOf = n => n.kind || n.type || "";
+  const num = v => (typeof v === "number" ? v : null);
+  const unitOf = u => (u ? " " + u : "");
+  const round = v => (Math.abs(v) >= 10 ? Math.round(v * 10) / 10 : Math.round(v * 100) / 100);
+  const age = BIRTH ? Math.floor(ageAt(dayOf(today))) : null;
+
+  /* one series per marker, oldest first: this is the spine of the story */
+  const series = {};
+  nodes.filter(n => kindOf(n) === "observation").forEach(n => {
+    const d = whenDate(n.when);
+    if (!d) return;
+    storyMarkers(n).forEach(m => {
+      if (num(m.value) === null) return;
+      (series[m.name] = series[m.name] || []).push({
+        date: d, value: num(m.value), unit: m.unit, low: num(m.low), high: num(m.high)
+      });
+    });
+  });
+  Object.keys(series).forEach(k => series[k].sort((a, b) => a.date.localeCompare(b.date)));
+  const inRange = pt => (pt.low === null || pt.high === null ? null : pt.value >= pt.low && pt.value <= pt.high);
+  const range = pt => (pt.low === null || pt.high === null ? "" :
+    round(pt.low) + "\u2013" + round(pt.high) + unitOf(pt.unit));
+
+  const conditions = nodes.filter(n => kindOf(n) === "condition");
+  const meds = nodes.filter(n => kindOf(n) === "medication");
+  const procs = nodes.filter(n => kindOf(n) === "procedure");
+  const dates = nodes.map(n => whenDate(n.when)).filter(Boolean).sort();
+  const first = dates[0] || "\u2014";
+  const last = dates[dates.length - 1] || "\u2014";
+
   const out = [];
-  out.push("# " + (meta.title || "My health story"));
+  const who = [p.name || "This record", age !== null && age >= 0 ? age : null].filter(Boolean).join(", ");
+  out.push("# " + who + " \u2014 my health story");
   out.push("");
-  const who = [p.name, p.sex, p.year_of_birth ? String(p.year_of_birth) : null].filter(Boolean).join(", ");
-  if (who) out.push("- who: " + who);
-  out.push("- " + DOC_NODES.length + " nodes, " + DOC_EDGES.length + " relations");
-  const byKind = {};
-  DOC_NODES.forEach(n => { const k = n.kind || n.type || "other"; byKind[k] = (byKind[k] || 0) + 1; });
-  if (Object.keys(byKind).length) {
-    out.push("- " + Object.keys(byKind).sort().map(k => byKind[k] + " " + k + (byKind[k] === 1 ? "" : "s")).join(", "));
+  out.push("**As of " + today + ".** " + nodes.length + " entries between " + first + " and " + last + ".");
+  out.push("");
+
+  /* 1. where things stand */
+  out.push("## Where things stand");
+  out.push("");
+  if (conditions.length) {
+    out.push("- **Diagnosed:** " + conditions
+      .map(c => String(c.label) + " (since " + whenDate(c.when) + (c.status ? ", " + c.status : "") + ")")
+      .join("; ") + ".");
+  } else {
+    out.push("- **Diagnosed:** nothing on this record.");
+  }
+  if (meds.length) {
+    out.push("- **On:** " + meds
+      .map(m => String(m.label) + (whenDate(m.when) ? " (since " + whenDate(m.when) + ")" : ""))
+      .join("; ") + ".");
+  }
+  const latestLine = Object.keys(series).map(name => {
+    const s = series[name];
+    const pt = s[s.length - 1];
+    const ir = inRange(pt);
+    return name + " " + round(pt.value) + unitOf(pt.unit) +
+      (ir === null ? "" : ir ? " (in range)" : " (outside " + range(pt) + ")");
+  });
+  if (latestLine.length) out.push("- **Latest numbers:** " + latestLine.join("; ") + ".");
+  out.push("");
+
+  /* 2. the risks and how they moved: only markers with at least two readings have a story */
+  const moved = Object.keys(series).filter(n => series[n].length > 1).map(name => {
+    const s = series[name];
+    const a = s[0], b = s[s.length - 1];
+    return { name: name, first: a, last: b, change: b.value - a.value, points: s.length };
+  }).sort((x, y) => {
+    /* what is out of range now leads; inside that, the fastest relative mover */
+    const ox = inRange(x.last) === false ? 0 : 1, oy = inRange(y.last) === false ? 0 : 1;
+    if (ox !== oy) return ox - oy;
+    return Math.abs(y.change / (Math.abs(y.first.value) || 1)) - Math.abs(x.change / (Math.abs(x.first.value) || 1));
+  });
+
+  out.push("## The risks, and how they moved");
+  out.push("");
+  if (!moved.length) {
+    out.push("No marker in this record was measured twice, so nothing here has a trend. One reading is a");
+    out.push("point, not a story.");
+  }
+  moved.forEach(m => {
+    const dir = m.change > 0 ? "up" : m.change < 0 ? "down" : "unchanged";
+    const ir = inRange(m.last);
+    const tail = ir === null ? "" : ir
+      ? " Inside the reference range today."
+      : " Still outside the reference range, which is " + range(m.last) + ".";
+    out.push("- **" + m.name + "** \u2014 " + round(m.first.value) + unitOf(m.first.unit) + " in " +
+      m.first.date + " \u2192 " + round(m.last.value) + unitOf(m.last.unit) + " in " + m.last.date +
+      " (" + dir + (m.change ? " " + round(Math.abs(m.change)) + unitOf(m.last.unit) : "") +
+      ", " + m.points + " readings)." + tail);
+  });
+  out.push("");
+
+  /* 3. what went well / what went badly, both read straight off the same series */
+  const cameIntoRange = moved.filter(m => inRange(m.first) === false && inRange(m.last) === true);
+  const wentOutOfRange = moved.filter(m => inRange(m.first) === true && inRange(m.last) === false);
+  const stillOut = Object.keys(series).map(n => ({ name: n, pt: series[n][series[n].length - 1] }))
+    .filter(x => inRange(x.pt) === false);
+
+  out.push("## What went well");
+  out.push("");
+  if (cameIntoRange.length) {
+    cameIntoRange.forEach(m => out.push("- **" + m.name + "** came into range: " +
+      round(m.first.value) + " in " + m.first.date + " \u2192 " + round(m.last.value) + " in " + m.last.date + "."));
+  }
+  if (procs.length) {
+    out.push("- **Procedures on the record:** " + procs.map(x => String(x.label) + " (" + whenDate(x.when) + ")").join("; ") + ".");
+  }
+  if (!cameIntoRange.length && !procs.length) out.push("- Nothing in this record can be called a win: no marker came into range, no procedure is recorded.");
+  out.push("");
+
+  out.push("## What went badly");
+  out.push("");
+  if (stillOut.length) {
+    out.push("- **Still out of range:** " + stillOut.map(x => x.name + " " + round(x.pt.value) + unitOf(x.pt.unit) + " (normal " + range(x.pt) + ")").join("; ") + ".");
+  }
+  if (wentOutOfRange.length) {
+    out.push("- **Slipped out of range:** " + wentOutOfRange.map(m => m.name + " (" + round(m.first.value) + " \u2192 " + round(m.last.value) + ")").join("; ") + ".");
+  }
+  const lateConditions = conditions.filter(c => whenDate(c.when) && whenDate(c.when) > first);
+  if (lateConditions.length) {
+    out.push("- **Added after the story started:** " + lateConditions.map(c => String(c.label) + " (" + whenDate(c.when) + ")").join("; ") + ".");
+  }
+  const stale = Object.keys(series).filter(n => {
+    const s = series[n], d = s[s.length - 1].date;
+    return d && (+dayOf(today) - +dayOf(d)) / 31557600000 >= 2;
+  });
+  if (stale.length) out.push("- **Not measured in two years or more:** " + stale.join("; ") + ".");
+  if (!stillOut.length && !wentOutOfRange.length && !lateConditions.length && !stale.length) {
+    out.push("- Nothing in this record went badly by its own numbers.");
   }
   out.push("");
-  out.push("## what the document holds, in order");
+
+  out.push("## What this record does not say");
   out.push("");
-  DOC_NODES.slice()
-    .sort((a, b) => String(a.when || "").localeCompare(String(b.when || "")))
-    .forEach(n => out.push("- " + (n.when || String.fromCharCode(8212)) + " \u00b7 " + (n.label || n.id)));
+  out.push("- Family history, sleep, alcohol, weight over time, vaccinations and mood are not recorded here.");
+  out.push("- It carries no cause and no advice: what to do about the numbers above is written in the");
+  out.push("  records themselves, by the people who wrote them.");
   out.push("");
-  out.push("Generated from the document itself: no inference, no forecast.");
-  const blob = new Blob([out.join("\n") + "\n"], { type: "text/markdown" });
+  out.push("Built from the document at " + today + ": nothing in this text is inferred beyond comparing a");
+  out.push("marker with its own reference range and with its own earlier readings.");
+  return out.join("\n") + "\n";
+}
+document.getElementById("summaryBtn").onclick = () => {
+  const blob = new Blob([buildStory()], { type: "text/markdown" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "health-summary.md";
+  a.download = "health-story-" + iso(new Date()) + ".md";
   document.body.appendChild(a);
   a.click();
   a.remove();
