@@ -23,7 +23,28 @@ export const DEFAULT_OUT = join(homedir(), '.hermes', 'e2e')
 /** The checks a run must carry for its pass to count. Absent is not the same as green. */
 export const REQUIRED_CHECKS = ['policy.no-host-apps', 'policy.stays-in-room', 'capture.browser-only'] as const
 
-export type E2eCheck = { name: string; ok: boolean; detail: string }
+export type E2eCheck = {
+  name: string
+  ok: boolean
+  detail: string
+  /**
+   * `false` for a check that proves a capture tool worked rather than that the product did. The
+   * gate counts such a check when it is green and does not count it when it is red: after
+   * SCRUM-64 a missing screenshot is recorded on the receipt and never vetoes a merge. Omitted
+   * means hard — a check is a product assertion unless it says otherwise, and a report written
+   * before that field existed carries only hard checks.
+   */
+  hard?: boolean
+}
+
+/**
+ * Did this run's checks pass? A red check fails the run unless it says it is not about the
+ * product. This is the same rule `run.ts` applies through `receipt.ts`, written once here so the
+ * gate cannot read a green receipt as red (or the reverse).
+ */
+export function checksPass(checks: E2eCheck[]): boolean {
+  return checks.every((check) => check.ok === true || check.hard === false)
+}
 
 export type E2ePage = { label?: string; kind?: string; url?: string; screenshot?: string; claim?: Array<{ needle: string; found: boolean }> }
 
@@ -195,7 +216,9 @@ export function readRun(dir: string): E2eRun | null {
     branch: String(report.branch ?? ''),
     finishedAt: String(report.finished_at ?? ''),
     dirty: report.dirty === true,
-    passed: report.passed === true && checks.every((check) => check.ok === true),
+    // Gaps are written down and counted, but they never decide: `passed` is the run's own verdict
+    // on its hard checks, and a red gap is not a red run (SCRUM-64).
+    passed: report.passed === true && checksPass(checks),
     pages: capturedPages(report),
     checks,
     report,
@@ -296,13 +319,19 @@ export function gateFor(commit: string, outDir: string = DEFAULT_OUT, required: 
   const green = forCommit.filter((run) => run.passed && !run.dirty)
   if (green.length === 0) {
     const red = forCommit.find((run) => !run.passed) ?? forCommit[0]
-    const failed = red.checks.filter((check) => !check.ok).map((check) => `${check.name}: ${check.detail}`)
+    // The reason names the product checks that are red. A gap is not one of them: a receipt whose
+    // only ungreen check is a screenshot the camera could not take is told so, not called a
+    // failure (`receipt.ts`).
+    const failed = red.checks.filter((check) => !check.ok && check.hard !== false).map((check) => `${check.name}: ${check.detail}`)
+    const gaps = red.checks.filter((check) => !check.ok && check.hard === false).map((check) => `${check.name}: ${check.detail}`)
     return {
       ok: false,
       run: red,
       reason: red.dirty
         ? `the run for ${wanted.slice(0, 7)} was made on a dirty worktree, so it is not evidence of the commit`
-        : `the run for ${wanted.slice(0, 7)} failed — ${failed.slice(0, 3).join(' / ') || 'see report.json'}`,
+        : `the run for ${wanted.slice(0, 7)} failed — ${failed.slice(0, 3).join(' / ') || 'see report.json'}${
+            gaps.length > 0 ? ` (${gaps.length} evidence gap(s) recorded, not the reason: ${gaps[0]})` : ''
+          }`,
     }
   }
   let wrongPage: { run: E2eRun; missing: PageKind[] } | null = null
