@@ -65,7 +65,16 @@ export function buildDemo(template: string, doc: unknown): string {
   if (count !== 1) {
     throw new Error(`body/index.html must carry exactly one ${marker}, found ${count}`)
   }
-  return template.replace(marker, `${SCRIPT_OPEN}${serialize(doc)}${SCRIPT_CLOSE}`)
+  /* A build stamp in the page itself. Two people looking at two different files and arguing about
+     whether a fix landed is an expensive way to find out the file was stale; the stamp makes the
+     question answerable from the page: window.KG_BUILD, the title attribute, and the console. */
+  const stamp = new Date().toISOString().replace(/\..*$/, 'Z')
+  return template
+    .replace(marker, `${SCRIPT_OPEN}${serialize(doc)}${SCRIPT_CLOSE}`)
+    .replace('<title>My health story</title>',
+      `<title>My health story</title><meta name="kg-build" content="${stamp}">`)
+    .replace('<b class="only-main">My health story</b>',
+      `<b class="only-main" title="built ${stamp}">My health story</b>`)
 }
 
 /** Put the page's assets where the page looks for them, replacing whatever an earlier build left. */
