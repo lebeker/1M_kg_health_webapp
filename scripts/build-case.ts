@@ -20,7 +20,8 @@
  * `case.html` and `index.html` are that artifact with one thing added: a `<base>` naming `body/`.
  * The page addresses its own assets relatively (`lib/…` and the model loader's `models/${file}.glb`)
  * and they live under `body/`, so one element makes every relative URL in the page resolve where it
- * does beside `dist/`. Nothing else differs: the markup, the styles and every byte of the payload
+ * does beside `dist/`. Nothing else differs apart from the build stamp (the clock the builder puts
+ * in the page, which no comparison can hold): the markup, the styles and every byte of the payload
  * are the artifact's own, and `scripts/published-case.test.ts` holds both files to the output of
  * `buildDemo()` so they cannot drift from the template, the case document or each other.
  *
@@ -32,7 +33,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ROOT, SOURCE, TEMPLATE, buildDemo } from './build-demo'
+import { ROOT, SOURCE, TEMPLATE, buildDemo, unstamped } from './build-demo'
 import { validateKg } from './lib/kg-contract'
 
 /** The documented address: `<site>/case.html`. */
@@ -90,7 +91,7 @@ function main(argv: string[]): number {
         stale += 1
         continue
       }
-      if (onDisk !== published) {
+      if (unstamped(onDisk) !== unstamped(published)) {
         console.error(`${page.name} is stale — run \`bun run build:case\``)
         stale += 1
       }

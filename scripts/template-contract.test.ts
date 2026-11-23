@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
-import { ARTIFACT, PLACEHOLDER, ROOT, buildDemo, serialize } from './build-demo'
+import { ARTIFACT, PLACEHOLDER, ROOT, buildDemo, serialize, unstamped } from './build-demo'
 
 /**
  * SCRUM-51 — the template contract, as a check.
@@ -91,7 +91,13 @@ describe('the case page is a build target, built from the case document', () => 
     const template = readFileSync(join(ROOT, 'body', 'index.html'), 'utf8')
     const doc = JSON.parse(readFileSync(join(ROOT, 'kg_demo.json'), 'utf8'))
     const built = buildDemo(template, doc)
-    // the difference is the payload and nothing else: same head, same scripts, same styles
-    expect(built.replace(serialize(doc), PLACEHOLDER)).toBe(template)
+    // the difference is the payload and the build stamp and nothing else: same head, same scripts,
+    // same styles. The stamp is a clock, so it is taken out of both sides before comparing.
+    expect(unstamped(built).replace(serialize(doc), PLACEHOLDER)).toBe(template)
+    // and the stamp is really there: a build that silently stopped stamping would pass the line
+    // above and lose the one thing that answers "is this the new file?"
+    expect(built).toMatch(/<meta name="kg-build" content="\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z">/)
+    expect(built).toMatch(/ title="built \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"/)
+    expect(template).not.toMatch(/<meta name="kg-build"/)
   })
 })

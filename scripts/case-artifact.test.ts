@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, readFileSync } from 'node:fs'
-import { buildDemo } from './build-demo'
+import { buildDemo, unstamped } from './build-demo'
 import { validateKg } from './lib/kg-contract'
 
 /**
@@ -152,8 +152,10 @@ describe('the template carries a placeholder, not a document', () => {
 
 describe('dist/demo.html is the artifact, built from kg_demo.json', () => {
   test('it is exactly what the build produces from this template and this document', () => {
-    // byte-for-byte: a hand-edited demo page fails here instead of drifting from its source
-    expect(artifact).toBe(buildDemo(page, demo))
+    // byte-for-byte apart from the build stamp, which is a clock and cannot be compared: a
+    // hand-edited demo page fails here instead of drifting from its source
+    expect(unstamped(artifact)).toBe(unstamped(buildDemo(page, demo)))
+    expect(artifact).toMatch(/<meta name="kg-build" content="[^"]+">/)
     expect(artifact).not.toContain('<script id="kg-graph" type="application/json">__KG_GRAPH__</script>')
   })
 
