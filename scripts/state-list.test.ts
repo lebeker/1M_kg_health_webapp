@@ -283,7 +283,8 @@ describe('the panel the page draws', () => {
   })
 
   test('the selected row is the only marker — one class, no second widget', () => {
-    expect(page).toContain('el.classList.toggle("on", hit)')
+    // one row is marked, and it is the row the centre draws: both halves resolve `currentRow()`
+    expect(page).toContain('el.classList.toggle("on", !!row && el.dataset.record === row.id)')
     expect(page).toContain('.srow.on')
   })
 
