@@ -1,5 +1,11 @@
 # Health map — the template half
 
+**This repository is the template for the KG skill: [`lebeker/1M_kg_skill`](https://github.com/lebeker/1M_kg_skill).**
+That skill is what sits with a person, asks the questions and writes their `kg.json`. This repository
+is what that document is then rendered in — it never produces a document of its own, and the demo it
+ships is a fixture, not somebody's history. If you are looking for the thing that reads a person's
+records and builds the file, you want the skill, not this repo.
+
 The web half of the health map. A `kg/1-health` document is the facts — labs, diagnoses, visits,
 drugs, each with its date and its source — and this repository is how those facts look: a timeline
 you can stand on a date in, a left column that says what was known then, a centre that shows the
