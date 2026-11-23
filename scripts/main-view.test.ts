@@ -362,6 +362,15 @@ describe('summary: a report, not a prescription', () => {
     expect(s.note).toContain('nobody has said what held')
   })
 
+  test('a summary of an empty document says there is nothing to roll up', () => {
+    const s = MV.summaryOf({ id: 'today', kind: 'today', date: TODAY, title: 'today summary', note: '', stored: false },
+                            null, { nodes: [], edges: [], byId: () => null, today: TODAY })
+    expect(s.generated).toBe(true)
+    expect(s.planned).toEqual([])
+    expect(s.done).toEqual([])
+    expect(s.note).toBe('nothing is recorded yet: there is no plan and nothing done to roll up')
+  })
+
   test('the annual marker counts its own year and nothing after it', () => {
     const s = MV.summaryOf({ id: 'annual:2024', kind: 'summary', date: '2025-01-01', title: 'annual summary', note: '', stored: false }, null, ctx())
     expect(s.period).toBe('2024-01-01 – 2024-12-31')
@@ -382,6 +391,17 @@ describe('the container the page draws (widget 9)', () => {
     expect(page).toContain('<script src="lib/main-view.js"></script>')
     expect(page).toContain('MainView.viewOf(row, node)')
     expect(page).toContain('box.dataset.view = view')
+  })
+
+  test('the centre opens on the latest item in the list, with a document or without one', () => {
+    // the first row is today's summary (StateList puts it there even when the document is empty);
+    // opening it is the row's own click path, so the centre is filled and the row is marked
+    expect(page).toContain('function openLatest() {')
+    expect(page).toContain('const latest = STATE_ROWS[0];')
+    expect(page).toContain('function currentRow() {')
+    // the list and the centre resolve the selection through the same function: a marked row can
+    // never sit beside an empty centre
+    expect(page.match(/currentRow\(\)/g)?.length).toBe(3)   // the rule, markStateRow, renderMain
   })
 
   test('the four marks are one glyph each, with the meaning in the title', () => {

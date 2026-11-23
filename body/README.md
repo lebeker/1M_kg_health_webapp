@@ -117,7 +117,9 @@ captions, and the row the reader picked marked black. It mixes what the document
 diagnoses, decisions — with two rows the page makes itself: an annual marker stamped `01-01` of
 the year after the one it covers, and the today summary, which is the first row and is generated at
 launch, never stored as an event. Clicking a row moves the ruler to that day and scrolls the row to
-the middle of the panel.
+the middle of the panel. The page opens on the list's first row — today's summary — so the centre is
+filled on the first paint; the list marks and the centre draws through one rule, `currentRow()`, so a
+marked row and an empty centre can never sit beside each other.
 
 Every row carries two lines, as v11 draws them: the date and the row's kind, then **the record's own
 one line** — `LDL cholesterol 4.2 mmol/L · +3 more` for a panel titled "Lipid panel", `City Heart

@@ -155,14 +155,16 @@ page's own reader over the artifact's document with an empty storage and fails i
 `body/index.html` is the template. It carries the `#kg-graph` placeholder and no document of its own:
 no sample set, no birth date, no `fetch`, and no word about any one use case. `bun run build:demo`
 replaces the placeholder with `kg_demo.json` and writes `dist/demo.html`, with the page's `lib/` beside
-it, so the page opens on the case — the same timeline, the same 47 records in the left list, the latest
-record drawn in the centre column — with no click and no network.
+it, so the page opens on the case — the same timeline, the same 47 records in the left list, today's
+summary drawn in the centre column — with no click and no network.
 
 A rendered page is the other surface. The render command writes the reader's document into the same
-placeholder, and the page draws what it was handed: with records, the latest of them is open in the
-centre; with no records, it keeps its empty start (no profile, an empty ruler, the records list's
-"nothing recorded yet"). The template's placeholder is read as "no document" and never warns, so
-opening the template itself is an empty page, not an error.
+placeholder, and the page draws what it was handed: it opens on the latest item in the list, which is
+today's summary — generated at launch from the document (in a rendered page, from what the kg skill
+wrote; in the demo, by the page itself), marked in the list and drawn in the centre. With no records,
+that row still exists and says there is nothing recorded yet, so an empty document reads as empty
+instead of as a filled centre with nothing in it. The template's placeholder is read as "no document"
+and never warns, so opening the template itself is an empty page, not an error.
 
 The artifact is checked byte-for-byte against the build in `scripts/case-artifact.test.ts`: a
 hand-edited page in `dist/`, or a document that drifted from its source, fails CI. The case exists in

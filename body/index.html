@@ -3203,13 +3203,24 @@ function buildStateList() {
   renderMain();
 }
 
-/* With a document in hand the page opens on the latest record it holds: the state the reader is
-   in now, drawn in the centre, with no click. The template carries no document, so it has no
-   stored row, nothing is chosen, and the centre stays closed — one rule, no flag and no mode. */
-function openLatestRecord() {
-  const latest = STATE_ROWS.find(row => row.stored);
-  if (!latest || state.event) return;
+/* The page opens on the latest item it holds: today's summary, the list's first row. In a rendered
+   page a kg skill generates that summary; with the case document it is the row the page makes at
+   launch — the same row, the same view, no fetch and no stored event. Opening it is the row's own
+   click path, so the centre is never empty while a row is marked, with a document or without one. */
+function openLatest() {
+  if (state.event) return;
+  const latest = STATE_ROWS[0];
+  if (!latest) return;
   selectDate(dayOf(latest.date), latest.id);   // selectDate opens the view and marks the row
+}
+
+/* The row the reader is standing on: the one they picked, else the latest row that carries the
+   chosen date. The list marks by this rule and the centre draws by it, so a marked row and the row
+   in the centre are always the same row — the two can never disagree about what is selected. */
+function currentRow() {
+  if (state.event) return STATE_ROWS.find(r => r.id === state.event) || null;
+  if (!state.date) return null;
+  return STATE_ROWS.find(r => r.date === state.date) || null;
 }
 
 /* widget 8: exactly one row is marked. Picking a record marks that record; a date chosen on the
@@ -3218,13 +3229,8 @@ function openLatestRecord() {
 function markStateRow() {
   const box = document.getElementById("stateRows");
   if (!box) return;
-  let marked = false;
-  [...box.children].forEach(el => {
-    const hit = state.event ? el.dataset.record === state.event
-                            : (!marked && !!state.date && el.dataset.date === state.date);
-    if (hit) marked = true;
-    el.classList.toggle("on", hit);
-  });
+  const row = currentRow();
+  [...box.children].forEach(el => el.classList.toggle("on", !!row && el.dataset.record === row.id));
 }
 
 /* clicking a row centres it: the list scrolls so the row sits in the middle of the panel, not at
@@ -3585,7 +3591,7 @@ function renderMain() {
   if (pbody) pbody.hidden = true;
   body.hidden = false;
   box.hidden = false;
-  const row = state.event ? STATE_ROWS.find(r => r.id === state.event) : null;
+  const row = currentRow();
   if (!row) {
     // the date carries no record — an empty stretch between two events. The centre column keeps its
     // header, so widget 6 stays under the reader's hand (v11 puts the player there and nothing else);
@@ -4185,7 +4191,7 @@ document.getElementById("layerNo").onclick = () => askLayer3d(false);
 
 buildLegend();
 buildStateList();       // today's summary is made here, at launch, and never stored
-openLatestRecord();     // a document with records opens on the latest of them
+openLatest();           // the page opens on its latest item: today's summary, the first row
 buildTimeline();        // the ruler is the product's: it no longer waits for the graph's models
 refreshPick();          // ends in markStateRow + renderMain — the main flow stands on its own
 tick();
