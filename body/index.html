@@ -202,14 +202,14 @@
   /* widget 9: the main view. The event decides which layout fills it, so the container is one
      box with one header and the body is rebuilt on every selection. It opens over the body: the
      3D scene is a backdrop, not a second answer to the same question. */
-  #main { position:fixed; left:calc(var(--leftw) + 8px); top:122px; bottom:52px; width:auto;
+  #main { position:fixed; overflow:visible; left:calc(var(--leftw) + 8px); top:122px; bottom:52px; width:auto;
     right:calc(var(--panelw) + var(--colgap) * 2);
     min-width:0; z-index:5; display:flex; flex-direction:column; overflow:hidden;
     background:rgba(12,15,19,.96); border:1px solid var(--line); border-radius:10px;
     box-shadow:0 18px 48px rgba(0,0,0,.55); }
   #main[hidden] { display:none; }
   #main header { display:flex; align-items:center; justify-content:space-between; gap:10px;
-    flex-wrap:nowrap; min-width:0;
+    flex-wrap:nowrap; min-width:0; padding-right:22px;
     padding:8px 12px; border-bottom:1px solid var(--line); font-size:10.5px; letter-spacing:.09em;
     text-transform:uppercase; color:var(--mut); }
   #main header .btn { padding:2px 6px; border:1px solid transparent; background:transparent; color:var(--mut); }
@@ -329,7 +329,16 @@
     display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
     gap:10px; padding:10px 0; min-height:0; overflow:hidden; }
   /* the rail is how you get the column back: the expand control is the first thing in it */
-  .rail .cbtn { font-size:12px; line-height:1; }
+  /* the label in a rail is text, not a target: it must never sit on top of the expand control */
+  .rail .v, .rail .years { pointer-events:none; }
+  .rail .cbtn { position:relative; z-index:2; font-size:12px; line-height:1; width:16px; height:16px; padding:0;
+    display:flex; align-items:center; justify-content:center; flex:none; }
+  /* the centre's control hangs off the column edge, not out of the header: at a 20px column it is
+     still inside the column and still clickable */
+  .cbtn.float { position:absolute; top:10px; right:3px; z-index:7; width:16px; height:16px; padding:0;
+    display:flex; align-items:center; justify-content:center; }
+  .cbtn svg { display:block; }
+  .cbtn svg.flip { transform:rotate(180deg); }
   body.right-collapsed #rightCol > .rail { justify-content:center; }
   body.centre-collapsed #main > .rail { justify-content:flex-start; align-items:flex-start;
     padding-left:14px; }
@@ -524,9 +533,9 @@
 
 <div id="leftCol">
   <aside id="state" aria-label="records">
-    <header><span>records</span><button class="cbtn" id="collapseLeft" title="collapse the list" aria-label="collapse the records list">&#9664;</button></header>
+    <header><span>records</span><button class="cbtn" id="collapseLeft" title="collapse the list" aria-label="collapse the records list"><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></header>
     <div class="rows" id="stateRows"></div>
-    <div class="rail"><button class="cbtn" id="expandLeft" title="expand the list" aria-label="expand the records list">&#9654;</button><div class="v" id="railLeftDate"></div></div>
+    <div class="rail"><button class="cbtn" id="expandLeft" title="expand the list" aria-label="expand the records list"><svg class="flip" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="v" id="railLeftDate"></div></div>
     <!-- the legend v11 draws under the list, in its own words. Not a widget and not a second list:
          four lines that say what the one list is doing, so a reader never needs a caption row. -->
     <div class="notes" id="stateNotes">
@@ -565,11 +574,12 @@
         <button data-step="next" title="next event" aria-label="next event"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M3 2.4 L9.3 6 L3 9.6 Z" fill="currentColor"/></svg></button>
         <button data-step="end" title="end — last event" aria-label="end"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M1.5 2.4 L7.8 6 L1.5 9.6 Z" fill="currentColor"/><rect x="9.3" y="2" width="1.7" height="8" fill="currentColor"/></svg></button>
       </div>
-      <!-- v11/SCRUM-66: the centre has no x. A reader collapses it; nothing on this page closes a column. -->
-      <button class="cbtn" id="collapseCentre" title="collapse the record" aria-label="collapse the record">&#8250;</button>
     </div>
   </header>
-  <div class="rail"><button class="cbtn" id="expandCentre" title="expand the record" aria-label="expand the record">&#8249;</button><div class="v" id="railCentreType"></div></div>
+  <!-- v11/SCRUM-66: the centre has no x. The control is a child of #main, not of the header, so it
+       stays at the column's edge at any width - the header's contents may squeeze, this may not. -->
+  <button class="cbtn float" id="collapseCentre" title="collapse the record" aria-label="collapse the record"><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  <div class="rail"><button class="cbtn" id="expandCentre" title="expand the record" aria-label="expand the record"><svg class="flip" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="v" id="railCentreType"></div></div>
   <div class="mbody" id="mainBody"></div>
 
   <!-- widget 2, the profile view (SCRUM-52's wireframe: docs/wireframe-health-v11d-profile.svg). It
@@ -644,9 +654,9 @@
      then-now.svg and docs/WIDGETS.md). -->
 <aside id="rightCol" class="only-main" aria-label="forecast and recommendations">
   <header><span>forecast and recommendations</span><span class="rpasof" id="rpAsOf"></span>
-    <button class="cbtn" id="collapseRight" title="collapse the panel" aria-label="collapse the forecast panel">&#9654;</button></header>
+    <button class="cbtn" id="collapseRight" title="collapse the panel" aria-label="collapse the forecast panel"><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></header>
   <div id="rightBody"></div>
-  <div class="rail"><button class="cbtn" id="expandRight" title="expand the panel" aria-label="expand the forecast panel">&#9664;</button><div class="years" id="railYearsThen"></div><div class="years pale" id="railYearsNow"></div></div>
+  <div class="rail"><button class="cbtn" id="expandRight" title="expand the panel" aria-label="expand the forecast panel"><svg class="flip" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="years" id="railYearsThen"></div><div class="years pale" id="railYearsNow"></div></div>
 </aside>
 
 <div id="tl"><div class="track" id="tlTrack"></div></div>
