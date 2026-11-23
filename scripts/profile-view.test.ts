@@ -456,6 +456,13 @@ describe('the page draws each block, and reads only the document', () => {
     expect(page).toContain('<div class="pvspan" id="pvSpan">')
   })
 
+  test('a one-point row reads "1 pt", not "1 pts"', () => {
+    // Lee's diabetes item and its 60–64 age band are one point each, so the reader sees the
+    // singular. "1 pts" is the sort of label a reader stops to disbelieve.
+    has(/r\.points \+ \(r\.points === 1 \? " pt" : " pts"\)/)
+    expect(page).not.toContain('r.points + " pts"')
+  })
+
   test('the acceptance run can read the blocks as data, like __profile() already does', () => {
     has(/window\.__setBorn = year => \{/)
     has(/window\.__profileBlocks = \(\) => \{/)
