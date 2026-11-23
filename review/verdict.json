@@ -1,11 +1,11 @@
 {
-  "reviewer": "Denis Tatarenko",
-  "when": "2026-11-23T20:08:20.886Z",
+  "reviewer": "mexviner (round 3 rows logged by lia; ruler, markers, labels and the marker click re-measured by me)",
+  "when": "2026-11-23T21:38:08.724Z",
   "passed": true,
-  "conclusions": "Ran the skill in an empty room (lebeker/1M_kg_skill @30d8971) against this template: kg.py rendered 62 nodes / 71 edges into a 291,249-byte page, and the page opened with all three columns, the records rail, the today summary and the forecast panel. The rails collapse and expand with the same chevron. Two things are wrong and neither is this change: the forecast still prints 74.0 years, which is the male sex baseline, and the document's own title wins over My health story.",
-  "surface": "6b170fdf35c62182",
-  "tested_sha": "6b1bb64cba0c64ca4c0980b3530d8d0ca6b7042b",
+  "conclusions": "Round 3, all ten docs/components/timeline.md Scenarios rows pass on the page rendered from this branch through 1M_kg_skill at 30d8971 with kg_demo.json, 297485 bytes sha256 bbd40af3, 1280 px, and I re-measured the branch surface myself in my own run. Ruler sizing: the strip is edge to edge, rect 10 to 1270 width 1260 top 46 bottom 120, above all three columns at top 120 and 122, intersecting no header control, no horizontal scroll. Per-record markers: 59 .mark against 59 .srow rows and 59 records, same-day records fanned 8 px apart rather than merged, and the markers cover analyses, diagnoses, visits, medications, procedures and the annual and today summaries. Current-record emphasis: a real pointer click on ALT 2026-10-21 leaves exactly one marker current at 9 px rgb(127,179,224) against 7 px grey for the rest, opens that analysis in the centre with its row marked and the panel heading 2026-10-21 to 2026-11-23, readout 2026-10-21. Birth-year and today labels: gold 1961 birth at x 26 to 79.7 unclipped with 1965 and 1970 moved to a second line, zero overlapping boxes among 26 labels, today a named blue 1 px line at x 744.4 with nothing printed over it, 49 month ticks with every January 2025 to 2028 labelled. The bare strip picks the day it is pointed at, the player four buttons each land on a record with the readout agreeing, collapsing both columns leaves the strip and all 59 marker positions identical, and the unrendered template says no records yet with zero labels, markers and ticks. docs/components start: one file per component, with behaviours and the text scenarios this run executed. Caveats recorded, not failed rows: outside the two year month window a year is a few pixels wide so different days of one year can sit within one marker width; the round 3 log counts 49 month ticks from 2024-11 where round 2 logged 48 from 2024-12, and the live enumeration has no gap or repeat.",
+  "surface": "7ea1d69068af3c11",
+  "tested_sha": "183f8dc68dfa66611ec3b895ab0014aa5f8766f0",
   "artifacts": [
-    "review/artifacts/2026-11-23/chat.log"
+    "review/artifacts/2026-11-23/timeline-scenarios-round3.log"
   ]
 }

@@ -151,7 +151,7 @@
   .bootbar i { display:block; height:100%; width:0; background:#7fb3e0; transition:width .2s ease; }
   .bootnum { color:#5f7183; font-size:11px; margin-top:7px; }
 
-#tl { position:fixed; left:calc(var(--leftw) + 8px); right:calc(var(--panelw) + var(--colgap) * 2); top:46px; height:74px; z-index:26;
+#tl { position:fixed; left:10px; right:10px; top:46px; height:74px; z-index:26;
       pointer-events:auto; overflow:hidden; }   /* the strip is a scrubber over the centre column: it must receive the click */
 #tl .track { position:relative; height:44px; pointer-events:none; }
 #tl .base { position:absolute; left:0; right:0; top:26px; height:1px; background:#3a3a44; }
@@ -160,13 +160,22 @@
 #tl .tick.y5 { height:14px; top:13px; background:#4d4d59; }
 #tl .tick.m { top:20px; height:7px; background:#41414c; }
 #tl .tick.has { background:#d8d8e2; }
-#tl .tick.has::after { content:""; position:absolute; left:-2px; top:-5px; width:5px; height:5px;
-                       border-radius:50%; background:#fff; }
+#tl .tick.has { background:#d8d8e2; }
+#tl .mark { position:absolute; top:11px; width:7px; height:7px; border-radius:50%; background:#9a9aa8;
+           transform:translateX(-50%); cursor:pointer; z-index:2; pointer-events:auto; }
+#tl .mark:hover { background:#fff; }
+#tl .mark.cur { top:10px; width:9px; height:9px; background:#7fb3e0; box-shadow:0 0 0 2px rgba(127,179,224,.3); }
+#tl .lbl.birth { color:#c9a227; transform:none; }   /* the left end of the life: anchored, not centred, or half of it hangs off the page */
+#tl .lbl.today { color:#7fb3e0; }
 #tl .tick.pick { background:#fff; height:15px; top:12px; width:2px; }
 #tl .tick:hover { background:#fff; }
-#tl .now { position:absolute; top:8px; width:1px; height:26px; background:#fff; opacity:.55; }
+#tl .now { position:absolute; top:8px; width:1px; height:26px; background:#7fb3e0; opacity:.9; }
 #tl .lbl { position:absolute; top:30px; font-size:9px; color:#77777f; transform:translateX(-50%);
-           letter-spacing:.04em; }
+           letter-spacing:.04em; white-space:nowrap; pointer-events:none; }
+/* a label that would print on another moves down a line of its own; the strip has three lines,
+   each a 12.8 px line box apart, so a label never shares a pixel with the one above it */
+#tl .lbl.t1 { top:44px; }
+#tl .lbl.t2 { top:57px; }
 #tl .lbl.big { color:#a9a9b4; }
 #tl .empty { position:absolute; left:0; top:12px; color:#6b7c8f; font-size:11px;
              letter-spacing:.04em; }
@@ -1402,7 +1411,9 @@ function layoutColumns() {
   if (L) { L.style.left = "0px"; L.style.width = leftW + "px"; }
   if (M) { M.style.left = (leftW + COLGAP) + "px"; M.style.width = centreW + "px"; M.style.right = "auto"; }
   if (R) { R.style.left = (leftW + COLGAP + centreW + COLGAP) + "px"; R.style.width = rightW + "px"; R.style.right = "auto"; }
-  if (TL) { TL.style.left = (leftW + COLGAP) + "px"; TL.style.right = (COLGAP + rightW) + "px"; }
+  // the ruler is the page's, not the centre column's: it spans the window at both ends, so the
+  // life it draws is not squeezed into a third of it whenever the side columns are wide
+  if (TL) { const pad = 10; TL.style.left = pad + "px"; TL.style.right = pad + "px"; }
 }
 function applyCollapse(){
   document.body.classList.toggle("left-collapsed", COLLAPSE.left);
@@ -3386,9 +3397,17 @@ function dayOf(value) {
 function iso(d) { return new Date(+d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
 /* a label at either end of the row would be half outside the strip and clipped: keep the text on it */
 function labelX(x, width) { return Math.max(16, Math.min(width - 16, x)); }
+/* Two records in one month are two markers, so inside the window the ruler is laid out by day:
+   the tick of the 1st sits where a month's days begin and the 21st sits twenty days into it.
+   Outside the window a year is a few pixels wide and a day is under one, which is the whole point
+   of having a window at all. */
+function daysInMonth(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); }
 function xOf(d) {
   if (+d < +TL.winFrom) return (+d - +BIRTH) / (365.25 * 864e5) * TL.stepY;
-  if (+d <= +TL.winTo) return TL.xw0 + monthDiff(TL.winFrom, d) * TL.stepM;
+  if (+d <= +TL.winTo) {
+    const intoMonth = (d.getDate() - 1) / daysInMonth(d);
+    return TL.xw0 + (monthDiff(TL.winFrom, d) + intoMonth) * TL.stepM;
+  }
   return TL.xw1 + (+d - +TL.winTo) / (365.25 * 864e5) * TL.stepY;
 }
 
@@ -3457,7 +3476,10 @@ function buildTimeline() {
   const wfRaw = new Date(now.getFullYear() - 2, now.getMonth(), 1);
   const wf = +wfRaw < +BIRTH ? new Date(BIRTH.getFullYear(), BIRTH.getMonth(), 1) : wfRaw;
   const wt = new Date(now.getFullYear() + 2, now.getMonth() + 1, 0);
-  const W = Math.max(560, window.innerWidth - 244 - (window.innerWidth > 1180 ? 404 : 14));
+  /* the strip spans the page now: measure the element it lives in, not the centre column it
+     used to be pinned to, or the life it draws stays squeezed into a third of the window */
+  const strip = document.getElementById("tl");
+  const W = Math.max(320, strip ? strip.clientWidth : window.innerWidth - 20);
   const months = monthDiff(wf, wt) + 1;
   TL.winFrom = wf; TL.winTo = wt;
   TL.stepM = Math.max(4, Math.min(12, Math.floor((W * 0.42) / months)));
@@ -3478,7 +3500,11 @@ function buildTimeline() {
     TL.pickBound = true;
     // anywhere on the strip picks a date: hunting for a 1-pixel tick is not a way to use a timeline
     document.getElementById("tl").addEventListener("pointerdown", e => {
-      if (e.target.closest(".tick")) return;
+      /* A tick and a marker are controls of their own: each has a click of its own to run, and a
+         record of its own to open. Rebuilding the track here would take that element out from
+         under the click, the mark's handler would never fire, and the strip's day would win. Only
+         the bare strip picks a day. */
+      if (e.target.closest(".tick") || e.target.closest(".mark")) return;
       const r = T.getBoundingClientRect();
       const x = e.clientX - r.left;
       let lo = +BIRTH, hi = new Date(TL.endYear, 0, 1).getTime();
@@ -3487,16 +3513,34 @@ function buildTimeline() {
         const mid = (lo + hi) / 2;
         if (xOf(new Date(mid)) < x) lo = mid; else hi = mid;
       }
-      const d = new Date((lo + hi) / 2); d.setDate(1);
+      const d = new Date((lo + hi) / 2);
+      d.setHours(12, 0, 0, 0);     // the day under the pointer, not the first of its month
       selectDate(d);
     });
   }
 
-  const perMonth = new Map(), perYear = new Map();
-  ANALYSES.forEach(a => {
-    const k = a.at.getFullYear() + "-" + String(a.at.getMonth() + 1).padStart(2, "0");
+  /* One marker per row of the records list, on its own day: every analysis, diagnosis, visit,
+     medication, procedure and summary the list carries — the rows the page computes (today, the
+     annual summary) included — so the count a reader makes in the left column is the count they
+     make on the strip. The record itself is what the marker opens. */
+  const marks = STATE_ROWS.map(row => {
+    const node = docById(row.id);
+    const evidence = node ? finiteOrNaN(node.evidence) : Number.NaN;
+    return { id: row.id, label: String((node && (node.label || node.name)) || row.title),
+             organ: String((node && node.organ) || ""),
+             evidence: Number.isFinite(evidence) ? evidenceOf(node) : null,
+             at: dayOf(row.date) };
+  }).filter(m => m.at && !isNaN(+m.at));
+  TL.marks = marks;
+
+  const perMonth = new Map(), perDay = new Map();
+  marks.forEach(m => {
+    const k = m.at.getFullYear() + "-" + String(m.at.getMonth() + 1).padStart(2, "0");
     if (!perMonth.has(k)) perMonth.set(k, []);
-    perMonth.get(k).push(a);
+    perMonth.get(k).push(m);
+    const day = iso(m.at);
+    if (!perDay.has(day)) perDay.set(day, []);
+    perDay.get(day).push(m);
   });
 
   const tick = (d, cls, label, big) => {
@@ -3505,7 +3549,6 @@ function buildTimeline() {
     el.style.left = xOf(d).toFixed(1) + "px";
     const k = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
     const hits = perMonth.get(k) || [];
-    if (cls === "m" && hits.length) el.classList.add("has");
     if (state.date === iso(d)) el.classList.add("pick");
     el._date = d; el._hits = hits;
     if (+d > Date.now()) el.style.background = riskColour(annualRisk(ageAt(d)));
@@ -3514,7 +3557,9 @@ function buildTimeline() {
     el.addEventListener("click", () => { selectDate(d); });
     if (label) {
       const l = document.createElement("div");
-      l.className = "lbl" + (big ? " big" : "");
+      /* a January inside the window is a named year on the month scale: the label pass keeps it
+         ahead of a decade label when the two compete for a line */
+      l.className = "lbl" + (big ? " big" : "") + (cls === "m" ? " jan" : "");
       l.style.left = labelX(xOf(d), T.clientWidth).toFixed(1) + "px"; l.textContent = label;
       T.appendChild(l);
     }
@@ -3524,7 +3569,7 @@ function buildTimeline() {
   for (let y = BIRTH.getFullYear(); y <= TL.endYear; y++) {
     const d = new Date(y, 0, 1);
     if (+d >= +TL.winFrom && +d <= +TL.winTo) continue;
-    const hits = ANALYSES.filter(a => a.at.getFullYear() === y);
+    const hits = marks.filter(m => m.at.getFullYear() === y);
     const el = document.createElement("div");
     el.className = "tick" + (y % 5 === 0 ? " y5" : "") + (hits.length ? " has" : "");
     el.style.left = xOf(d).toFixed(1) + "px";
@@ -3536,7 +3581,7 @@ function buildTimeline() {
     el.addEventListener("click", () => { selectDate(d); });
     T.appendChild(el);
     const every = Math.max(5, Math.ceil(26 / Math.max(1, TL.stepY)));   // a label needs ~26 px
-    if (y % every === 0 || y === now.getFullYear()) {
+    if ((y % every === 0 || y === now.getFullYear()) && y !== BIRTH.getFullYear()) {
       const l = document.createElement("div");
       l.className = "lbl" + (y === now.getFullYear() ? " big" : "");
       l.style.left = labelX(xOf(d), T.clientWidth).toFixed(1) + "px"; l.textContent = y;
@@ -3551,6 +3596,61 @@ function buildTimeline() {
 
   const nw = document.createElement("div"); nw.className = "now";
   nw.style.left = xOf(now).toFixed(1) + "px"; T.appendChild(nw);
+  const nowLbl = document.createElement("div");
+  nowLbl.className = "lbl today";
+  nowLbl.style.left = labelX(xOf(now), T.clientWidth).toFixed(1) + "px";
+  nowLbl.textContent = "today";
+  T.appendChild(nowLbl);
+  /* the birth year is not a decade: it is the left end of the life, and it says so */
+  const birthLbl = document.createElement("div");
+  birthLbl.className = "lbl birth";
+  birthLbl.style.left = labelX(xOf(BIRTH), T.clientWidth).toFixed(1) + "px";
+  birthLbl.textContent = BIRTH.getFullYear() + " · birth";
+  T.appendChild(birthLbl);
+  /* One marker per record, on its own day. A tick per month drew a dot for the month and sent a
+     click to the month, so two analyses in one month were one dot and neither could be opened
+     from the ruler. The marker carries the record; the record is what it opens. Records that
+     share a day are fanned either side of it: two dots on one pixel leave one of them unclickable
+     and a marker that cannot open its record is not a marker. */
+  marks.forEach(m => {
+    const same = perDay.get(iso(m.at)) || [m];
+    const lift = (same.indexOf(m) - (same.length - 1) / 2) * 8;
+    const mark = document.createElement("div");
+    mark.className = "mark" + (state.event === m.id ? " cur" : "");
+    mark.dataset.record = m.id;
+    mark.style.left = (xOf(m.at) + lift).toFixed(1) + "px";
+    mark.title = m.label + " · " + iso(m.at);
+    mark.addEventListener("click", e => {
+      e.stopPropagation();
+      selectDate(m.at, m.id);
+    });
+    mark.addEventListener("mouseenter", e => tlCard(e, m.at, [m]));
+    mark.addEventListener("mouseleave", () => { TL.card.hidden = true; });
+    T.appendChild(mark);
+  });
+  /* The labels arrive from three loops - decades, the month window's Januaries, and the two named
+     ends - so they can land on top of each other: the birth label under the first decade, "today"
+     through a January label of the window. Place them by priority and by their measured width (two
+     labels 26 px apart still print on each other when one of them is 54 px wide), and give a label
+     that would print on another a line of its own below the strip. Only a label with no free line
+     is dropped; none is ever moved off its own tick. */
+  const tiers = [[], [], []];
+  const prio = l => (l.classList.contains("birth") ? 0 : l.classList.contains("today") ? 1 :
+                     l.classList.contains("jan") ? 2 : 3);
+  [...T.querySelectorAll(".lbl")]
+    .sort((a, b) => prio(a) - prio(b) || parseFloat(a.style.left) - parseFloat(b.style.left))
+    .forEach(l => {
+      const x = parseFloat(l.style.left) || 0;
+      const w = l.offsetWidth || String(l.textContent || "").length * 6;
+      /* the birth label is anchored at its left edge; every other label is centred on its tick */
+      const left = l.classList.contains("birth") ? x : x - w / 2;
+      const right = left + w;
+      const free = box => !box.some(([a, b]) => left < b + 4 && right + 4 > a);
+      const tier = tiers.findIndex(free);
+      if (tier < 0) { l.remove(); return; }
+      if (tier) l.classList.add("t" + tier);
+      tiers[tier].push([left, right]);
+    });
   refreshPick();          // the ruler always shows where it is pointing, not only after a click
 }
 
@@ -4380,21 +4480,22 @@ function renderRightPanel() {
 
 function tlCard(e, d, hits) {
   const C = TL.card;
-  const list = hits.length ? hits : ANALYSES.filter(a => a.at.getFullYear() === d.getFullYear() &&
-                                                         a.at.getMonth() === d.getMonth());
+  const list = hits.length ? hits : (TL.marks || []).filter(m => m.at.getFullYear() === d.getFullYear() &&
+                                                              m.at.getMonth() === d.getMonth());
   C.innerHTML = "";
   const h = document.createElement("h6");
   h.textContent = d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
   C.appendChild(h);
   if (!list.length) {
     const p = document.createElement("div"); p.className = "no";
-    p.textContent = "no analyses"; C.appendChild(p);
+    p.textContent = "no records"; C.appendChild(p);
   } else {
     list.forEach(a => {
       const row = document.createElement("div"); row.className = "it";
-      const dot = document.createElement("i"); dot.style.background = healthColour(a.evidence);
+      const dot = document.createElement("i");
+      dot.style.background = a.evidence == null ? "#9a9aa8" : healthColour(a.evidence);
       const t = document.createElement("span");
-      t.textContent = a.label + " · " + a.organ;
+      t.textContent = a.label + (a.organ ? " · " + a.organ : "");
       row.appendChild(dot); row.appendChild(t); C.appendChild(row);
     });
   }

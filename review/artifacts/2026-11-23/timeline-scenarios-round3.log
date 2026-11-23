@@ -1,0 +1,229 @@
+SCRUM-70 / PR #60 — run of docs/components/timeline.md § Scenarios, round 3
+==========================================================================================
+task:      t_22a131a8 "Run all ten timeline.md scenarios on the rendered page"
+run:       one session, 2026-11-23 23:33-23:36 EET (UTC 21:33-21:36)
+agent:     lia (liamijatovich) on Hermes Agent, CLI
+browser:   the Hermes browser tool only (isolated browser), file:// URL, 1280 x 577 viewport,
+           window.innerWidth = 1280, devicePixelRatio = 1, scrollX/Y = 0. No host desktop
+           application was launched, attached to or scripted; no CDP attachment to the owner's
+           browser.
+page:      /Users/denistatarenko/Work/other/render-SCRUM-70/index.html
+           sha256 bbd40af34076208f79e5fb1ed66c7b551e0943596e317f36930d79e3b91cb20b
+           297,485 bytes, 62 nodes / 71 edges. Produced by t_3f5076e3 from
+           1M_kg_skill @30d8971 with assets/health-viewer.html = branch
+           fix/SCRUM-70_timeline-full-width @183f8dc body/index.html.
+template:  body/index.html served unrendered (the #kg-graph placeholder, no document) from
+           .../render-t3f5076e3/empty/index.html for row 10; __documentState() = "absent".
+method:    every number below is read off the live page in this run — getBoundingClientRect,
+           computed style, class lists, the page's own read-only hooks (__tl, __records,
+           __mainView, __columns) — never off the source. Clicks row 6 / 8 / 9 are real
+           pointer clicks (browser_click on the element); row 7 is the strip's own pointer
+           path (__tlAt dispatches pointerdown on #tl, target = the bare strip).
+
+All ten rows were run in order, none skipped. Result: 10 / 10 PASS.
+
+
+1  open the page at 1280 px
+   action   loaded file:///…/render-SCRUM-70/index.html; measured the strip and the columns.
+   expect   strip from left edge to right edge, above all three columns, not overlapping the
+            header controls
+   observed tl rect = left 10, right 1270, width 1260, top 46, bottom 120, position fixed,
+            z-index 26 (page box 0..1280, so 10 px page padding each side = edge to edge inside
+            it). Columns: #leftCol 0..236 top 120, #main 248..833 top 122, #rightCol 845..1268
+            top 122 — the strip's bottom (120) is at or above every column's top.
+            Overlap test against every button/a/input on the page: 0 pairs intersect the strip.
+            The three header controls sit above it: summary 12..49 y 12..39, graph 1093..1123
+            y 10..40, profile 1129..1268 y 10..40. documentElement.scrollWidth = 1280 = innerWidth
+            (no horizontal scroll).
+   verdict  PASS
+   evidence screenshot evidence/row01-full-width.png
+
+
+2  look at the left end
+   action   enumerated the 26 .lbl boxes and their computed colours on the live strip.
+   expect   birth year labelled in gold and says so, not clipped by the page edge, no other
+            label on it
+   observed the birth label is the only .lbl.birth: text "1961 · birth", colour
+            rgb(201, 162, 39) = #c9a227 (gold), style left 16 px inside the track (track starts
+            10 px in, so page x 26), measured box left 26 right 79.7 — 26 px clear of the page
+            edge, not clipped. Labels on the same line (top 76) start at x 95.6 (1975); the two
+            neighbours 1965 and 1970 were moved to the second label line (top 90, x 28.8..52.2
+            and 67.4..89.9). Box intersection test against the birth label: zero overlaps.
+   verdict  PASS
+   evidence zoomed screenshot (region 0,40-820,135 of row01-full-width.png): gold
+            "1961 · birth" visible at the left, 1965 / 1970 on the line below it
+
+
+3  look at today
+   action   measured the .now element and every label box against it.
+   expect   a blue line with the word "today"; nothing printed over it
+   observed one .now: left 744.4 (page x), width 1 px, height 26 (y 54..80), background
+            rgb(127, 179, 224) = #7fb3e0 (the accent blue). Label "today": same colour
+            rgb(127,179,224), centred on the line at 731.2..757.6, top 76 (the line's own
+            annotation, one line below the ticks). Intersection test of all 25 other labels
+            with the line's rect: none. The January 2027 label, which would have printed on the
+            word "today", was given its own line (top 90) by the label pass.
+   verdict  PASS
+   evidence zoomed screenshot as row 2 — blue "today" at ~x 744, 2027 below it on line 2
+
+
+4  look at the two years either side of today
+   action   read __tl() and enumerated the .tick.m elements with their dates.
+   expect   one tick per month, and every January of that window labelled
+   observed window = 2024-11-01 .. 2028-11-30. 49 .tick.m, one for each month in that range and
+            no month twice: 2024-11, 2024-12, 2025-01 … 2028-10, 2028-11 (enumerated in the run;
+            count 49 = monthDiff(2024-11, 2028-11) + 1). January ticks: 2025, 2026, 2027, 2028.
+            Every one of them carries its year label exactly once: 2025 @507, 2026 @627,
+            2027 @747 (line 2), 2028 @867 — janLabelCountPerJanuary = [1,1,1,1].
+   verdict  PASS
+
+
+5  count markers against the records list
+   action   counted .mark and #stateRows .srow, matched them by dataset.record, and grouped
+            the markers by day.
+   expect   one marker per record, and two records in the same month are two markers
+   observed 59 .mark, 59 .srow rows, __records() 59. Every marker carries a record id and every
+            row has a marker: marksMissingRow = [] and rowsMissingMark = []. Multi-record days
+            are fanned, not merged: 2026-10-21 has two — "Lipid panel" at left 719.5 and
+            "ALT" at 727.5 (8 px apart, style-left is the dot centre). Other same-day fans:
+            2026-11-12 (2), 2024-02-13 (4), 2023-05-16 (3), 2021-03-30 (4), 2019-08-20 (4),
+            2019-08-12 (3), 2016-10-11 (2), 2012-03-14 (5), 2006-04-18 (3). The marker set
+            covers all kinds the list carries: analysis, diagnosis, visit, medication,
+            procedure and the annual / today summary rows.
+   verdict  PASS
+
+
+6  click the marker of the ALT 2026-10-21 analysis
+   action   real pointer click on the marker "ALT · 2026-10-21" (dataset.record
+            obs-alt-2026) via browser_click — pointerdown + pointerup + click on the element,
+            not element.click().
+   expect   centre shows that analysis (not the summary), the records list highlights that row,
+            the panel's heading reads 2026-10-21 → 2026-11-23, and the marker turns blue and
+            larger
+   observed before the click: date 2026-11-23, current marker "today", centre "today summary".
+            after: __tl().date = "2026-10-21"; #main dataset.record = obs-alt-2026, view
+            "analysis", kicker "2026-10-21 · analysis", title "ALT" (sections where it came from /
+            what it means / linked items) — the analysis, not the summary; the ALT row carries
+            class "srow on" and is visible inside the list viewport; the panel header reads
+            "forecast and recommendations 2026-10-21 → 2026-11-23" and its cells split
+            "then · 2026-10-21" / "now · 2026-11-23"; the readout reads "2026-10-21 · 65 y".
+            The clicked marker now has class "mark cur", computed width/height 9 x 9 px and
+            background rgb(127,179,224) (blue), while a non-current marker is 7 x 7 px
+            rgb(154,154,168) (grey). Exactly one marker is current.
+   verdict  PASS
+   evidence screenshot evidence/row06-alt-marker-click.png (centre ALT, highlighted ALT row,
+            panel "2026-10-21 → 2026-11-23", blue 9 px dot on the strip under the tooltip
+            "OCT 2026 · ALT · liver")
+
+
+7  click the bare strip between two markers
+   action   two bare-strip picks through the strip's own pointer path (pointerdown dispatched
+            on #tl itself, so the target is the strip and not a .mark / .tick): one on a day
+            with no record (2018-03-01) and one on a day that carries records (2019-08-20,
+            four of them).
+   expect   the day changes, the centre shows whatever record stands on that day, and no marker
+            is in the current colour unless one sits there
+   observed from 2026-10-21: clicking at 2018-03-01 moved the date to 2018-03-01 (readout
+            "2018-03-01 · 57 y", pick tick on 2018-01-01), the centre went bare with the kicker
+            "no record on this date", and the accent marker that had been on obs-alt-2026
+            cleared with none taking its place (cur = [] after the pick).
+            Clicking at 2019-08-20 moved the date to 2019-08-20 (readout "2019-08-20 · 58 y")
+            and the centre showed that day's record — dataset.record
+            proc-coronary-angiography-2019, view "record", title "Coronary angiography" — with
+            that row classed "srow on". The four markers standing on 2019-08-20 all stayed
+            class "mark" (no accent marker), which is the row's clause: the strip picked the
+            day, not a record, and no marker is in the current colour unless one sits under the
+            click.
+   verdict  PASS
+
+
+8  step with the player's four buttons
+   action   pressed all four buttons in the centre header (start, previous, next, end), then
+            two more previous steps, checking date / centre record / readout after each.
+   expect   each step lands on a record, never on an empty day, and the ruler's readout agrees
+            with the centre
+   observed start   -> date 2006-04-18, centre obs-lipids-2006 "Lipid panel", readout
+                       "2006-04-18 · 45 y", row marked
+            previous -> 2006-04-18 (clamped at the first event: still a record, not an empty day)
+            next    -> 2009-05-20, obs-lipids-2009 "Lipid panel", readout "2009-05-20 · 48 y"
+            end     -> 2026-11-12, obs-hba1c-2026 "HbA1c", readout "2026-11-12 · 65 y";
+                       the last analysis in the document is 2026-11-12 and the first is
+                       2006-04-18, so start/end really are the ends of the record sequence
+            previous -> 2026-10-21, obs-lipids-2026 "Lipid panel", readout "2026-10-21 · 65 y"
+            every stop: the marked row, #main dataset.record and the readout date agree
+            (dateMatchesCentre = true at each of the five stops run).
+   verdict  PASS
+
+
+9  collapse the records list and the panel
+   action   clicked #collapseLeft and #collapseRight, measured, then restored both.
+   expect   the strip stays full width and its markers do not move
+   observed before: #tl 10..1270 width 1260 top 46; 59 markers. After: identical #tl
+            (10,1270,1260,46) and an identical marker signature (id + style.left for all 59,
+            identical strings) — identicalTl = true, identicalMarkPositions = true.
+            body class "left-collapsed right-collapsed", the two columns became 44 px rails and
+            the centre widened to 56..1212; the strip did not move or resize. Expanding both
+            restored the same 59 positions again.
+   verdict  PASS
+
+
+10 load the template with no document
+   action   opened body/index.html unrendered (the #kg-graph placeholder) with body/lib beside
+            it, at the same 1280 px viewport.
+   expect   an empty strip that says "no records yet", no invented birth, no markers
+   observed __documentState() = "absent". The strip is still full width (10..1270) and holds
+            one .empty element, visible, text "no records yet". Labels 0, .lbl.birth 0, .mark 0,
+            .tick 0, .now 0 — no birth year, no today line, no invented person (the header reads
+            "no profile"; the centre says "nothing is recorded yet: there is no plan and
+            nothing done to roll up"; all four player buttons are disabled). Note: the readout
+            element shows "2026-11-23" rather than "no records" because the template's computed
+            today row sets a date before tlReadout runs; it invents nothing and the row does not
+            ask for it.
+   verdict  PASS
+   evidence screenshot evidence/row10-empty-template.png
+
+
+Summary
+-------
+row 1  PASS  full-width strip 10..1270 at 1280, above the columns, clear of the header
+row 2  PASS  "1961 · birth" gold #c9a227 at x 26, unclipped, no label on it
+row 3  PASS  blue 1 px today line at x 744.4 (#7fb3e0), labelled "today", no other label on it
+row 4  PASS  49 month ticks, one per month 2024-11..2028-11; Januaries 2025-2028 each labelled
+row 5  PASS  59 markers / 59 records-list rows; same-month records are separate fanned markers
+row 6  PASS  clicking ALT 2026-10-21 opens the analysis, marks its row, panel 2026-10-21 →
+             2026-11-23, marker 9 px blue; others 7 px grey
+row 7  PASS  bare strip picks the day; centre shows that day's record (or the dated empty
+             state); no marker turns accent unless the click hit one
+row 8  PASS  start / prev / next / end each land on a record; readout date == centre date
+row 9  PASS  collapsing both columns leaves the strip and all 59 marker positions identical
+row 10 PASS  unrendered template: "no records yet", zero labels, zero markers, no birth
+
+10 / 10 PASS. No row failed, so nothing is reported as a partial pass.
+
+
+Artifacts (all present at the end of this run)
+----------------------------------------------
+evidence/row01-full-width.png        sha256 a2f9052fa6897f7763c814468f2acb00a737eefafce1c6f712c17941301c26a5
+evidence/row06-alt-marker-click.png  sha256 846f7f219b81349ff7c88f6ee28c2d430b1085aafa175e369f37feaea63eba84
+evidence/row10-empty-template.png    sha256 a730e4d9c05ba39165587b68777b33715244ab769c9383ce59c4d3f02d73ff34
+paths relative to
+  /Users/denistatarenko/.hermes/kanban/boards/health/workspaces/t_d5bc0053/
+
+Copy of this log for the review recorder:
+  /Users/denistatarenko/.hermes/kanban/boards/health/workspaces/t_d5bc0053/render-t3f5076e3/webapp/review/artifacts/2026-11-23/timeline-scenarios-round3.log
+
+
+Notes, none of which is a failed row
+------------------------------------
+- Row 7, second sub-case: after a bare-strip pick on a day that carries records the centre
+  shows that day's record (readout and highlight agree) but no marker is accent-coloured.
+  That is the row's own wording — the strip picked the day, not a record — and it is what the
+  page does; recorded here so nobody reads the nuance as a hidden pass.
+- At the year scale (outside the ±2-year month window) a year is a few pixels wide, so markers
+  of different days in the same year can sit within a marker width of each other (e.g.
+  2016-09-14 and 2016-09-20 both centre near x 425). The documents already record this as
+  "What is still missing"; it does not change the marker count or the day each marker carries.
+- This run counts 49 month ticks from 2024-11 (the round-2 log in the tree says 48 from
+  2024-12). The live measurement here is the one above: 49 .tick.m whose _date values enumerate
+  every month from 2024-11 to 2028-11 with no gaps or repeats, and TL.winFrom/winTo =
+  2024-11-01 / 2028-11-30.

@@ -1,0 +1,72 @@
+SCRUM-70 / PR #60 — reviewer's run of docs/components/timeline.md section Scenarios, round 2
+============================================================================================
+reviewer: lia (liamijatovich)
+branch:   fix/SCRUM-70_timeline-full-width @ 0d42e635cd73ea63d0b4ae21c8026d7ede85fb63
+tested:   0d42e63 (this run; surface is what review.ts hashes)
+page:     1M_kg_skill @30d8971 cloned into an empty directory; the branch's body/index.html copied
+          to assets/health-viewer.html and body/lib to assets/lib (the template's <script src> are
+          relative), kg.py render --graph kg_demo.json --app health-viewer -> 62 nodes / 71 edges,
+          297,485 bytes; opened in the Hermes browser at window.innerWidth = 1280, dpr 1.
+story:    kg.py render of a one-line-story document I wrote beside the skill (profile female/1980,
+          one observation ALT 2024-05-14 52 U/L) -> 2 nodes, 260,252 bytes, same run.
+template: body/index.html served unrendered (kg-graph placeholder, __documentState() = "absent").
+
+Every number below was measured on the rendered page in this run (getBoundingClientRect,
+elementFromPoint, computed style); none is read off the source.
+
+1  PASS  strip rect x 10..1270 (width 1260) at 1280 px. Columns #leftCol 0..236 at top 120,
+         #main 248..833 at 122, #rightCol 845..1268 at 122 — the strip (top 46..120) sits above
+         all three. Header bar 0..50; its children (title 57..155.2 at y 15.8..34.2, profile
+         1160.6..1256 at 16.8..33.2) do not intersect the strip rect: zero overlapping pairs.
+
+2  PASS  26 labels, zero overlapping pairs by measured boxes (left/right/top/bottom) on the demo
+         document; 22 labels, zero pairs, on the story document. Birth label "1961 · birth"
+         x 26..79.7 on line 1 (top 76), colour rgb(201,162,39), not clipped (26 px from the page
+         edge); 1965 (28.8..52.2) and 1970 (67.4..89.9) moved to line 2 (top 90), so the 12.3 px
+         overlap of round 1 is gone. Story: "1980 · birth" 26..81.2, 1985 on line 2.
+
+3  PASS  one .now line: 1 px wide, x 744.4, y 54..80, rgb(127,179,224). "today" label
+         731.2..757.6 on its own line, no other label on that line. elementsFromPoint at the
+         line's midpoint returns the strip and the page, not a label or a marker label.
+
+4  PASS  151 ticks; the month window is drawn by day-agnostic month ticks at 10 px, 48 of them
+         from x 497 (Dec 2024) to 967 (Nov 2028) — one per month. Every January of the window is
+         labelled: 2025 (504.9), 2026 (624.8), 2027 (745.1, on line 2 next to "today"), 2028 (864.8).
+
+5  PASS  59 .mark against 59 .srow rows. The kinds the round-1 build had none of now have markers:
+         "Type 2 diabetes · 2021-04-08" (diagnosis), "Family practice visit, 8 Apr 2021" (visit),
+         "Metformin 1000 mg, twice daily with food · 2021-04-15" (medication), "Colonoscopy with
+         polypectomy · 2023-05-16" (procedure), the six "annual summary · 01-01" rows and the
+         computed "today summary · 2026-11-23". Two records in one month are two markers on their
+         own days: 2026-10-21 lipid at x 726.0 and ALT at 734.0; 2026-11-12 HbA1c 732.2, eGFR 741.2.
+
+6  PASS  real pointer click (CDP, not element.click()) on the marker title "ALT · 2026-10-21":
+         centre h2 "ALT", main header "2026-10-21 · analysis", .srow.on "2026-10-21 · analysis
+         44 U/L", panel heading "2026-10-21 → 2026-11-23", exactly one .mark.cur — the ALT marker,
+         width 9 px (normal 7 px), rgb(127,179,224). Not the summary, not 2026-10-01.
+
+7  PASS  bare strip pointer at x=1000 -> 2030-08-12, at x=640 -> 2026-01-11; element under both
+         points is #tl itself; centre "no record on this date"; 0 .mark.cur, 0 rows marked.
+
+8  PASS  player, four real clicks: start -> 2006-04-18 Lipid panel (readout "2006-04-18 · 45 y"),
+         next -> 2009-05-20 (48 y), next -> 2011-02-15 (50 y), prev -> 2009-05-20 (48 y),
+         end -> 2026-11-12 HbA1c (65 y). Each step lands on a record, marks one row, and the
+         ruler's readout (#tlDate) equals the centre's date.
+
+9  PASS  collapse records list and forecast panel (real clicks): #leftCol 44 px, #rightCol 44 px;
+         strip still 10..1270 (1260 px); all 59 marker lefts identical to 0.000 px; 151 ticks.
+
+10 PASS  template with no document: __documentState() "absent", strip text "no records yet",
+         0 .mark, 0 .tick, 0 .lbl, 0 .now, no birth label, player's four buttons disabled,
+         bar reads "no profile", strip still 1260 px wide.
+
+CAVEAT measured, not a row (reported to the author, listed in the component's own "What is still
+missing"): 32 of the 59 markers have their centre covered by another marker, so for those the
+strip opens the covering record instead of the one aimed at — e.g. the centre of "annual summary ·
+2007-01-01" resolves to "Annual check-up, 18 Apr 2006". The 8 px fan for records sharing a day is
+about a year wide at the year scale, so a fanned cluster lands on the neighbouring dates (2024-02-13
+fanned to 476..500 and 2023-05-16's to 474..490, 2021-03-30's to 454..485). Inside the month window
+a day is 0.33 px, so this is arithmetic, not a slip; the rows above do not test it.
+
+Pipeline: bun run verify exits 0 at 0d42e63 (lint, typecheck, check:case, build:demo, unit,
+contract, branch-name, split).
