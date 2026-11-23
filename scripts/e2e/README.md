@@ -136,8 +136,10 @@ test is blocked, not started. The harness prints the block to add and exits 2.
 | `report.json` | every check, pass/fail, plus the paths above |
 | `room/` | with `--keep-room`, the clean room as it was left — its `storage/`, the app's `check/` and what was installed |
 
-A screenshot is the file `browser_vision` wrote into the capture session's own cache, copied
-here; it is not re-rendered by the harness.
+A screenshot is the file the capture tool wrote, copied here; it is not re-rendered by the harness.
+`report.json`'s `browser.routes` says which route took each one (`browser_vision` or
+`agent-browser`), and `evidence_gaps` lists every capture the run could not make — a gap on a green
+receipt is a record, not a failure.
 
 ## Why a browser session and not a driver
 
@@ -162,7 +164,24 @@ the run if it called anything other than those three tools. An allowlist rather 
 `browser_*` prefix, because the toolset it is offered also carries `browser_exec` (arbitrary code
 on the host), and a tool is not made safe by the first word of its name.
 
-Two consequences a reviewer should know:
+Two routes take the picture, and the receipt names which one did. The first is the session's own
+`browser_vision`. The second exists because the first can be broken in a way the product is not:
+on 2026-11-23 `browser_vision` timed out at 30 s on every call — three attempts, `https://example.com`
+included — while the same bundled `agent-browser` binary photographed the page in 2.1 s. So when the
+session leaves no usable PNG, the harness spawns that binary itself (its own headless Chromium,
+`open` then `screenshot`, absolute output paths only) and records `agent-browser` as the route. The
+owner-policy patterns are applied to the binary *before* it is spawned (`hostAppHit`): a path naming
+a desktop application is refused, and nothing goes through a shell, so `open -a` and `osascript` are
+unreachable rather than merely discouraged. `E2E_CAPTURE_PROBE=broken` breaks this route on purpose,
+which is how the gap path is exercised end to end.
+
+A page that was never *read* is still a red run: `case.browser`, `case.dom`, `case.claim` and the
+rest assert the product and stay hard. A page that could not be *photographed* is not: the
+screenshot check carries `hard: false`, lands in `evidence_gaps` on `report.json`, prints as `gap`,
+and does not stop the receipt from going green (`receipt.ts` says why in one place). The commit
+status says how many gaps there were, so a green receipt never claims a photograph it does not have.
+
+The consequences a reviewer should know:
 
 - There is no pre-load console-error capture. A page that throws before a listener could be
   attached is caught structurally instead: `ready` (the app mounted and left its first-frame

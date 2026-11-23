@@ -81,9 +81,18 @@ is graph-page evidence — but it can never authorise a columns-page change. Tha
 On a pass, `run.ts` comments and attaches, so the reviewer never has to open a directory to know
 whether the run happened: the page each capture was (graph or case), replay counts for the clean
 room and the replay (records drawn and column widths on the columns page), DOM bytes and sha256 for
-each, the screenshot paths, the card's own `expect` hits per page, and the three policy checks with
-the number of child tool calls they scanned. On a failure it attaches the transcripts and the
-screenshots, posts `e2e=failure`, and moves the card out of `review`.
+each, the screenshot paths and which route took each one, the card's own `expect` hits per page, and
+the three policy checks with the number of child tool calls they scanned. On a failure it attaches
+the transcripts and the screenshots, posts `e2e=failure`, and moves the card out of `review`.
+
+A run can be green with an evidence gap on it. A missing photograph — `browser_vision` deadlocked,
+the bundled `agent-browser` binary was not there either — is recorded in `report.json`'s
+`evidence_gaps`, printed as `gap`, and named in the commit status (`PASS — 1 evidence gap`). It is
+not a red check, because a capture tool that does not answer says nothing about the product; the
+checks that do (`*.dom`, `*.browser`, `*.claim`, `*.records`) stay hard, and a page that was never
+read is still a failure. The rule lives in `scripts/e2e/receipt.ts` and is applied on both sides of
+the gate — `run.ts` writes it, `gate.ts` reads it — so a receipt cannot be green to one and red to
+the other.
 
 ## The room's boundary, unchanged
 
