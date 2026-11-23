@@ -175,6 +175,14 @@ a desktop application is refused, and nothing goes through a shell, so `open -a`
 unreachable rather than merely discouraged. `E2E_CAPTURE_PROBE=broken` breaks this route on purpose,
 which is how the gap path is exercised end to end.
 
+The direct route passes the CLI a `PATH` and deliberately *not* `AGENT_BROWSER_EXECUTABLE_PATH`:
+pointing that variable at the packaged `Google Chrome for Testing` — the value Hermes gives its own
+browser — makes this CLI's `open` answer in 1.4 s and its `screenshot` never return (40 s by hand,
+killed at 60 s in the harness, measured 2026-11-23). Left unset, the same CLI launches the Chromium
+it manages itself, visible in `ps` as `~/.hermes/tools/chromium-…/Google Chrome for Testing
+--headless=new` and never `/Applications/Google Chrome.app`, and photographs the same 2 MB page in
+2.7 s. So the browser is still the harness's, chosen by the harness's own CLI.
+
 A page that was never *read* is still a red run: `case.browser`, `case.dom`, `case.claim` and the
 rest assert the product and stay hard. A page that could not be *photographed* is not: the
 screenshot check carries `hard: false`, lands in `evidence_gaps` on `report.json`, prints as `gap`,
