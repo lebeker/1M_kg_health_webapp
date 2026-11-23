@@ -38,9 +38,8 @@ import type { ToolCall } from './hermes'
 import { inject } from './inject'
 import { worktreeState } from './git-state'
 import { captureScopeViolations, hostAppCalls, outsideRoomCalls } from './policy'
+import { type Check, describeGaps, receiptDescription, screenshotCheck, verdict } from './receipt'
 import { onRemote, postStatus } from './status'
-
-type Check = { name: string; ok: boolean; detail: string; hard?: boolean }
 
 /** The parts of a kg/1 document the harness reads. */
 type KgDocument = {
@@ -271,7 +270,10 @@ function pageChecks(stage: string, capture: PageCapture, document: KgDocument): 
     {
       name: `${stage}.browser`,
       ok: capture.problems.length === 0,
-      detail: capture.problems.length === 0 ? 'browser_navigate + browser_console + browser_vision, all clean' : capture.problems.join(' / '),
+      detail:
+        capture.problems.length === 0
+          ? `the page was opened and read (${capture.screenshotRoute ? `photographed by ${capture.screenshotRoute}` : 'not photographed'})`
+          : capture.problems.join(' / '),
     },
     {
       name: `${stage}.url`,
@@ -347,11 +349,10 @@ function pageChecks(stage: string, capture: PageCapture, document: KgDocument): 
       ok: Number(values.domBytes ?? 0) > 10_000 && String(values.domSha256 ?? '').length === 64,
       detail: `${Number(values.domBytes ?? 0)} bytes of DOM, sha256 ${String(values.domSha256 ?? '').slice(0, 12)}`,
     },
-    {
-      name: `${stage}.screenshot`,
-      ok: capture.screenshotBytes > 15_000,
-      detail: `${capture.screenshotBytes} bytes of PNG at ${capture.screenshot || '(none)'}`,
-    },
+    // Not hard: the page's own checks decide the run. A missing photograph is a gap on the
+    // receipt (`receipt.ts`), because a capture tool that deadlocks is not a product defect —
+    // SCRUM-64, where `browser_vision` timed out on every call while the DOM read was perfect.
+    screenshotCheck(stage, capture),
   )
   if (claim.length === 0) {
     checks.push({ name: `${stage}.claim`, ok: false, detail: 'the card states no expected text, so its own claim was not checked' })
@@ -364,7 +365,9 @@ function pageChecks(stage: string, capture: PageCapture, document: KgDocument): 
 
 function printChecks(checks: Check[]) {
   for (const check of checks) {
-    const flag = check.ok ? 'ok  ' : check.hard === false ? 'note' : 'FAIL'
+    // `gap` is not `note`: it is a check the run could not satisfy for a reason that is not the
+    // product, and the word is the receipt's word for it.
+    const flag = check.ok ? 'ok  ' : check.hard === false ? 'gap ' : 'FAIL'
     console.log(`  ${flag} ${check.name} — ${check.detail}`)
   }
 }
@@ -442,6 +445,7 @@ function evidenceBody(input: {
   document: KgDocument
   captures: PageCapture[]
   checks: Check[]
+  gaps: Check[]
   receipt: string
 }): string {
   const lines = [
@@ -450,6 +454,7 @@ function evidenceBody(input: {
     `run: ${input.evidence}`,
     `branch ${input.branch} @ ${input.commit.slice(0, 7)} (${input.dirty ? 'dirty worktree — not commit-bound' : 'clean tree'})`,
     `page ${input.card.pages.join('+')} — every claim below names the page it was checked against`,
+    ...(input.gaps.length > 0 ? ['', 'evidence gaps (a capture tool that did not answer, not a product failure):', ...describeGaps(input.gaps).map((gap) => `- ${gap}`)] : []),
     '',
     'replay counts:',
     ...input.captures.map((capture) => `- ${capture.label}: ${pageCounts(capture, input.document)}`),
@@ -461,7 +466,9 @@ function evidenceBody(input: {
     }),
     '',
     'screenshots:',
-    ...input.captures.map((capture) => `- ${capture.label}: ${capture.screenshot || '(none)'}`),
+    ...input.captures.map(
+      (capture) => `- ${capture.label}: ${capture.screenshot || '(none)'}${capture.screenshotRoute ? ` — taken by ${capture.screenshotRoute}` : ''}`,
+    ),
     '',
     'claim:',
     ...input.captures.flatMap((capture) => {
@@ -617,13 +624,19 @@ async function main() {
       writeFileSync(join(evidence, 'capture.tools.json'), `${JSON.stringify(capture.tools, null, 2)}\n`)
       console.log(`capture exit ${capture.code} in ${capture.seconds}s, ${capture.tools.length} tool calls: ${capture.tools.join(' | ') || '(none)'}`)
       checks.push({
+        // Hard only when the session produced nothing at all: then no page's DOM was read and
+        // there is no evidence to judge. A killed or non-zero session that still read the pages
+        // is a capture gap, and its pages carry their own red checks if they were not read.
         name: 'capture.session',
-        ok: capture.code === 0 && capture.sessionProblems.length === 0 && capture.tools.length > 0,
+        ok: capture.sessionProblems.length === 0 && capture.tools.length > 0,
         detail:
           capture.sessionProblems.length > 0
             ? `${capture.sessionProblems.join(' / ')} — see ${capture.logPath}`
-            : `exit ${capture.code} after ${capture.seconds}s; ${capture.tools.length} browser_* calls`,
+            : `exit ${capture.code} after ${capture.seconds}s; ${capture.tools.length} browser_* calls${capture.evidenceGaps.length > 0 ? `, ${capture.evidenceGaps.length} capture gap(s)` : ''}`,
       })
+      for (const gap of capture.evidenceGaps) {
+        checks.push({ name: `capture.gap`, ok: false, hard: false, detail: gap })
+      }
 
       for (const page of capture.pages) {
         checks.push(...pageChecks(page.label, page, document))
@@ -645,7 +658,12 @@ async function main() {
 
   checks.push(...policyChecks(allCalls, roomCalls, captureCalls))
 
-  const failed = checks.filter((check) => !check.ok)
+  /**
+   * Two lists, not one. `failures` are the product checks that are red and they are what makes the
+   * run red. `gaps` are the capture checks that could not be satisfied — a photograph that no
+   * camera took — recorded on the receipt and never a veto (`receipt.ts` says why).
+   */
+  const { passed, failures: failed, gaps } = verdict(checks)
   /**
    * Which page each claim was checked against. The page kinds are recorded per capture as well as
    * on the card, because the reviewer's question is not "what did the card ask for" but "what did
@@ -672,7 +690,14 @@ async function main() {
     dirty_files: dirtyFiles,
     evidence,
     pages,
-    browser: { route: 'hermes browser_* tools in a capture session', tools: captures.length > 0 },
+    // The receipt names both routes, because which camera took the picture is part of the record:
+    // a run that only ever used the bundled binary never exercised `browser_vision`, and a
+    // reviewer who knows the wrapper is broken can tell that apart from a clean session.
+    browser: {
+      route: 'hermes browser_* tools in a capture session, with the bundled agent-browser binary as the fallback',
+      tools: captures.length > 0,
+      routes: captures.map((capture) => ({ page: capture.label, route: capture.screenshotRoute || 'none' })),
+    },
     artifacts: {
       kg_json: join(evidence, 'kg.json'),
       values: captures.map((page) => join(evidence, `${page.label}.values.json`)),
@@ -681,7 +706,9 @@ async function main() {
       capture_log: captureLog,
     },
     checks,
-    passed: failed.length === 0,
+    /** What the run could not photograph. Named here so a green receipt is not silent about it. */
+    evidence_gaps: gaps.map((gap) => ({ check: gap.name, detail: gap.detail })),
+    passed,
     finished_at: new Date().toISOString(),
   }
   writeFileSync(join(evidence, 'report.json'), `${JSON.stringify(report, null, 2)}\n`)
@@ -697,19 +724,26 @@ async function main() {
     if (!options.status) return 'not posted (--no-status)'
     if (dirty) return 'not posted — the worktree was dirty, so this run is not evidence of the commit'
     if (!onRemote(worktree, commit)) return `not posted — ${commit.slice(0, 7)} is not on origin, so it has no pull request`
-    const state = failed.length === 0 ? 'success' : 'failure'
-    const pages = `[${card.pages.join('+')}]`
-    const what = failed.length === 0 ? 'PASS' : `${failed.length} failed: ${failed.map((check) => check.name).slice(0, 2).join(', ')}`
+    // A capture gap does not change the state. That is the whole point of the card: the receipt
+    // records what could not be photographed and still lets a green run be green.
+    const state = passed ? 'success' : 'failure'
     const posted = postStatus({
       worktree,
       sha: commit,
       state,
-      // The page marker is part of the receipt, not decoration: `ci-gate.ts` refuses a diff that
-      // moves the columns page when the receipt on its head does not say a case-page run made it.
-      description: `G3 ${pages} ${what} — ${basename(evidence)}${failed.length === 0 ? ` — ${card.id}` : ''}`,
+      description: receiptDescription({
+        pages: card.pages,
+        failures: failed,
+        gaps,
+        run: basename(evidence),
+        // A kanban card is named by its id; a card file is named by its file, not by the absolute
+        // path the reader cannot use (and which spent the status's 140 characters on `/Users/…`).
+        cardId: card.source === 'kanban' ? card.id : basename(card.id),
+      }),
     })
     if (!posted.ok) return `NOT posted: ${posted.output.split('\n').slice(0, 2).join(' ')}`
-    return `e2e=${state} posted on ${commit.slice(0, 7)} (${basename(evidence)})`
+    const gapNote = gaps.length > 0 ? ` — ${gaps.length} evidence gap(s): ${gaps.map((gap) => gap.name).join(', ')}` : ''
+    return `e2e=${state} posted on ${commit.slice(0, 7)} (${basename(evidence)})${gapNote}`
   })()
   writeFileSync(join(evidence, 'status.txt'), `${receipt}\n`)
   console.log(`status  ${receipt}`)
@@ -717,9 +751,14 @@ async function main() {
   console.log()
   printChecks(checks)
   console.log()
-  if (failed.length === 0) {
-    console.log(`PASS  ${card.id} — ${checks.length} checks, evidence in ${evidence}`)
-    for (const capture of captures) console.log(`      ${capture.label}: ${describeValues(capture.values, capture.kind)} — ${capture.screenshot}`)
+  if (passed) {
+    console.log(`PASS  ${card.id} — ${checks.length} checks${gaps.length > 0 ? `, ${gaps.length} evidence gap(s)` : ''}, evidence in ${evidence}`)
+    for (const capture of captures) {
+      console.log(
+        `      ${capture.label}: ${describeValues(capture.values, capture.kind)} — ${capture.screenshot || '(no screenshot)'}${capture.screenshotRoute ? ` (${capture.screenshotRoute})` : ''}`,
+      )
+    }
+    for (const gap of describeGaps(gaps)) console.log(`      ${gap}`)
     if (options.comment && card.source === 'kanban') {
       const files = [
         join(evidence, 'report.json'),
@@ -727,7 +766,7 @@ async function main() {
         ...captures.map((page) => page.screenshot).filter(Boolean),
         ...captures.map((page) => join(evidence, `${page.label}.values.json`)).filter((path) => existsSync(path)),
       ]
-      commentOnCard(card.id, evidenceBody({ card, branch, commit, dirty, evidence, document, captures, checks, receipt }), files)
+      commentOnCard(card.id, evidenceBody({ card, branch, commit, dirty, evidence, document, captures, checks, gaps, receipt }), files)
     }
     process.exit(0)
   }
@@ -736,6 +775,7 @@ async function main() {
     `G3 agentic e2e failed on ${card.id} ("${card.title}")${options.label ? ` [${options.label}]` : ''}: ${failed.length} of ${checks.length} checks.`,
     '',
     ...failed.map((check) => `- ${check.name}: ${check.detail}`),
+    ...(gaps.length > 0 ? ['', 'evidence gaps (recorded, not the reason for this failure):', ...describeGaps(gaps).map((gap) => `- ${gap}`)] : []),
     '',
     `Prompt: "${card.prompt}"`,
     `Build: ${branch} @ ${commit.slice(0, 7)}${dirty ? ' (dirty worktree — not commit-bound)' : ''}; evidence: ${evidence}`,

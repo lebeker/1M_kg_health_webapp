@@ -1,27 +1,33 @@
 /**
  * The browser half of G3 — and the only place a page is opened.
  *
- * The harness does not drive a browser and does not import a browser driver. It starts one
- * narrowly scoped Hermes session whose only toolset is `browser`, hands it the pages to look
- * at, and reads the session's own record stream back. The page is opened by `browser_navigate`,
- * read by `browser_console`, and photographed by `browser_vision`, in the managed browser
- * Hermes runs for that session (headless, throwaway profile, no real-profile copy). The owner
- * policy forbids bots from launching or attaching to desktop applications, so nothing here
- * spawns Chrome, CDP or Playwright, and a headless-chrome command in a child's transcript is a
- * failed check rather than a workaround.
+ * Two routes, one rule: the harness never drives a desktop application. The page is opened by the
+ * capture session's `browser_navigate`, read by `browser_console`, and photographed by
+ * `browser_vision`, in the managed browser Hermes runs for that session (headless, throwaway
+ * profile, no real-profile copy). When that photograph does not arrive — the 2026-11-23 incident
+ * was `browser_vision` deadlocking at 30 s on every call while the engine underneath answered in
+ * 2.1 s — the harness takes the picture itself through the same bundled `agent-browser` binary,
+ * which spawns its own headless Chromium. No `open -a`, no `osascript`, no CDP against the
+ * operator's browser, and a host-application path is refused before it is spawned (`hostAppHit`).
  *
  * What comes back per page is not a claim, it is the page: the readiness boolean, the title,
- * the header, the visible text, and a sha256 over the live DOM. The screenshot is the file the
- * `browser_vision` tool wrote into this session's own cache — the harness copies it, it is not
- * re-rendered.
+ * the header, the visible text, and a sha256 over the live DOM. The DOM read is the evidence the
+ * run is judged on, and it stays a hard check. The screenshot names the route that took it, and
+ * a missing one is an evidence gap on the receipt (`receipt.ts`) — never a red run, because a
+ * broken camera is not a product defect.
  */
+import { spawnSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 import type { PageKind } from './card'
 import { browserEnv, endpointConfig, packagedAgentBrowser, runChat, writeHermesHome, type ToolCall } from './hermes'
+import { hostAppHit } from './policy'
 
 export type Page = { label: string; url: string; expect: string[]; kind: PageKind }
+
+/** Which path took a page's photograph. The receipt names it per page. */
+export type ScreenshotRoute = 'browser_vision' | 'agent-browser' | ''
 
 export type PageCapture = {
   label: string
@@ -30,14 +36,21 @@ export type PageCapture = {
   kind: PageKind
   /** The object `browser_console` returned; `{}` when the session never got that far. */
   values: Record<string, unknown>
-  /** Evidence-dir path of the PNG `browser_vision` wrote, or '' when there was none. */
+  /** Evidence-dir path of the PNG, or '' when there was none. */
   screenshot: string
   screenshotBytes: number
+  /** Which route produced `screenshot`: the session's `browser_vision`, or `agent-browser`. */
+  screenshotRoute: ScreenshotRoute
   /**
-   * What went wrong for this page, in the harness's words. Empty when the page was captured
-   * and the values name the URL that was asked for.
+   * What the page could not tell us in the harness's words — a console read that never landed, a
+   * value naming another URL. These are product evidence, so `run.ts` treats them as hard.
    */
   problems: string[]
+  /**
+   * What could not be photographed. Not the product: recorded on the receipt as a gap, and never
+   * the reason a green run turns red.
+   */
+  evidenceGaps: string[]
 }
 
 export type CaptureRun = {
@@ -49,7 +62,10 @@ export type CaptureRun = {
   seconds: number
   code: number
   logPath: string
+  /** The capture session itself failed to be a session: no tool calls at all. Hard. */
   sessionProblems: string[]
+  /** The session ran but a photograph is missing or thin. Recorded, never a red run. */
+  evidenceGaps: string[]
 }
 
 /**
@@ -221,9 +237,114 @@ export type CaptureOptions = {
 }
 
 /**
+ * A file that is a PNG, and what is wrong with it when it is not one. Both routes go through
+ * this: a photograph that is not a picture is the same defect whichever path produced it.
+ */
+function pngState(path: string): { ok: boolean; bytes: number; why: string } {
+  if (!existsSync(path)) return { ok: false, bytes: 0, why: 'no file' }
+  const bytes = statSync(path).size
+  if (bytes === 0) return { ok: false, bytes, why: 'empty file' }
+  const magic = readFileSync(path).subarray(0, 8).toString('hex')
+  if (magic !== '89504e470d0a1a0a') return { ok: false, bytes, why: 'not a PNG' }
+  return { ok: true, bytes, why: '' }
+}
+
+export type DirectCapture = { ok: boolean; bytes: number; detail: string }
+
+/**
+ * The route that does not depend on `browser_vision`: the harness spawns the bundled
+ * `agent-browser` binary itself and asks it to open the page and take the picture.
+ *
+ * It is the same engine the managed session uses — the binary Hermes packages, spawning its own
+ * headless Chromium — just without the tool layer that deadlocked. Every boundary the policy
+ * states still applies, and it applies *before* the spawn rather than in a scan afterwards:
+ *
+ *  - the executable is checked against the owner-policy patterns first, so a path that names a
+ *    desktop application (`/Applications/…Chrome.app`, `Chromium.app`, a CDP endpoint) is refused
+ *    outright, and the packaged Chrome for Testing under `~/.hermes/tools` is not matched by any
+ *    of them;
+ *  - nothing is run through a shell, so `open -a` and `osascript` are not merely discouraged, they
+ *    are not reachable: the URL is one argv element and the binary is executed directly;
+ *  - the output path is required to be absolute. A relative path is resolved against the browser
+ *    daemon's own working directory, not the harness's — measured: the file was written somewhere
+ *    else while the CLI happily printed "✓ Screenshot saved to probe.png". A silent miss would be
+ *    an evidence gap nobody asked for, so it is a refusal instead.
+ *
+ * `E2E_CAPTURE_PROBE=broken` makes this route fail on purpose. It exists so the gap path can be
+ * exercised end to end (a run whose camera is broken must record a gap, not a veto) and is not
+ * meant for a real run.
+ */
+export function captureWithBinary(input: { url: string; out: string; binary: string; session: string; timeoutMs?: number }): DirectCapture {
+  // The host-application test comes before the existence test on purpose: whether a path names a
+  // desktop application is a fact about the path, and a bot has no business stat-ing the user's
+  // apps to find out. Refused either way, and refused without touching it.
+  const hostHit = hostAppHit(input.binary)
+  const refusal =
+    hostHit
+      ? `refused to run ${input.binary}: ${hostHit} is a desktop application, and the capture may only use the harness's own headless binary`
+      : !input.binary || !existsSync(input.binary)
+        ? 'no bundled agent-browser binary was found (set E2E_AGENT_BROWSER)'
+        : !isAbsolute(input.out)
+          ? `refused a relative screenshot path ${input.out}: agent-browser resolves it against its own working directory, not the harness's`
+          : // The negative control is last on purpose: it breaks a route that is otherwise valid, so
+            // the other refusals keep their own words and the probe cannot be mistaken for one of
+            // them. It also stops leaking into anything that runs `bun run verify` beside the run.
+            process.env.E2E_CAPTURE_PROBE === 'broken'
+            ? 'the capture probe was deliberately broken (E2E_CAPTURE_PROBE=broken)'
+            : ''
+  if (refusal) return { ok: false, bytes: 0, detail: refusal }
+
+  const env: NodeJS.ProcessEnv = { ...process.env, PATH: browserEnv([]).PATH }
+  // Deliberately *not* `AGENT_BROWSER_EXECUTABLE_PATH`, which is what Hermes sets for its own
+  // browser: pointing it at the packaged `Google Chrome for Testing` makes this CLI's `screenshot`
+  // hang here (`open` still answers in 1.4 s, `screenshot` never returns; measured at 40 s and at
+  // the 60 s kill). Left unset, the same CLI launches its own managed Chromium — visible in `ps`
+  // as `~/.hermes/tools/chromium-…/Google Chrome for Testing --headless=new`, never
+  // `/Applications/Google Chrome.app` — and photographs the same page in under a second. So the
+  // browser is the harness's, chosen by the harness's own CLI, not the operator's.
+  delete env.AGENT_BROWSER_EXECUTABLE_PATH
+  const timeout = input.timeoutMs ?? 45_000
+  const session = ['--session', input.session]
+  const started = Date.now()
+  const open = spawnSync(input.binary, [...session, 'open', input.url], { encoding: 'utf8', env, timeout })
+  if (open.status !== 0) {
+    const why = `${open.error ? String(open.error.message) : ''}${open.stderr ?? ''}`.trim().split('\n')[0]
+    return { ok: false, bytes: 0, detail: `agent-browser open exited ${open.status ?? 'killed'}${why ? `: ${why}` : ''}` }
+  }
+  const shot = spawnSync(input.binary, [...session, '--json', 'screenshot', input.out], { encoding: 'utf8', env, timeout })
+  // The session is the CLI's, not the harness's: it must not outlive this call and become a
+  // browser nobody owns.
+  spawnSync(input.binary, [...session, 'close'], { encoding: 'utf8', env, timeout: 15_000 })
+  if (shot.status !== 0) {
+    const why = `${shot.error ? String(shot.error.message) : ''}${shot.stderr ?? ''}`.trim().split('\n')[0]
+    return { ok: false, bytes: 0, detail: `agent-browser screenshot exited ${shot.status ?? 'killed'}${why ? `: ${why}` : ''}` }
+  }
+  // The CLI exits 0 on a browser it could not start and says so in the JSON instead
+  // (`{"success":false,"error":"Chrome exited early…"}`); a non-zero exit is not the only failure.
+  const reported = (() => {
+    try {
+      return JSON.parse(String(shot.stdout ?? '')) as { success?: boolean; error?: string | null }
+    } catch {
+      return null
+    }
+  })()
+  if (reported && reported.success === false) {
+    return { ok: false, bytes: 0, detail: `agent-browser reported failure: ${String(reported.error ?? 'no message').split('\n')[0]}` }
+  }
+  const png = pngState(input.out)
+  if (!png.ok) return { ok: false, bytes: png.bytes, detail: `agent-browser wrote ${input.out}, which is ${png.why}` }
+  const seconds = Math.round((Date.now() - started) / 100) / 10
+  return { ok: true, bytes: png.bytes, detail: `agent-browser photographed ${input.url} in ${seconds}s` }
+}
+
+/**
  * Open every page in one capture session and copy its output into the evidence directory.
- * Nothing is softened on failure: a page with no values, no screenshot, or values naming a
- * different URL comes back in `problems`, and `run.ts` turns that into a failed check.
+ *
+ * Nothing is softened about the *page*: one with no values, or values naming a different URL,
+ * comes back in `problems` and `run.ts` turns that into a failed check. A page that could not be
+ * *photographed* is different, and after SCRUM-64 it is recorded as a gap: the harness tries the
+ * session's picture, then the bundled binary, and whatever it could not get is written down
+ * without deciding the run.
  */
 export async function capturePages(options: CaptureOptions): Promise<CaptureRun> {
   const home = mkdtempSync(join(tmpdir(), 'kg-e2e-capture-home-'))
@@ -266,9 +387,22 @@ export async function capturePages(options: CaptureOptions): Promise<CaptureRun>
     source: 'e2e-capture',
   })
 
-  const problems: string[] = []
-  if (run.timedOut) problems.push(`the capture session was killed after ${Math.round(run.seconds)}s`)
-  if (run.code !== 0) problems.push(`the capture session exited ${run.code}`)
+  // A session that made no tool call produced nothing to read: that is a hard failure of the
+  // session. A kill or a non-zero exit after the console reads landed is not — the pages were
+  // still read, and the photographs now have a second route — so it is recorded as a gap.
+  const sessionProblems: string[] = []
+  const evidenceGaps: string[] = []
+  if (run.calls.length === 0) {
+    sessionProblems.push(
+      run.timedOut
+        ? `the capture session was killed after ${Math.round(run.seconds)}s without a tool call`
+        : `the capture session made no tool calls (exit ${run.code})`,
+    )
+  } else if (run.timedOut) {
+    evidenceGaps.push(`the capture session was killed after ${Math.round(run.seconds)}s; its console reads were kept and any page it had not reached was photographed directly`)
+  } else if (run.code !== 0) {
+    evidenceGaps.push(`the capture session exited ${run.code}; its console reads were kept and any missing photograph was taken directly`)
+  }
 
   // Walk the record stream in order: a navigation, then the console read, then the picture,
   // page after page. Pairing by position rather than by matching model-retyped text keeps the
@@ -281,7 +415,9 @@ export async function capturePages(options: CaptureOptions): Promise<CaptureRun>
     values: {},
     screenshot: '',
     screenshotBytes: 0,
+    screenshotRoute: '',
     problems: [],
+    evidenceGaps: [],
   }))
 
   let stage = -1
@@ -310,22 +446,36 @@ export async function capturePages(options: CaptureOptions): Promise<CaptureRun>
 
   captures.forEach((capture, index) => {
     const name = `${capture.label}.png`
-    const source = shots[index]
-    if (!source) {
-      capture.problems.push('browser_vision left no screenshot in the session cache')
+    const destination = join(options.outDir, name)
+    const source = shots[index] ? pngState(shots[index]) : { ok: false, bytes: 0, why: 'the session cache holds no file' }
+    if (shots[index] && source.ok) {
+      copyFileSync(shots[index], destination)
+      capture.screenshot = destination
+      capture.screenshotBytes = source.bytes
+      capture.screenshotRoute = 'browser_vision'
       return
     }
-    const bytes = statSync(source).size
-    copyFileSync(source, join(options.outDir, name))
-    capture.screenshot = join(options.outDir, name)
-    capture.screenshotBytes = bytes
-    const magic = readFileSync(source).subarray(0, 8).toString('hex')
-    if (magic !== '89504e470d0a1a0a') capture.problems.push(`${name} is not a PNG`)
-    if (bytes < 15_000) capture.problems.push(`${name} is only ${bytes} bytes`)
+    if (shots[index]) evidenceGaps.push(`${name}: browser_vision's own file was unusable (${source.why})`)
+    const direct = captureWithBinary({
+      url: capture.url,
+      out: destination,
+      binary: cli ?? '',
+      session: `e2e-${process.pid}-${index}`,
+    })
+    if (direct.ok) {
+      capture.screenshot = destination
+      capture.screenshotBytes = direct.bytes
+      capture.screenshotRoute = 'agent-browser'
+      evidenceGaps.push(`browser_vision did not photograph ${capture.label}; ${direct.detail}`)
+      return
+    }
+    capture.evidenceGaps.push(`no screenshot for ${capture.label}: ${direct.detail}`)
   })
 
   if (visionSeen < options.pages.length) {
-    problems.push(`${options.pages.length} pages were asked for but browser_vision ran ${visionSeen} time(s)`)
+    evidenceGaps.push(
+      `${options.pages.length} pages were asked for but browser_vision ran ${visionSeen} time(s); the pictures came from the bundled binary instead`,
+    )
   }
 
   const tools = run.calls.map((call) => {
@@ -353,7 +503,8 @@ export async function capturePages(options: CaptureOptions): Promise<CaptureRun>
     seconds: run.seconds,
     code: run.code,
     logPath,
-    sessionProblems: problems,
+    sessionProblems,
+    evidenceGaps: [...evidenceGaps, ...captures.flatMap((capture) => capture.evidenceGaps)],
   }
 }
 
