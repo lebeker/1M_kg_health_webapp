@@ -194,9 +194,9 @@ function run(command: string, args: string[], cwd: string): { ok: boolean; outpu
  * The third check is about scope, not about the machine: the capture session's documented surface
  * is three tools, and a session is only as narrow as its worst call.
  */
-function policyChecks(sessionCalls: ToolCall[], roomCalls: ToolCall[], captureCalls: ToolCall[]): Check[] {
+function policyChecks(sessionCalls: ToolCall[], roomCalls: ToolCall[], captureCalls: ToolCall[], room: string): Check[] {
   const hostApps = hostAppCalls(sessionCalls)
-  const escapes = outsideRoomCalls(roomCalls)
+  const escapes = outsideRoomCalls(roomCalls, room)
   const outOfScope = captureScopeViolations(captureCalls)
   return [
     {
@@ -656,7 +656,7 @@ async function main() {
     await room.close()
   }
 
-  checks.push(...policyChecks(allCalls, roomCalls, captureCalls))
+  checks.push(...policyChecks(allCalls, roomCalls, captureCalls, room.dir))
 
   /**
    * Two lists, not one. `failures` are the product checks that are red and they are what makes the

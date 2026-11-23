@@ -38,16 +38,19 @@ export const HOST_APP_PATTERNS: Array<[RegExp, string]> = [
 /**
  * The room's boundary, in the half that is about directories.
  *
- * A path *inside* the room is under the system temp directory, so an absolute in-room path never
- * matches these; anything that names the operator's home, a mounted volume, the system or the
- * applications folder does.
+ * These are literal names — the operator's home, a mounted volume, the system and the applications
+ * folder — read wherever a call names a place the tool will act on: the command string a shell tool
+ * was handed, and the path-valued fields of a file or browser tool (`path`, `cwd`, `files`, `url`,
+ * …), and not in a call's *content*. A `write_file` body or a `patch` string that merely mentions
+ * `/Volumes` is data, not a place: a doc naming a directory must not fail a run that never left the
+ * room, and the command half below already states the model — a written file is judged when a call
+ * runs it, not when it is typed.
  *
- * These are literal names, so they are read wherever a call names a place the tool will act on —
- * the command string a shell tool was handed, and the path-valued fields of a file or browser
- * tool (`path`, `cwd`, `files`, `url`, …) — and not in a call's *content*. A `write_file` body or
- * a `patch` string that merely mentions `/Volumes` is data, not a place: a doc naming a directory
- * must not fail a run that never left the room, and the command half below already states the
- * model — a written file is judged when a call runs it, not when it is typed.
+ * A path *inside* the room cannot be told from one outside by its prefix when the room itself sits
+ * under the home directory: `mkdtemp` honours `TMPDIR`, and the owner's rule keeps a worker's
+ * scratch files there rather than in the system temp directory. So the room's own path is removed
+ * from the text before the literals are read — see `literalEscape` — and an absolute in-room path,
+ * wherever the room lives, is not an escape.
  */
 export const OUTSIDE_ROOM_PATHS: Array<[RegExp, string]> = [
   [/\/Volumes\b/, 'the mounted volumes'],
@@ -1012,20 +1015,29 @@ function placesNamed(input: Record<string, unknown>, command: string | null): st
   return places
 }
 
-/** The first literal place outside the room among `texts`, or null. */
-function literalEscape(texts: string[]): string | null {
-  for (const text of texts) {
+/**
+ * The first literal place outside the room among `texts`, or null.
+ *
+ * `room` is the directory the clean room actually occupies. It is named by the caller rather than
+ * assumed to be under the system temp directory, because `mkdtemp` honours `TMPDIR` and a worker's
+ * scratch files live under its own home: with the room's path removed first, an absolute path
+ * inside the room cannot read as one outside it. A place that is not the room — `~/.ssh`, another
+ * checkout, a sibling room — still contains the home directory's own name and still matches.
+ */
+function literalEscape(texts: string[], room: string | null): string | null {
+  for (const raw of texts) {
+    const text = room ? raw.split(room).join('<room>') : raw
     const hit = OUTSIDE_ROOM_PATHS.find(([pattern]) => pattern.test(text))
     if (hit) return hit[1]
   }
   return null
 }
 
-export function outsideRoomCalls(calls: ToolCall[]): string[] {
+export function outsideRoomCalls(calls: ToolCall[], room: string | null = null): string[] {
   const found: string[] = []
   for (const call of calls) {
     const command = shellCommand(call)
-    const outside = literalEscape(placesNamed(call.input, command))
+    const outside = literalEscape(placesNamed(call.input, command), room)
     if (outside) {
       found.push(`${call.name}: ${outside}`)
       continue

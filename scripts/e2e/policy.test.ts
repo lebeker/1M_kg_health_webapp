@@ -56,6 +56,25 @@ describe('the guard that makes the boundary true', () => {
     ]
     expect(outsideRoomCalls(allowed)).toEqual([])
   })
+
+  test('the room is where mkdtemp put it, not under a fixed temp directory', () => {
+    // mkdtemp honours TMPDIR, and a worker's TMPDIR is inside its own home: a room at
+    // /Users/<who>/.hermes/.../kg-e2e-room-abc is still the room. Naming it is what tells an
+    // absolute in-room path from one that merely shares the home directory's prefix.
+    const room = '/Users/operator/.hermes/profiles/worker/cache/scratch/e2e-tmp/kg-e2e-room-abc123'
+    const inRoom = [
+      call('terminal', { command: `cd ${room}/work && ls storage` }),
+      call('terminal', { command: `python3 kg/scripts/kg.py --help` }),
+      call('read_file', { path: `${room}/work/storage/profile/graph.json` }),
+      call('write_file', { path: `${room}/work/notes.md`, content: 'x' }),
+    ]
+    expect(outsideRoomCalls(inRoom, room)).toEqual([])
+    // the same call without the room named is the false positive this closes
+    expect(outsideRoomCalls([inRoom[0]])).toHaveLength(1)
+    // and a home path that is not the room still is out
+    expect(outsideRoomCalls([call('read_file', { path: '/Users/operator/.ssh/id_ed25519' })], room)).toHaveLength(1)
+    expect(outsideRoomCalls([call('terminal', { command: 'ls /Users' })], room)).toHaveLength(1)
+  })
 })
 
 describe('the guard reads a command, not the shape of a string', () => {
