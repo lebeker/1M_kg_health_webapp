@@ -18,6 +18,8 @@
     "test:branch-name": "bun scripts/check-branch-name.ts --self-test",
     "test:release": "bun test scripts/release.test.ts",
     "e2e": "bun scripts/e2e/run.ts",
+    "review": "bun scripts/review.ts",
+    "review:gate": "bun scripts/review-gate.ts",
     "rules": "bun scripts/rules.ts",
     "verify": "bun run lint && bun run typecheck && bun run check:case && bun run build:demo && bun run test && bun run test:contract && bun run test:branch-name && bun run test:split",
     "bundle": "node scripts/bundle.mjs",

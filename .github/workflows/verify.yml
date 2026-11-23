@@ -1,9 +1,8 @@
-# Deterministic checks only. GitHub never hosts an agent, so the agentic end-to-end run (G3, a fresh
-# agent driving the built page in Hermes's own browser) happens locally and leaves a receipt: one
-# `e2e` commit status on the head it captured. What runs here is the deterministic half — lint,
-# types, unit, contract, build — plus the check that the receipt exists when the diff moves the
-# product (scripts/e2e/ci-gate.ts, docs/E2E-GATE.md). A check that needs a model is not a check; a
-# check that the model's run happened is.
+# Deterministic checks only. GitHub never hosts a model, so the end-to-end run — clone
+# lebeker/1M_kg_skill into an empty directory, render this template with a kg.json, open the page and
+# look at it — happens in front of a reviewer, who records what they saw in review/verdict.json:
+# a sentence and a boolean, against a hash of the page's surface. This workflow checks that record
+# (scripts/review-gate.ts, docs/E2E-GATE.md). It never claims to have run the e2e itself.
 name: ci
 
 on:
@@ -50,18 +49,13 @@ jobs:
         with:
           bun-version: 1.4.5
       - run: bun install --frozen-lockfile
-      # G3's receipt. Not the run — the proof that one happened, against this exact head. A diff
-      # that moves the app surface (the page, the demo build, the graph view) has to carry a green
-      # `e2e` status posted by scripts/e2e/run.ts; anything else leaves `verify` red, and `verify`
-      # is required on main, so the branch cannot merge and the card cannot be called done.
-      - name: e2e receipt
-        if: github.event_name == 'pull_request'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          E2E_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          E2E_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          E2E_GATE_TIMEOUT: '600'
-        run: bun scripts/e2e/ci-gate.ts --head "$E2E_HEAD_SHA" --base "$E2E_BASE_SHA"
+      # The e2e itself cannot run here: it needs a model, and a model lives on a person's machine,
+      # not on a runner. So the run happens in front of a reviewer, who records what they saw in
+      # review/verdict.json — a sentence and a boolean. This reads that file: red when it is
+      # missing, red when it failed, red when it covers a different surface than HEAD (the page
+      # moved since somebody looked at it), green when it says passed against this page.
+      - name: review verdict
+        run: bun run review:gate
       - name: lint
         run: bun run lint
       - name: typecheck

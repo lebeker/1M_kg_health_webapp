@@ -1,0 +1,8 @@
+$ git clone --depth 1 https://github.com/lebeker/1M_kg_skill.git skill
+30d8971 catalogue: health-viewer, and two engine fixes it exposed
+$ cp -R <repo>/body template
+$ python3 skill/scripts/kg.py render --graph <repo>/kg_demo.json --app template/index.html --out template/rendered.html
+rendered 62 nodes / 71 edges -> /Users/denistatarenko/Work/other/e2e/run-210017/template/rendered.html
+  with 18 note(s) from docs/ — they travel in the page
+  file:///Users/denistatarenko/Work/other/e2e/run-210017/template/rendered.html
+291249 bytes
