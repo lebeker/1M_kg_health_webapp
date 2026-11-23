@@ -139,6 +139,32 @@ export const OUTSIDE_ROOM_PATHS: Array<[RegExp, string]> = [
  * check looks for a path — at the arguments a search will actually act on — not how strictly it
  * judges one. A script written into the room and executed later is not re-read here; this reads
  * the calls, and the call that leaves the room is the one that runs it.
+ *
+ * An absolute word is a place in every reading. `/` was the only one that was read — a word *below*
+ * it was not read at all, so `cat /etc/hosts` passed while `cat /` failed — and the room is a
+ * directory, not a jail, but `/etc` is a host read however it is spelled. The one absolute tree
+ * that is not a host read is the room itself, and it is *named by the caller* rather than assumed
+ * to be under a fixed temp directory: `mkdtemp` honours `TMPDIR`, and a worker's scratch files live
+ * under its own home, so `outsideRoomCalls(calls, room)` is what tells an in-room absolute path
+ * from a home path that merely shares the prefix. It is resolved before it is compared, so
+ * `/tmp/../etc` is `/etc` and not a prefix of the room. The devices that only swallow output are
+ * the other exception, named one by one (`/dev/null` is how a run checks that the app is up).
+ *
+ * A command the table does not name is still read for the words that can only be places: `/`, an
+ * absolute path, a climb above the room. `cmp /`, `diff /`, `od /`, `tee /x`, `md5 /`, `git -C /`
+ * and `xargs -a / ls` passed while `cp -r /` failed — the same walk through a different binary, and
+ * a coverage gap in the table rather than a decision. A word that is *only* a place has no position
+ * to get wrong, so it is judged in any argument list except the ones whose words are data
+ * (`echo`, `printf`, `tr`, and the programs `awk`/`python3 -c` are handed) — and a predicate's
+ * operand is not data, because `[ -e /etc ]` is a question about `/etc`. A heredoc or herestring
+ * body is data of that same kind — a written file — unless the command reading it is a shell,
+ * because then the body *is* a command line. A container's own `/` is the container's root: the
+ * host reaches a container through a bind mount, and a mount is judged where it is made.
+ *
+ * A `cd` that lands above the room is judged like any other place, because every relative command
+ * after it walks from the wrong place: `cd / && ls` listed the root through an `ls` with no path
+ * argument at all. The `..`/`~` reading above is untouched for other commands, so `ls ..` and
+ * `mkdir -p "$HOME/cache"` stay passes.
  */
 
 /**
@@ -169,6 +195,12 @@ interface PathCommand {
   /** Options that take a value, so the value is not read as an operand. */
   valueOptions?: string[]
   /**
+   * Options whose value is a place: `sed -f script` and `grep -f patterns` read the file they name,
+   * so `-f`'s value is judged rather than skipped. `-e` is the other side of the same line — it
+   * carries the program itself, which is why the two are not one list.
+   */
+  placeOptions?: string[]
+  /**
    * The operand that is a *program* over the command's data, and the options that carry one instead.
    *
    * `sed`'s first operand is a script, not a file: `sed -n '/^graph/p' file` searches `file` with
@@ -197,18 +229,26 @@ interface PathCommand {
 const PATH_COMMANDS = new Map<string, PathCommand>([
   ['find', { root: 'a search from the filesystem root', patterns: 'predicate-values', reach: 'strict' }],
   ['ls', { root: 'a listing of the filesystem root', patterns: 'none', reach: 'room' }],
-  ['grep', { root: 'a search from the filesystem root', patterns: 'first-operand', reach: 'room' }],
-  ['rg', { root: 'a search from the filesystem root', patterns: 'first-operand', reach: 'room' }],
+  ['grep', { root: 'a search from the filesystem root', patterns: 'first-operand', reach: 'room', placeOptions: ['-f', '--file'] }],
+  ['rg', { root: 'a search from the filesystem root', patterns: 'first-operand', reach: 'room', placeOptions: ['-f', '--file'] }],
   // `sed` acts on files, but its first operand is the script — a program over the lines, not a
   // place. Reading it as a place made `sed -i '' '/^$/d' kg/notes.md`, an edit inside the room, an
   // "operation on the filesystem root", because the script starts with `/`. With `-e`/`-f` the
-  // option carries the script and every operand left is a file.
+  // option carries the script and every operand left is a file. `-e` is the script itself and `-f`
+  // is a *file* holding it, so `-f`'s value is a place: `sed -f / file` reads a script off the root.
   ['sed', {
     root: 'an operation on the filesystem root',
     patterns: 'none',
     reach: 'room',
-    program: { options: ['-e', '--expression', '-f', '--file'] },
+    program: { options: ['-e', '--expression'] },
+    placeOptions: ['-f', '--file'],
   }],
+  // A `cd` that lands above the room moves the shell out of it, and every relative command after
+  // it then walks from the wrong place: `cd / && ls` listed the root through an `ls` with no path
+  // argument at all. The target is judged like any other operand.
+  ['cd', { root: 'a directory outside the room', patterns: 'none', reach: 'room' }],
+  ['pushd', { root: 'a directory outside the room', patterns: 'none', reach: 'room' }],
+  ['chdir', { root: 'a directory outside the room', patterns: 'none', reach: 'room' }],
   // The same operand read for the commands that act on a place instead of searching it. The card
   // asks for the tail of an `-exec` to be judged; the reading is the same one the top level gets.
   ...(
@@ -222,6 +262,42 @@ const PATH_COMMANDS = new Map<string, PathCommand>([
       root: 'an operation on the filesystem root',
       patterns: 'none',
       reach: 'room',
+    },
+  ]),
+  // Commands a bare `/` walked through because they were not in the table at all: `cmp /`,
+  // `diff /`, `od /`, `tee /x`, `md5 /`, `shasum /` passed while `cp -r /` failed — the same walk
+  // through a different binary. Each entry is here because one of its options takes a *data* value
+  // (`sort -t /`, `cut -d /`), which the generic reading below cannot know; the value is skipped and
+  // every operand left is a place. A command whose only options are switches needs no entry — the
+  // generic reading judges its operands already.
+  ...(
+    [
+      { name: 'cmp' },
+      { name: 'diff', valueOptions: ['-U', '--unified', '-C', '--context', '-L', '--label', '-I', '--ignore-matching-lines', '-x', '--exclude'], placeOptions: ['-S', '--starting-file'] },
+      { name: 'xxd', valueOptions: ['-c', '-g', '-l', '-s', '-n'], placeOptions: ['-o'] },
+      { name: 'od', valueOptions: ['-A', '-j', '-N', '-t'] },
+      { name: 'hexdump', valueOptions: ['-n', '-s', '-e', '-C'], placeOptions: ['-f'] },
+      { name: 'strings', valueOptions: ['-n', '-t'] },
+      { name: 'tee' },
+      { name: 'file', valueOptions: ['--separator', '--exclude'], placeOptions: ['-m', '--magic-file', '-f', '--files-from'] },
+      { name: 'gzip', valueOptions: ['-S', '--suffix'] },
+      { name: 'sort', valueOptions: ['-t', '--field-separator', '-k', '--key', '-S', '--buffer-size', '-T', '--temporary-directory', '--files0-from', '--batch-size', '--parallel', '--compress-program', '--random-source', '--sort'], placeOptions: ['-o', '--output'] },
+      { name: 'uniq', valueOptions: ['-f', '--skip-fields', '-s', '--skip-chars', '-w', '--check-chars'] },
+      { name: 'cut', valueOptions: ['-d', '--delimiter', '-f', '--fields', '-b', '--bytes', '-c', '--characters', '--output-delimiter'] },
+      { name: 'base64', valueOptions: ['-w', '--wrap'], placeOptions: ['-o', '--output'] },
+      { name: 'md5', valueOptions: ['-s'], placeOptions: ['-o'] },
+      { name: 'shasum', valueOptions: ['-a', '--algorithm'], placeOptions: ['-o', '--output'] },
+      { name: 'sha256sum', valueOptions: ['-a', '--algorithm'], placeOptions: ['-o', '--output'] },
+      { name: 'split', valueOptions: ['-b', '--bytes', '-l', '--lines', '-n', '--number', '-a', '--suffix-length', '-t', '--separator', '--additional-suffix'] },
+    ] as Array<{ name: string; valueOptions?: string[]; placeOptions?: string[] }>
+  ).map(({ name, valueOptions, placeOptions }): [string, PathCommand] => [
+    name,
+    {
+      root: 'an operation on the filesystem root',
+      patterns: 'none',
+      reach: 'room',
+      valueOptions,
+      placeOptions,
     },
   ]),
 ])
@@ -410,6 +486,75 @@ const AT_ROOT = /^\/(?![A-Za-z0-9._-])/
 const AT_HOME = /^(?:~|\$HOME|\$\{HOME\})(?:\/|$)/
 
 /**
+ * The temp trees the room is built in, read only when the caller does not name the room.
+ *
+ * `cleanroom.ts` makes the room with `mkdtempSync(join(tmpdir(), 'kg-e2e-room-'))`, which on this
+ * machine is `/var/folders/…/T/kg-e2e-room-XXXX/` — but `mkdtemp` honours `TMPDIR`, and a worker's
+ * scratch files live under its own home, so the room may be anywhere at all. A caller that knows
+ * where the room is names it (`outsideRoomCalls(calls, room)`), and the room's own path is then the
+ * only absolute tree an agent may name. This list is the same exemption for the callers that do not
+ * know it, and it is a fallback rather than the rule: a home-directory room is not in it.
+ */
+const ROOM_TEMP_ROOTS = [
+  /^\/private\/tmp(?:\/|$)/,
+  /^\/tmp(?:\/|$)/,
+  /^\/private\/var\/folders(?:\/|$)/,
+  /^\/var\/folders(?:\/|$)/,
+]
+
+/** Whether an absolute word points into the temp tree the room lives in. */
+function inTempRoot(word: string): boolean {
+  return ROOM_TEMP_ROOTS.some((pattern) => pattern.test(word))
+}
+
+/**
+ * The device files a command writes to and reads nothing out of.
+ *
+ * `curl -s -o /dev/null -w '%{http_code}' …` is how a run checks that the app is up, and
+ * `2>/dev/null` is how a shell line throws output away; neither moves a byte out of the room. They
+ * are named here rather than left to the absolute rule so that the one exemption is a list of
+ * sinks, not a hole: `/dev/zero`, `/dev/disk0` and the rest of `/dev` stay host reads.
+ */
+const SINK_PATHS = new Set(['/dev/null', '/dev/stdout', '/dev/stderr'])
+
+/**
+ * Whether an absolute *place* is the room's own tree, or a sink that moves nothing out of it.
+ *
+ * `room` is the directory the clean room actually occupies, named by the caller. The room is a
+ * directory, not a jail, so an absolute path below `/` is a host read — `cat /etc/hosts` passed on
+ * every revision before this one — and the room's own path is the single absolute tree that is not.
+ * Where the caller does not name it, the temp trees the harness builds in stand in, because a room
+ * under a fixed temp directory is what the readers of this function without a room are checking.
+ * The comparison is against the room *and its children*, so a sibling whose name starts with the
+ * room's (`kg-e2e-room-abc-sibling`) is not inside it.
+ */
+function isInRoomTree(place: string, room: string | null): boolean {
+  if (SINK_PATHS.has(place)) return true
+  if (room === null) return inTempRoot(place)
+  const base = normaliseAbsolute(room).replace(/\/+$/, '')
+  return place === base || place.startsWith(`${base}/`)
+}
+
+/**
+ * Commands whose words are data.
+ *
+ * A word that is only a place — `/`, `..`, `~`, `$HOME`, `/etc/hosts` — is a place in any argument
+ * list, so it is judged for every command the table does not describe. A command whose operands are
+ * a line to print or a pair of character sets is the exception, and it has to be named: `echo /`
+ * prints a slash, and `tr '/' '-'` translates one. `printf` is here for the same reason as `echo`.
+ *
+ * `test`, `[` and `[[` are *not* here. A predicate over a file is a place read, not a value
+ * printed: `[ -e /etc ]` asks the host whether `/etc` exists, and the file it asks about is named
+ * by the predicate's own operand. `test -f kg/README.md` stays inside the room and passes; the
+ * operand is judged the same way any other command's is.
+ */
+const DATA_COMMANDS = new Set([
+  'echo', 'printf', 'expr', 'bc', 'seq', 'tr',
+  'true', 'false', ':', 'sleep', 'kill', 'wait', 'exit', 'export', 'unset', 'alias', 'type',
+])
+
+
+/**
  * Whether a relative or home-relative word ends up above the room once it is resolved.
  *
  * The room is `<tmp>/kg-e2e-room-XXXX/` with `work/` and `home/` side by side and the agent
@@ -448,40 +593,71 @@ function leavesRoom(word: string): boolean {
 }
 
 /**
- * The depth a word lands at, counted from the room's own root: 0 is the root, 1 is `work/` (where
- * the agent stands) or `home/`, 2 is `work/kg`, and a negative depth is above the room.
+ * The lowest depth a word reaches, counted from the room's own root: 0 is the root, 1 is `work/`
+ * (where the agent stands) or `home/`, 2 is `work/kg`, and a negative depth is above the room.
  *
  * The room is `<tmp>/kg-e2e-room-XXXX/` with `work/` and `home/` side by side, so both start at 1
- * and `..` from either one lands on the root. Resolving a word segment by segment is what
- * `leavesRoom` reads below; this is the same walk, handed the landing place instead of a verdict,
- * because `find` is judged by where a word *ends*.
+ * and `..` from either one lands on the root. Counting the *landing* place was the bug: `find
+ * x/../../../tmp/foo` from `work/` ends at `x` again — a word judged by where it stops is a word
+ * whose walk above the room is invisible. `find` is judged at its lowest point instead.
  */
-function roomDepth(word: string): number {
+function lowestDepth(word: string): number {
   let depth = 1
+  let lowest = 1
   for (const segment of word.replace(AT_HOME, '').split('/')) {
     if (segment === '' || segment === '.') continue
     depth += segment === '..' ? -1 : 1
+    if (depth < lowest) lowest = depth
   }
-  return depth
+  return lowest
 }
 
 /**
  * Whether a `find` word is out of the room.
  *
  * `find` may not read the room's own root and may not climb at all, which is the card's reading of
- * `find ..`: one `..` from `work/` *is* the root, and the pre-fix check failed it. So a word that
- * climbs (`..`, `../kg`, `../home/../skills`) is out, and so is one that resolves back to the root
- * (`kg/../..`, `x/../..`) — where the walk ends is what matters, not which character it used to
- * get there. A word that only passes through a parent and comes back down inside the room
- * (`kg/assets/../assets`, `kg/../notes`, `./kg/../kg`) never reaches the root and stays inside it.
+ * `find ..`: one `..` from `work/` *is* the root, and the pre-fix check failed it. So a word is out
+ * when its walk reaches the room's own root or goes above it — at any point, not only at the end.
+ * `find kg/assets/../assets`, `find kg/../notes` and `find work/kg/../kg/scripts` never reach the
+ * root and stay inside it; `find x/../../../tmp/foo` and `find kg/a/../../../tmp/x` reach it on the
+ * way and are walks above the room even though they land back inside.
+ *
+ * An absolute word has no room segments to resolve against; it is judged by `leavesRoom`, and the
+ * host-side words among them by the absolute rule in `wordEscape` before that.
  */
 function findEscape(word: string): boolean {
-  if (word === '..' || word.startsWith('../')) return true
-  // An absolute word is resolved from the system root, the way `leavesRoom` reads it; a path under
-  // `/` that is not the root itself is the pre-existing boundary every command shares
-  // (`cat /etc/hosts` passes on every revision), so it is not judged here.
   if (word.startsWith('/')) return leavesRoom(word)
-  return roomDepth(word) <= 0
+  return lowestDepth(word) <= 0
+}
+
+/** Whether a word is being read on the host or inside a container's own filesystem. */
+type HostContext = 'host' | 'container'
+
+/**
+ * How a command line is being read.
+ *
+ * Three things travel down the same recursion and are one object for that reason: `depth`, how
+ * many command lines deep this one sits inside another (a `sh -c` string, an `-exec` tail, a
+ * program that calls a shell); `context`, whose filesystem its words name; and `room`, the
+ * directory the clean room actually occupies. `room` is named by the caller that knows it —
+ * `outsideRoomCalls(calls, room)` — because the room is wherever `mkdtemp` put it, which with a
+ * worker's `TMPDIR` is under its own home. It is `null` only where nothing names it, and then the
+ * temp trees in `ROOM_TEMP_ROOTS` stand in.
+ */
+interface Reading {
+  depth: number
+  context: HostContext
+  room: string | null
+}
+
+/** A command line handed to `commandEscape`, read from its own start. */
+function readingFrom(room: string | null): Reading {
+  return { depth: 0, context: 'host', room }
+}
+
+/** The same reading, one command line deeper and in `context`'s filesystem. */
+function deeper(reading: Reading, context: HostContext = reading.context): Reading {
+  return { ...reading, depth: reading.depth + 1, context }
 }
 
 /**
@@ -492,14 +668,82 @@ function findEscape(word: string): boolean {
  * other path command reads them as the room's own — resolved from `work/` or the harness's `home/`
  * — and failing those made runs that ran `ls -la ..` or `mkdir -p "$HOME/cache/scratch"` to work in
  * the room fail for leaving a room they never left.
+ *
+ * An absolute word is a place in both readings. `/` is the machine itself; a word *below* `/` used
+ * to be read as no place at all, so `cat /etc/hosts` passed while `cat /` failed — the room is a
+ * directory, not a jail, but `/etc` is a host read however it is spelled. The one absolute tree
+ * that is not a host read is the room itself (`isInRoomTree`, given the room the caller named), and
+ * inside a container the words are the container's own paths: only the bare `/` is read there,
+ * because a host directory reaches a container through a bind mount and a mount is judged where it
+ * is made.
  */
-function wordEscape(word: string, root: string, reach: 'strict' | 'room'): string | null {
-  if (AT_ROOT.test(word)) return root
+function wordEscape(word: string, root: string, reach: 'strict' | 'room', reading: Reading): string | null {
+  const place = normaliseAbsolute(word)
+  if (AT_ROOT.test(place)) return root
+  if (reading.context === 'host' && place.startsWith('/') && !isInRoomTree(place, reading.room)) {
+    return 'an absolute path outside the room'
+  }
   if (reach === 'strict') {
     if (AT_HOME.test(word)) return 'a search of a home directory'
-    return findEscape(word) ? 'a search above the room' : null
+    return findEscape(place) ? 'a search above the room' : null
   }
-  return leavesRoom(word) ? 'a search above the room' : null
+  return leavesRoom(place) ? 'a search above the room' : null
+}
+
+/**
+ * An absolute word with its `.` and `..` resolved, so `/tmp/../etc/hosts` is `/etc/hosts`.
+ *
+ * A word that names the room's own temp tree is the exception the absolute rule makes, and it was
+ * read by prefix: `/tmp/../etc` starts with `/tmp` and names `/etc`, so the one exemption was also
+ * a way out. Resolving first is what makes the exemption about a place instead of about a prefix.
+ * A relative word is returned untouched — its `..` is resolved against the room, not against `/`.
+ */
+function normaliseAbsolute(word: string): string {
+  if (!word.startsWith('/')) return word
+  const parts: string[] = []
+  for (const segment of word.split('/')) {
+    if (segment === '' || segment === '.') continue
+    if (segment === '..') {
+      parts.pop()
+      continue
+    }
+    parts.push(segment)
+  }
+  return `/${parts.join('/')}`
+}
+
+/**
+ * The bodies of the heredocs one line opened, and the index after their last delimiter line.
+ *
+ * `cat > kg/notes.md <<'EOF' … EOF` writes a file through stdin and `bash <<'EOF' … EOF` runs one;
+ * either way the body is the *content* of something, so it is handed on as a single word (the
+ * marker `HERESTRING` carries) instead of being split into command lines of its own. Without that,
+ * the words of a written file were read as commands: a note holding `2D / 3D` became a walk of the
+ * root, and `x = 1 / 2` in a python heredoc became one too. It is the same reading the check
+ * already gives a `write_file` body — a written file is judged when a call runs it, not when it is
+ * typed — and a shell's body is still read as a command line, because a shell is what runs it.
+ */
+function heredocBodies(
+  command: string,
+  from: number,
+  delimiters: Array<{ delimiter: string; stripTabs: boolean }>,
+): { words: string[]; next: number } {
+  const words: string[] = []
+  let i = from
+  for (const { delimiter, stripTabs } of delimiters) {
+    const body: string[] = []
+    for (;;) {
+      const end = command.indexOf('\n', i)
+      const stop = end < 0 ? command.length : end
+      const line = command.slice(i, stop).replace(/\r$/, '')
+      i = Math.min(stop + 1, command.length)
+      if ((stripTabs ? line.replace(/^\t+/, '') : line) === delimiter) break
+      body.push(line)
+      if (end < 0) break
+    }
+    words.push(body.join('\n'))
+  }
+  return { words, next: i }
 }
 
 /**
@@ -514,7 +758,8 @@ function wordEscape(word: string, root: string, reach: 'strict' | 'room'): strin
  * redirect in front of it, so the operator, the descriptor attached to it (`2>`) and the name it
  * redirects to (`/dev/null`) are skipped inside the segment. Ending the segment at `<`/`>` made
  * `/dev/null` the word the segment "ran", so the `find /` behind it was never judged — and
- * `2>/dev/null` is how shell commands are usually written.
+ * `2>/dev/null` is how shell commands are usually written. A heredoc is the one exception: its
+ * body is content for the command's stdin, so it is read by `heredocBodies` and not as lines.
  */
 export function shellSegments(command: string): ShellWord[][] {
   const segments: ShellWord[][] = []
@@ -526,12 +771,25 @@ export function shellSegments(command: string): ShellWord[][] {
   let target = false
   /** The next word is a herestring's value: a string the command reads, not a file name. */
   let here = false
+  /** The next word is a heredoc's delimiter: the end marker of a body read below. */
+  let heredoc = false
+  /** Whether the heredoc's delimiter line may be indented with tabs (`<<-EOF`). */
+  let heredocTabs = false
+  /**
+   * The heredocs this command line opened: their delimiter, the segment that opened them (the body
+   * is a word of *that* command, even when a `|` closes the segment before the body arrives), and
+   * whether `<<-` lets the delimiter line be indented.
+   */
+  let delimiters: Array<{ delimiter: string; owner: ShellWord[]; stripTabs: boolean }> = []
 
   const endWord = () => {
     if (!started) return
-    if (here) segment.push(HERESTRING + word)
+    if (heredoc) delimiters.push({ delimiter: word, owner: segment, stripTabs: heredocTabs })
+    else if (here) segment.push(HERESTRING + word)
     else if (!target) segment.push(word)
     target = false
+    heredoc = false
+    heredocTabs = false
     here = false
     word = ''
     started = false
@@ -540,6 +798,7 @@ export function shellSegments(command: string): ShellWord[][] {
     endWord()
     target = false
     here = false
+    heredoc = false
     word = ''
     started = false
     if (segment.length > 0) segments.push(segment)
@@ -598,6 +857,15 @@ export function shellSegments(command: string): ShellWord[][] {
       const next = command[after]
       if (next === char || next === '|') {
         after += 1
+        // `<<EOF` is a heredoc rather than a redirect: the body that follows is a file written to
+        // the command's stdin, so it is read as one word and not split into commands of its own.
+        if (char === '<' && next === '<') {
+          heredoc = true
+          if (command[after] === '-') {
+            heredocTabs = true
+            after += 1
+          }
+        }
       } else if (next === '&') {
         // `>&2`, `<&1`: the descriptor is the target, so the operator is the whole token.
         after += 1
@@ -605,13 +873,25 @@ export function shellSegments(command: string): ShellWord[][] {
         i = after - 1
         continue
       }
-      target = true
+      target = !heredoc
       word = ''
       started = false
       i = after - 1
       continue
     }
     if (char === '\n' || char === '\r') {
+      // The delimiter word ends *at* the newline, so it has to be captured before the bodies are
+      // looked for: reading the bodies first read them from the line after the body's first line.
+      endWord()
+      if (delimiters.length > 0) {
+        const bodies = heredocBodies(command, i + 1, delimiters)
+        for (const [index, body] of bodies.words.entries()) {
+          delimiters[index].owner.push(HERESTRING + body)
+        }
+        delimiters = []
+        heredocTabs = false
+        i = bodies.next - 1
+      }
       endSegment()
       continue
     }
@@ -637,10 +917,16 @@ function commandName(word: string): string {
 }
 
 /** The arguments a path command will act on, with its pattern operands left out. */
-function operandsEscape(name: string, spec: PathCommand, operands: ShellWord[], depth: number): string | null {
+function operandsEscape(
+  name: string,
+  spec: PathCommand,
+  operands: ShellWord[],
+  reading: Reading,
+): string | null {
   let patternSeen = false
   let programSeen = false
   let skipValue = false
+  /** The value of an option that names a file, which is judged where it is given. */
   for (let i = 0; i < operands.length; i += 1) {
     const word = operands[i]
     if (skipValue) {
@@ -650,12 +936,35 @@ function operandsEscape(name: string, spec: PathCommand, operands: ShellWord[], 
     // An empty argument names nothing: `sed -i '' file` passes the in-place suffix as a word of its
     // own on macOS, and it is not the script.
     if (word === '') continue
+    // A heredoc or herestring body is content handed to the command's stdin, not one of its
+    // operands: it is read where a shell runs it, and nowhere else.
+    if (word.startsWith(HERESTRING)) continue
     if (word.startsWith('-')) {
+      // An option that names a *file* — `sed -f script`, `grep -f patterns` — is a place, and its
+      // value is judged like any operand. The attached forms (`-f/`, `--file=…`) carry the same
+      // value in the same word.
+      const places = spec.placeOptions?.find(
+        (option) => word === option || word.startsWith(`${option}=`) || (option.length === 2 && word.startsWith(option) && word.length > 2),
+      )
+      if (places) {
+        const attached = word.startsWith(`${places}=`) ? word.slice(places.length + 1) : word.length > places.length ? word.slice(places.length) : ''
+        const value = attached || operands[i + 1] || ''
+        if (attached === '') skipValue = true
+        const finding = value ? wordEscape(value, spec.root, spec.reach, reading) : null
+        if (finding) return finding
+        continue
+      }
       // The option that carries the program (`sed -e '…'`, `--expression=…`) is not a place either,
-      // and once it is given every operand left is a file.
-      if (spec.program?.options.some((option) => word === option || word.startsWith(`${option}=`))) {
+      // and once it is given every operand left is a file. The attached form — `sed -e'/^x/p'`,
+      // which the shell hands over as one word — is the program too, so it is not read as an option
+      // the check does not know and the script position must not be lost behind it.
+      const programOption = spec.program?.options.find(
+        (option) => word === option || word.startsWith(`${option}=`) || (option.length === 2 && word.startsWith(option) && word.length > 2),
+      )
+      if (programOption) {
         programSeen = true
-        if (!word.includes('=')) skipValue = true
+        // `-e script` carries it in the next word; `-e'script'` and `--expression=script` in this one.
+        if (word === programOption) skipValue = true
         continue
       }
       if (spec.valueOptions?.includes(word)) {
@@ -682,7 +991,7 @@ function operandsEscape(name: string, spec: PathCommand, operands: ShellWord[], 
           tail.push(operands[end])
         }
         i = end
-        const inner = tail.length > 0 ? segmentEscape(tail, depth + 1) : null
+        const inner = tail.length > 0 ? segmentEscape(tail, deeper(reading)) : null
         if (inner) return inner
         continue
       }
@@ -698,7 +1007,7 @@ function operandsEscape(name: string, spec: PathCommand, operands: ShellWord[], 
       patternSeen = true
       continue
     }
-    const finding = wordEscape(word, spec.root, spec.reach)
+    const finding = wordEscape(word, spec.root, spec.reach, reading)
     if (finding) return finding
   }
   return null
@@ -778,7 +1087,7 @@ function executorTail(name: string, rest: ShellWord[]): { words: ShellWord[]; jo
 }
 
 /** The host path a container is handed: `-v /:/host`, `--volume=/:/host`, `--mount source=/`. */
-function mountEscape(rest: ShellWord[]): string | null {
+function mountEscape(rest: ShellWord[], reading: Reading): string | null {
   // Only the option region: `docker run alpine grep -v /app` is `grep -v`, not a mount.
   let i = CONTAINER_RUNS.has(rest[0] ?? '') ? 1 : 0
   for (; i < rest.length; i += 1) {
@@ -791,7 +1100,8 @@ function mountEscape(rest: ShellWord[]): string | null {
         ? /(?:^|,)(?:source|src)=([^,]+)/.exec(value)?.[1]
         : value.split(':')[0]
       if (source) {
-        const finding = wordEscape(source, 'a container mount of the filesystem root', 'strict')
+        // A mount is made on the host even when the command that reads it runs in a container.
+        const finding = wordEscape(source, 'a container mount of the filesystem root', 'strict', { ...reading, context: 'host' })
         if (finding) return finding
       }
     }
@@ -829,6 +1139,44 @@ function programArgument(rest: ShellWord[], spec: Interpreter): string | null {
 }
 
 /**
+ * The first *place* an interpreter is handed, or null.
+ *
+ * The program itself is not read (`python3 -c "os.listdir('/')"` is a program, and reading every
+ * string in one is the false positive this check was written to remove). The file the program is
+ * read from is a place, though, exactly as `sed -f`'s file is: `python3 /etc/x.py` runs a script off
+ * the host, and it used to pass because the interpreter branch stopped at the program. So the
+ * program position is skipped — the value of `-e`/`-c`/`-r`, or `awk`'s first operand — and every
+ * other word is judged.
+ */
+function scriptEscape(rest: ShellWord[], spec: Interpreter, reading: Reading): string | null {
+  // A program given as an option's value (`perl -e '…' file`) means every operand left is a file;
+  // one given as the first operand (`awk '{print}' file`) means the operand after it is.
+  const attached = (option: string, word: string) =>
+    word === option || word.startsWith(`${option}=`) || (option.length === 2 && word.startsWith(option) && word.length > 2)
+  let programSeen = spec.programOptions?.some((option) => rest.some((word) => attached(option, word))) ?? false
+  let skipValue = false
+  for (const word of rest) {
+    if (word.startsWith(HERESTRING)) continue
+    if (skipValue) {
+      skipValue = false
+      continue
+    }
+    if (word.length > 1 && word.startsWith('-')) {
+      if (spec.programOptions?.includes(word) || spec.valueOptions?.includes(word)) skipValue = true
+      continue
+    }
+    if (!programSeen) {
+      programSeen = true
+      // `awk`'s program is its first operand; an interpreter's script is the place we are here for.
+      if (spec.positional) continue
+    }
+    const finding = wordEscape(word, 'an operation on the filesystem root', 'room', reading)
+    if (finding) return finding
+  }
+  return null
+}
+
+/**
  * The first escape a one-line program makes, or null.
  *
  * A program is not a shell command line, so it is not parsed as one — `os.listdir('/')` is not an
@@ -836,26 +1184,105 @@ function programArgument(rest: ShellWord[], spec: Interpreter): string | null {
  * reverse. What is read is where a program hands a string to a shell: `system("ls /")`, `exec`,
  * `spawn`, `popen`, and a backtick. There the string *is* a command.
  */
-function programEscape(program: string, depth: number): string | null {
+function programEscape(program: string, reading: Reading): string | null {
+  const inner = deeper(reading)
   for (const match of program.matchAll(CODE_CALL)) {
-    const inner = commandEscape(match[1] ?? match[2] ?? match[3] ?? '', depth + 1)
-    if (inner) return inner
+    const found = readCommand(match[1] ?? match[2] ?? match[3] ?? '', inner)
+    if (found) return found
   }
   for (const match of program.matchAll(CODE_BACKTICK)) {
-    const inner = commandEscape(match[1], depth + 1)
-    if (inner) return inner
+    const found = readCommand(match[1], inner)
+    if (found) return found
+  }
+  return null
+}
+
+/**
+ * Wrapper options whose value names a file: `xargs -a FILE` reads its arguments from FILE.
+ *
+ * These are consumed by `commandIndex` before the command is found — their whole job is to be an
+ * argument list of the wrapper's own — so `xargs -a / ls` never hands `/` to anything the check
+ * looks at. The value is judged where it is given instead, in every spelling the option has:
+ * `-a /etc/x`, `-a/etc/x`, `--arg-file /etc/x` and `--arg-file=/etc/x` are the same file, and the
+ * attached ones used to pass because only a whole option *word* was recognised.
+ */
+const WRAPPER_PLACE_OPTIONS = new Map<string, Set<string>>([
+  ['xargs', new Set(['-a', '--arg-file'])],
+])
+
+/**
+ * The value an option word carries, and whether it carried it in the same word.
+ *
+ * `-a /x` carries it in the next word; `-a/x` and `--arg-file=/x` in this one. It is the reading
+ * every place option gets — `sed -f /x`, `sed --file=/x` — held in one place so a wrapper cannot
+ * support one spelling and not the other.
+ */
+function optionValue(option: string, word: string, next: string | undefined): { value: string; attached: boolean } | null {
+  if (word === option) return { value: next ?? '', attached: false }
+  if (word.startsWith(`${option}=`)) return { value: word.slice(option.length + 1), attached: true }
+  if (option.length === 2 && word.startsWith(option) && word.length > 2) return { value: word.slice(option.length), attached: true }
+  return null
+}
+
+/** The first place a wrapper's own file option names, or null. */
+function wrapperPlaceEscape(words: ShellWord[], reading: Reading): string | null {
+  const wrapper = words.findIndex((word) => WRAPPER_PLACE_OPTIONS.has(commandName(word)))
+  if (wrapper < 0) return null
+  const options = WRAPPER_PLACE_OPTIONS.get(commandName(words[wrapper])) ?? new Set<string>()
+  for (let i = wrapper + 1; i < words.length; i += 1) {
+    const word = words[i]
+    if (word === '--') return null
+    const option = [...options].map((name) => optionValue(name, word, words[i + 1])).find((hit) => hit !== null)
+    if (option) {
+      const finding = option.value ? wordEscape(option.value, 'an operation on the filesystem root', 'room', reading) : null
+      if (finding) return finding
+      if (!option.attached) i += 1
+      continue
+    }
+    if (word.length > 1 && word.startsWith('-')) continue
+    // The command the wrapper runs: its words are read as that command's, not as the wrapper's.
+    return null
+  }
+  return null
+}
+
+/**
+ * A command the table does not describe, read for the words that can only be places.
+ *
+ * `cmp /`, `diff /`, `tee /x`, `od /`, `git -C /`, `xargs -a /` all passed while `cp -r /` failed,
+ * because a command missing from `PATH_COMMANDS` was not read at all. But the *table* is about
+ * positions — which operand is a pattern, a program or an option's value — and a word that is only
+ * a place has no ambiguity to resolve: `/` between two words is the machine in any argument list,
+ * `..` above the room is above it, and `/etc/hosts` is the host whatever binary is handed it. So
+ * those words are judged for every command whose words are not data, and `DATA_COMMANDS` names the
+ * exceptions (`echo /` prints a slash; `tr '/' '-'` translates one).
+ *
+ * Options are not places and are skipped; their values are read as operands, which is what makes
+ * `git -C /` and `git --work-tree /` visible. A command the check does not know whose option value
+ * is a bare `/` for a reason of its own (`cut -d /` is named in the table above for exactly this)
+ * is the price of not needing the table to be complete.
+ */
+function genericEscape(words: ShellWord[], reading: Reading): string | null {
+  for (const word of words) {
+    if (word === '') continue
+    if (word.startsWith(HERESTRING)) continue
+    if (word.length > 1 && word.startsWith('-')) continue
+    const finding = wordEscape(word, 'an operation on the filesystem root', 'room', reading)
+    if (finding) return finding
   }
   return null
 }
 
 /** The first escape one segment's command makes, or null. */
-function segmentEscape(words: ShellWord[], depth: number): string | null {
-  if (depth > MAX_DEPTH) return null
+function segmentEscape(words: ShellWord[], reading: Reading): string | null {
+  if (reading.depth > MAX_DEPTH) return null
   const split = splitStringArgument(words)
   if (split) {
-    const inner = commandEscape(split, depth + 1)
+    const inner = readCommand(split, deeper(reading))
     if (inner) return inner
   }
+  const wrapped = wrapperPlaceEscape(words, reading)
+  if (wrapped) return wrapped
   const index = commandIndex(words)
   if (index < 0) return null
   const name = commandName(words[index])
@@ -864,14 +1291,17 @@ function segmentEscape(words: ShellWord[], depth: number): string | null {
   if (name === 'diskutil') return 'a disk query'
   if (name === 'eval' || SHELLS.has(name)) {
     const nested = nestedCommand(name, rest) ?? herestringOf(rest)
-    return nested ? commandEscape(nested, depth + 1) : null
+    return nested ? readCommand(nested, deeper(reading)) : null
   }
   if (EXECUTORS.has(name)) {
-    const mounted = CONTAINER_TOOLS.has(name) ? mountEscape(rest) : null
+    const mounted = CONTAINER_TOOLS.has(name) ? mountEscape(rest, reading) : null
     if (mounted) return mounted
     const tail = executorTail(name, rest)
     if (!tail) return null
-    return tail.join ? commandEscape(tail.words.join(' '), depth + 1) : segmentEscape(tail.words, depth + 1)
+    // A container's words are its own filesystem's paths; the host reaches it only through a bind
+    // mount, which is judged above. `ssh`'s tail is a line for another shell and is read as one.
+    if (tail.join) return readCommand(tail.words.join(' '), deeper(reading))
+    return segmentEscape(tail.words, deeper(reading, CONTAINER_TOOLS.has(name) ? 'container' : reading.context))
   }
   const interpreter = INTERPRETERS.get(name)
   if (interpreter) {
@@ -879,15 +1309,19 @@ function segmentEscape(words: ShellWord[], depth: number): string | null {
     // runs `ls /`, and a tcl script hands its words to a program exactly as a shell line does.
     if (interpreter.stdin) {
       const here = herestringOf(rest)
-      const inner = here ? commandEscape(here, depth + 1) : null
+      const inner = here ? readCommand(here, deeper(reading)) : null
       if (inner) return inner
     }
     const program = programArgument(rest, interpreter)
-    return program ? programEscape(program, depth + 1) : null
+    const written = program ? programEscape(program, reading) : null
+    if (written) return written
+    // The program is not read, but the file it is read from is a place: `python3 /etc/x.py`.
+    return scriptEscape(rest, interpreter, reading)
   }
   const spec = PATH_COMMANDS.get(name)
-  if (!spec) return null
-  return operandsEscape(name, spec, rest, depth)
+  if (spec) return operandsEscape(name, spec, rest, reading)
+  if (DATA_COMMANDS.has(name)) return null
+  return genericEscape(rest, reading)
 }
 
 /**
@@ -933,10 +1367,21 @@ function commandIndex(words: ShellWord[]): number {
   return -1
 }
 
-/** The first escape a command line makes, read the way the shell would run it. */
-export function commandEscape(command: string, depth = 0): string | null {
+/**
+ * The first escape a command line makes, read the way the shell would run it.
+ *
+ * `room` is the directory the clean room occupies, when the caller knows it; an absolute path
+ * inside it is the one absolute place that is not a host read. Without it the temp trees in
+ * `ROOM_TEMP_ROOTS` stand in, which is the reading a caller that has only the command can make.
+ */
+export function commandEscape(command: string, room: string | null = null): string | null {
+  return readCommand(command, readingFrom(room))
+}
+
+/** A command line read from an existing reading, so nesting carries its depth, context and room. */
+function readCommand(command: string, reading: Reading): string | null {
   for (const segment of shellSegments(command)) {
-    const found = segmentEscape(segment, depth)
+    const found = segmentEscape(segment, reading)
     if (found) return found
   }
   return null
@@ -1006,7 +1451,12 @@ const PATH_FIELDS = [
 
 /** Every place a call hands to a tool, as text: its command, and its path-valued fields. */
 function placesNamed(input: Record<string, unknown>, command: string | null): string[] {
-  const places = command ? [command] : []
+  return [...(command ? [command] : []), ...pathFields(input)]
+}
+
+/** The path-valued fields of a call, as text. */
+function pathFields(input: Record<string, unknown>): string[] {
+  const places: string[] = []
   for (const key of PATH_FIELDS) {
     const value = input[key]
     if (typeof value === 'string') places.push(value)
@@ -1033,17 +1483,35 @@ function literalEscape(texts: string[], room: string | null): string | null {
   return null
 }
 
+/**
+ * The first field that names an absolute place outside the room, or null.
+ *
+ * A tool's `path` is not a command line, so there is no operand to read: `/etc/hosts` handed to
+ * `read_file` is the same host read as `cat /etc/hosts`, and it went unjudged for the same reason —
+ * only the literal names in `OUTSIDE_ROOM_PATHS` were read, and `/etc` is not one of them. A
+ * `file://` URL carries the same path after its scheme, and the room itself — named by the caller,
+ * wherever `mkdtemp` put it — is the one absolute place it may name.
+ */
+function fieldEscape(fields: string[], room: string | null): string | null {
+  for (const field of fields) {
+    const path = field.startsWith('file://') ? field.slice('file://'.length) : field
+    const place = normaliseAbsolute(path)
+    if (place.startsWith('/') && !isInRoomTree(place, room)) return 'an absolute path outside the room'
+  }
+  return null
+}
+
 export function outsideRoomCalls(calls: ToolCall[], room: string | null = null): string[] {
   const found: string[] = []
   for (const call of calls) {
     const command = shellCommand(call)
-    const outside = literalEscape(placesNamed(call.input, command), room)
+    const outside = literalEscape(placesNamed(call.input, command), room) ?? fieldEscape(pathFields(call.input), room)
     if (outside) {
       found.push(`${call.name}: ${outside}`)
       continue
     }
     if (!command) continue
-    const where = commandEscape(command)
+    const where = commandEscape(command, room)
     if (where) found.push(`${call.name}: ${where}`)
   }
   return found
