@@ -2,15 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><base href="body/">
-<title>Body — layers, sex, views</title>
+<title>My health story</title><meta name="kg-build" content="2026-11-23T11:43:18Z">
 <style>
   :root { color-scheme: dark; --bg:#0c0f13; --fg:#e6edf3; --mut:#93a4b5; --line:#25303c; --panel:#131922;
     /* the three columns, from one place: the list is 236px, the centre takes what is left, and the
        panel is the width the compared pair needs (docs/wireframe-health-v13-past-compared.svg).
        #main's right edge and #rightCol's width are both written from these two, so the columns
        tile instead of one floating beside the other. */
-    --colgap:12px; --panelw:592px; }
-  @media (max-width:1560px) { :root { --panelw:460px; } }
+    /* widths are fractions of the window, not breakpoints: three fixed px columns + gaps exceed the
+       viewport the moment it is narrower than their sum (or zoomed), and the centre then draws over
+       the panel. clamp() cannot overlap at any width. */
+    --colgap:12px; --panelw:clamp(220px, 30vw, 592px); --leftw:clamp(148px, 17vw, 236px);
+    --railw:44px; }
+  /* v11: three columns at every width. A column may COLLAPSE to a rail - it is never removed, so
+     there is no breakpoint anywhere below that hides one. On a narrow window the panel narrows and
+     the centre takes what is left; the page keeps all three. */
+  body.left-collapsed  { --leftw: var(--railw); }
+  body.right-collapsed { --panelw: var(--railw); }
   * { box-sizing: border-box; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
     font:13px/1.42 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; overflow:hidden; }
@@ -43,10 +51,10 @@
 
   /* the left column: the records list (widget 7) on top, the body's layer list under it. One column,
      one collapse button: the same width the stage's layout maths has always assumed. */
-  #leftCol { position:fixed; left:0; top:120px; bottom:0; width:236px; display:flex; flex-direction:column;
+  #leftCol { position:fixed; left:0; top:120px; bottom:0; width:var(--leftw); display:flex; flex-direction:column; overflow:hidden;
     background:var(--panel); border-top:1px solid var(--line); border-right:1px solid var(--line);
     overflow:hidden; transition:width .18s ease; z-index:2; }
-  #state { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
+  #state { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; min-width:0; }
   #leftCol header { display:flex; align-items:center; justify-content:space-between; padding:8px 10px;
     border-bottom:1px solid var(--line); font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--mut); }
   #leftCol header .btn { padding:2px 6px; border:1px solid transparent; background:transparent; color:var(--mut); }
@@ -143,7 +151,7 @@
   .bootbar i { display:block; height:100%; width:0; background:#7fb3e0; transition:width .2s ease; }
   .bootnum { color:#5f7183; font-size:11px; margin-top:7px; }
 
-#tl { position:fixed; left:244px; right:calc(var(--panelw) + var(--colgap) * 2); top:46px; height:74px; z-index:26;
+#tl { position:fixed; left:calc(var(--leftw) + 8px); right:calc(var(--panelw) + var(--colgap) * 2); top:46px; height:74px; z-index:26;
       pointer-events:auto; overflow:hidden; }   /* the strip is a scrubber over the centre column: it must receive the click */
 #tl .track { position:relative; height:44px; pointer-events:none; }
 #tl .base { position:absolute; left:0; right:0; top:26px; height:1px; background:#3a3a44; }
@@ -194,16 +202,21 @@
   /* widget 9: the main view. The event decides which layout fills it, so the container is one
      box with one header and the body is rebuilt on every selection. It opens over the body: the
      3D scene is a backdrop, not a second answer to the same question. */
-  #main { position:fixed; left:244px; top:122px; bottom:52px; width:auto;
+  #main { position:fixed; overflow:visible; left:calc(var(--leftw) + 8px); top:122px; bottom:52px; width:auto;
     right:calc(var(--panelw) + var(--colgap) * 2);
-    min-width:420px; z-index:5; display:flex; flex-direction:column; overflow:hidden;
+    min-width:0; z-index:5; display:flex; flex-direction:column; overflow:hidden;
     background:rgba(12,15,19,.96); border:1px solid var(--line); border-radius:10px;
     box-shadow:0 18px 48px rgba(0,0,0,.55); }
   #main[hidden] { display:none; }
   #main header { display:flex; align-items:center; justify-content:space-between; gap:10px;
+    flex-wrap:nowrap; min-width:0; padding-right:22px;
     padding:8px 12px; border-bottom:1px solid var(--line); font-size:10.5px; letter-spacing:.09em;
     text-transform:uppercase; color:var(--mut); }
   #main header .btn { padding:2px 6px; border:1px solid transparent; background:transparent; color:var(--mut); }
+  /* the kicker gives way before the controls do: a long date · type string was squeezing the player and
+     the collapse control off the edge of a narrow centre column */
+  #mainKicker { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; }
+  #main header .mheadright { flex:none; display:flex; align-items:center; gap:8px; }
   /* the header's right-hand cluster, in the order v11 reads it: the date the timeline points at, the
      player (four buttons), then the page's own close control at the very edge */
   .mheadright { display:flex; align-items:center; gap:8px; margin-left:auto; }
@@ -226,6 +239,22 @@
   #main .mrow .mrv .mdetail { display:block; color:#93a4b5; font-size:11.5px; margin-top:1px; }
   #main .mgroup { font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:#a9b6c3;
     margin:10px 0 2px; }
+  /* widget 2's blocks (SCRUM-16): one row per fact, a glyph for its state, and the reason under it.
+     The row's `data-state` is what the acceptance run reads, so the page never has to be believed. */
+  #main .pvrow { display:flex; gap:8px; align-items:baseline; padding:3px 0; border-bottom:1px solid #171e26; }
+  #main .pvrow:last-child { border-bottom:0; }
+  #main .pvrow .pvmark { width:12px; flex:none; color:#7f8b98; }
+  #main .pvrow[data-state="supplied"] .pvmark { color:#7fb4f2; }
+  #main .pvrow[data-state="refused"] .pvmark { color:#e2725b; }
+  #main .pvrow .pvf { color:#dbe6f1; font-size:12.5px; min-width:150px; }
+  #main .pvrow .pvv { color:#93a4b5; font-size:11.5px; flex:1; min-width:0; }
+  #main .pvrow .pvwhy { display:block; color:#6f7c8a; font-size:11px; }
+  #main .pvrow .pvpts { color:#c9a86a; font-size:11px; white-space:nowrap; }
+  #main .pvlegend { color:#6f7c8a; font-size:11px; margin:6px 0 0; }
+  #main .pvspan { color:var(--mut); font-size:12px; line-height:1.45; margin:-8px 0 14px; }
+  #main .pvyear { width:62px; background:#18202b; color:#dbe6f1; border:1px solid var(--line);
+    border-radius:6px; padding:3px 6px; font:inherit; font-size:12px; font-variant-numeric:tabular-nums; }
+  #main .pvreset { padding:2px 7px; font-size:11px; }
   /* widget 10: the whole panel as a table — a lipid panel is four rows, a single test is one */
   #main table.mtab { width:100%; border-collapse:collapse; font-size:12.5px; margin-top:4px; }
   #main .mtab th { text-align:left; font-weight:600; color:#8b98a6; font-size:10px; letter-spacing:.07em;
@@ -277,13 +306,52 @@
   /* the centre closed with ✕: the two columns that remain still fill the page — the panel takes the
      place of the centre instead of floating to the right of an empty one. Any row in the list
      brings the centre back (selectDate clears mainHidden). */
-  body.centre-closed #rightCol { left:244px; width:auto; }
+  /* v11: the panel keeps its own column. Collapsing the centre never lets it slide over. */
   #rightCol header { display:flex; align-items:baseline; justify-content:space-between; gap:8px;
     padding:8px 12px; border-bottom:1px solid var(--line); font-size:10.5px; letter-spacing:.09em;
     text-transform:uppercase; color:var(--mut); }
   #rightCol header .rpasof { font-size:10px; letter-spacing:.03em; text-transform:none; color:#6f7f90;
     font-variant-numeric:tabular-nums; white-space:nowrap; }
   #rightBody { padding:2px 12px 14px; overflow:auto; }
+  /* a collapse button per column: the same shape as the list's, so the three read as one control set */
+  .cbtn { padding:1px 6px; border:1px solid transparent; background:transparent; color:var(--mut);
+    border-radius:4px; font-size:11px; line-height:1.2; }
+  .cbtn:hover { background:#1b2532; color:#fff; border-color:#31465c; }
+  .rail { display:none; }
+  .rail .v { writing-mode:vertical-rl; text-orientation:mixed; letter-spacing:.16em;
+    text-transform:uppercase; font-size:10.5px; color:var(--mut); white-space:nowrap; }
+  body.left-collapsed #state > :not(.rail),
+  body.centre-collapsed #main > :not(.rail),
+  body.right-collapsed #rightCol > :not(.rail) { display:none; }
+  body.left-collapsed #state > .rail,
+  body.centre-collapsed #main > .rail,
+  body.right-collapsed #rightCol > .rail {
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    gap:10px; padding:10px 0; min-height:0; overflow:hidden; }
+  /* the rail is how you get the column back: the expand control is the first thing in it */
+  /* the label in a rail is text, not a target: it must never sit on top of the expand control */
+  .rail .v, .rail .years { pointer-events:none; }
+  .rail .cbtn { position:relative; z-index:2; font-size:12px; line-height:1; width:16px; height:16px; padding:0;
+    display:flex; align-items:center; justify-content:center; flex:none; }
+  /* the centre's control hangs off the column edge, not out of the header: at a 20px column it is
+     still inside the column and still clickable */
+  .cbtn.float { position:absolute; top:10px; right:3px; z-index:7; width:16px; height:16px; padding:0;
+    display:flex; align-items:center; justify-content:center; }
+  .cbtn svg { display:block; }
+  .cbtn svg.flip { transform:rotate(180deg); }
+  body.right-collapsed #rightCol > .rail { justify-content:center; }
+  body.centre-collapsed #main > .rail { justify-content:flex-start; align-items:flex-start;
+    padding-left:14px; }
+  /* collapsed, the centre is a rail too - 44px at the left edge of its own column, not a wide panel
+     with a word floating in the middle */
+  body.centre-collapsed #main { right: calc(100% - var(--leftw) - 8px - var(--railw)); }
+  /* the panel's rail carries the projection, not prose: 26px, whole years, then over now */
+  .rail .years { font-size:26px; font-weight:600; color:#eef4fa; line-height:1.02;
+    font-variant-numeric:tabular-nums; }
+  .rail .years + .years { margin-top:6px; }
+  .rail .years.pale { color:#7f8c9a; }
+  .rail .rt { writing-mode:vertical-rl; text-orientation:mixed; font-size:9.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:#61707f; }
   .rpsec { border-top:1px solid #1b2430; padding:9px 0 4px; }
   .rpsec:first-child { border-top:0; }
   .rpsec h3 { margin:0 0 5px; font-size:10px; letter-spacing:.09em; text-transform:uppercase;
@@ -329,11 +397,10 @@
   .rpcell.now, .rpcol.now, .rphead span.now { opacity:.42; }
   .rpempty { padding:16px 2px; color:#8a7a4a; font-size:12px; line-height:1.5; }
   .rpempty b { display:block; color:#e8c34a; font-size:13px; margin-bottom:3px; }
-  @media (max-width:1180px) {
-    #rightCol { display:none; }
-    #main { right:8px; }
-    #tl { right:14px; }
-  }
+  /* There is deliberately no rule here that hides a column. The one that used to live at 1180px
+     (\`#rightCol { display:none }\`) is the defect SCRUM-66 removes: a narrow window is where the
+     agent's internal browser lives, so that breakpoint deleted the forecast exactly where it was
+     needed. Columns collapse to a rail; they are never taken off the page. */
 
   /* widgets 1 and 2, T27 + SCRUM-49: the graph is the app's data drawn as a view, and its button is
      the left half of the header's one right-hand group. v11 draws the pair at the right end of the
@@ -421,7 +488,14 @@
 </div>
 
 <div class="bar">
-  <b class="only-main">Body</b>
+  <!-- SCRUM-66: the page is a story about one person, not a body viewer, and the leftmost control
+       asks the document for a summary of itself - the file the reader can take away. -->
+  <button id="summaryBtn" class="only-main" title="download a summary of this document" aria-label="summary of the whole document">
+    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.1" aria-hidden="true">
+      <path d="M4 1.8h5.2L12.6 5v9.2H4z"/><path d="M9 1.9v3.3h3.4"/><path d="M5.8 8h5M5.8 10.2h5M5.8 12.4h3.2"/>
+    </svg>
+  </button>
+  <b class="only-main" title="built 2026-11-23T11:43:18Z">My health story</b>
 
   <!-- the graph view's own chrome: back to the product, and what the view does and does not do -->
   <button id="graphBack" class="only-graph" title="back — returns to the selected date">← back</button>
@@ -459,8 +533,9 @@
 
 <div id="leftCol">
   <aside id="state" aria-label="records">
-    <header><span>records</span></header>
+    <header><span>records</span><button class="cbtn" id="collapseLeft" title="collapse the list" aria-label="collapse the records list"><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></header>
     <div class="rows" id="stateRows"></div>
+    <div class="rail"><button class="cbtn" id="expandLeft" title="expand the list" aria-label="expand the records list"><svg class="flip" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="v" id="railLeftDate"></div></div>
     <!-- the legend v11 draws under the list, in its own words. Not a widget and not a second list:
          four lines that say what the one list is doing, so a reader never needs a caption row. -->
     <div class="notes" id="stateNotes">
@@ -499,18 +574,39 @@
         <button data-step="next" title="next event" aria-label="next event"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M3 2.4 L9.3 6 L3 9.6 Z" fill="currentColor"/></svg></button>
         <button data-step="end" title="end — last event" aria-label="end"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M1.5 2.4 L7.8 6 L1.5 9.6 Z" fill="currentColor"/><rect x="9.3" y="2" width="1.7" height="8" fill="currentColor"/></svg></button>
       </div>
-      <button class="btn" id="mainClose" title="close">✕</button>
     </div>
   </header>
+  <!-- v11/SCRUM-66: the centre has no x. The control is a child of #main, not of the header, so it
+       stays at the column's edge at any width - the header's contents may squeeze, this may not. -->
+  <button class="cbtn float" id="collapseCentre" title="collapse the record" aria-label="collapse the record"><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  <div class="rail"><button class="cbtn" id="expandCentre" title="expand the record" aria-label="expand the record"><svg class="flip" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="v" id="railCentreType"></div></div>
   <div class="mbody" id="mainBody"></div>
 
   <!-- widget 2, the profile view (SCRUM-52's wireframe: docs/wireframe-health-v11d-profile.svg). It
        is the same shell as the record — same header, same ruler, same left list, same right panel —
        and only the centre column changes. The identity on it comes out of `meta.profile`; nothing
-       on it is written back, so the one knob it carries moves the forecast, never the document. -->
+       on it is written back, so the knobs move the reading, never the document.
+
+       SCRUM-16 added the blocks the wireframe names and the page had not got: the cohort the
+       estimate is measured against (27), what each model reads and refuses (28), what no model
+       reads (29), and the other three knobs (30). Their rows come from lib/profile-view.js, which
+       holds every table to the file that produces it (src/score2.ts, src/lee.ts) — no number on
+       this page is invented, and where a number is not derivable the row says so in words. -->
   <div class="mbody" id="profileBody" hidden>
     <h2 class="mtitle" id="pvWho">unnamed profile</h2>
     <div class="msub" id="pvSub">no profile in this document</div>
+    <div class="pvspan" id="pvSpan"></div>
+
+    <div class="msec">the cohort this forecast is measured against</div>
+    <div id="pvCohort"></div>
+
+    <div class="msec">what each model reads, and what it refuses</div>
+    <div id="pvInputs"></div>
+
+    <div class="msec">what no model reads</div>
+    <p class="mtext" id="pvBlind"></p>
+    <p class="mno" id="pvBlindWhy"></p>
+
     <div class="msec">what you may change</div>
     <div class="mrow">
       <span class="mrl">sex</span>
@@ -520,8 +616,32 @@
           <button data-sex="male" class="on" title="male" aria-label="male">&#9794;</button>
         </span>
         <span class="mdetail" id="sexNote">the forecast's baseline follows it; the document is not written</span>
+        <span class="mdetail" id="sexBase"></span>
       </span>
     </div>
+    <div class="mrow">
+      <span class="mrl">birth year</span>
+      <span class="mrv">
+        <input class="pvyear" id="pvBorn" inputmode="numeric" size="5" aria-label="year of birth">
+        <button class="btn pvreset" id="pvBornDoc" title="read the year in the document again">the document's year</button>
+        <span class="mdetail" id="bornNote"></span>
+      </span>
+    </div>
+    <div class="mrow">
+      <span class="mrl">smoker</span>
+      <span class="mrv">
+        <span class="seg" id="pvSmoke">
+          <button data-smoke="no" title="non-smoker">no</button>
+          <button data-smoke="yes" title="smoker">yes</button>
+        </span>
+        <span class="mdetail" id="smokeNote"></span>
+      </span>
+    </div>
+    <div class="mrow">
+      <span class="mrl">steps a day</span>
+      <span class="mrv"><span class="mdetail" id="stepsNote"></span></span>
+    </div>
+
     <div class="msec">who may see this record</div>
     <p class="mtext">one file on one device — whoever holds the file sees all of it. no accounts, no share
       link, no per-panel permission: there is no service behind this page to hold one.</p>
@@ -533,8 +653,10 @@
      record draws one solid column. This is the corrected v12 (see docs/wireframe-health-v13-past-
      then-now.svg and docs/WIDGETS.md). -->
 <aside id="rightCol" class="only-main" aria-label="forecast and recommendations">
-  <header><span>forecast and recommendations</span><span class="rpasof" id="rpAsOf"></span></header>
+  <header><span>forecast and recommendations</span><span class="rpasof" id="rpAsOf"></span>
+    <button class="cbtn" id="collapseRight" title="collapse the panel" aria-label="collapse the forecast panel"><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></header>
   <div id="rightBody"></div>
+  <div class="rail"><button class="cbtn" id="expandRight" title="expand the panel" aria-label="expand the forecast panel"><svg class="flip" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="years" id="railYearsThen"></div><div class="years pale" id="railYearsNow"></div></div>
 </aside>
 
 <div id="tl"><div class="track" id="tlTrack"></div></div>
@@ -559,6 +681,7 @@
 <script src="lib/state-list.js"></script>
 <script src="lib/main-view.js"></script>
 <script src="lib/right-panel.js"></script>
+<script src="lib/profile-view.js"></script>
 <script>
 const LAYERS = [
   { id:"skin",     name:"skin · teeth · nails", color:0xe8c9a0, filesBySex:true,
@@ -617,6 +740,8 @@ const state = {
   mainHidden:false,         // ✕ on the main view: closing it is not a deselection
   graph:false,              // the graph view (widget 1): a view of its own, never the main flow
   profile:false,            // the profile view (widget 2), in the centre column of the same shell
+  born:null,                // widget 30's birth-year knob: the year the page reads, null = the document's
+  smoker:null,              // widget 30's smoking reading: true/false, null = the document says nothing
   anatomy3d:false           // the 3D layer inside that view (T28): off until the reader asks for it
 };
 const EYE_OUT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
@@ -1224,11 +1349,215 @@ function closePanel() {
 document.getElementById("nodeClose").onclick = closePanel;
 /* the main view's ✕ hides the view and nothing else: the record stays selected and its row stays
    marked, because closing a view is not a deselection. */
-document.getElementById("mainClose").onclick = () => {
-  // ✕ closes the centre, and the profile view is the centre while it is open
-  if (state.profile) setProfileView(false);
-  state.mainHidden = true;
-  renderMain();
+/* v11/SCRUM-66: a column collapses; nothing on this page closes one, and the centre has no ✕.
+   One state object, three body classes, and each rail carries the fact its column is about: the
+   date on the left, the record's type in the centre, the projection on the right. */
+const COLLAPSE = { left: false, centre: false, right: false };
+function updateRails() {
+  const d = document.getElementById("railLeftDate");
+  if (d) d.textContent = state.date || "";
+}
+function applyCollapse() {
+  document.body.classList.toggle("left-collapsed", COLLAPSE.left);
+  document.body.classList.toggle("centre-collapsed", COLLAPSE.centre);
+  document.body.classList.toggle("right-collapsed", COLLAPSE.right);
+  updateRails();
+}
+document.getElementById("collapseLeft").onclick = () => { COLLAPSE.left = !COLLAPSE.left; applyCollapse(); };
+document.getElementById("collapseCentre").onclick = () => { COLLAPSE.centre = !COLLAPSE.centre; applyCollapse(); };
+document.getElementById("collapseRight").onclick = () => { COLLAPSE.right = !COLLAPSE.right; applyCollapse(); };
+/* the rail is the way back: the same control, on the other side of the collapse */
+document.getElementById("expandLeft").onclick = () => { COLLAPSE.left = false; applyCollapse(); };
+document.getElementById("expandCentre").onclick = () => { COLLAPSE.centre = false; applyCollapse(); };
+document.getElementById("expandRight").onclick = () => { COLLAPSE.right = false; applyCollapse(); };
+
+/* the notepad: the person's story, not a dump of the file.
+   Every sentence is built from the document — it says what is recorded, what moved, what is still out
+   of range and what was never recorded. It never invents a diagnosis, a cause or a number. */
+function whenDate(w) {
+  if (!w) return "";
+  if (typeof w === "string") return w;
+  return String(w.from || w.at || w.date || w.since || "");
+}
+function storyMarkers(n) {
+  /* the reference range is written three different ways in this document: a pair of numbers on the
+     node, a pair on the value, or ref:[low,high]. Read all three, or every marker looks like it has
+     no range and nothing can be called out of range. */
+  const refOf = (v, node) => {
+    let lo = v.ref_low != null ? v.ref_low : node.ref_low;
+    let hi = v.ref_high != null ? v.ref_high : node.ref_high;
+    if (Array.isArray(v.ref)) { lo = v.ref[0]; hi = v.ref[1]; }
+    else if (Array.isArray(node.ref)) { lo = node.ref[0]; hi = node.ref[1]; }
+    return [typeof lo === "number" ? lo : null, typeof hi === "number" ? hi : null];
+  };
+  if (Array.isArray(n.values) && n.values.length) {
+    return n.values.map(v => {
+      const rr = refOf(v, n);
+      return { name: String(v.name || n.label || n.id), value: v.value,
+               unit: v.unit || n.unit || "", low: rr[0], high: rr[1] };
+    });
+  }
+  const rr = refOf(n, n);
+  return [{ name: String(n.label || n.id), value: n.value, unit: n.unit || "",
+            low: rr[0], high: rr[1] }];
+}
+function buildStory() {
+  const meta = TL_META || {};
+  const p = meta.profile || {};
+  const today = iso(new Date());
+  const nodes = DOC_NODES || [];
+  const kindOf = n => n.kind || n.type || "";
+  const num = v => (typeof v === "number" ? v : null);
+  const unitOf = u => (u ? " " + u : "");
+  const round = v => (Math.abs(v) >= 10 ? Math.round(v * 10) / 10 : Math.round(v * 100) / 100);
+  const age = BIRTH ? Math.floor(ageAt(dayOf(today))) : null;
+
+  /* one series per marker, oldest first: this is the spine of the story */
+  const series = {};
+  nodes.filter(n => kindOf(n) === "observation").forEach(n => {
+    const d = whenDate(n.when);
+    if (!d) return;
+    storyMarkers(n).forEach(m => {
+      if (num(m.value) === null) return;
+      (series[m.name] = series[m.name] || []).push({
+        date: d, value: num(m.value), unit: m.unit, low: num(m.low), high: num(m.high)
+      });
+    });
+  });
+  Object.keys(series).forEach(k => series[k].sort((a, b) => a.date.localeCompare(b.date)));
+  const inRange = pt => (pt.low === null || pt.high === null ? null : pt.value >= pt.low && pt.value <= pt.high);
+  const range = pt => (pt.low === null || pt.high === null ? "" :
+    round(pt.low) + "\u2013" + round(pt.high) + unitOf(pt.unit));
+
+  const conditions = nodes.filter(n => kindOf(n) === "condition");
+  const meds = nodes.filter(n => kindOf(n) === "medication");
+  const procs = nodes.filter(n => kindOf(n) === "procedure");
+  const dates = nodes.map(n => whenDate(n.when)).filter(Boolean).sort();
+  const first = dates[0] || "\u2014";
+  const last = dates[dates.length - 1] || "\u2014";
+
+  const out = [];
+  const who = [p.name || "This record", age !== null && age >= 0 ? age : null].filter(Boolean).join(", ");
+  out.push("# " + who + " \u2014 my health story");
+  out.push("");
+  out.push("**As of " + today + ".** " + nodes.length + " entries between " + first + " and " + last + ".");
+  out.push("");
+
+  /* 1. where things stand */
+  out.push("## Where things stand");
+  out.push("");
+  if (conditions.length) {
+    out.push("- **Diagnosed:** " + conditions
+      .map(c => String(c.label) + " (since " + whenDate(c.when) + (c.status ? ", " + c.status : "") + ")")
+      .join("; ") + ".");
+  } else {
+    out.push("- **Diagnosed:** nothing on this record.");
+  }
+  if (meds.length) {
+    out.push("- **On:** " + meds
+      .map(m => String(m.label) + (whenDate(m.when) ? " (since " + whenDate(m.when) + ")" : ""))
+      .join("; ") + ".");
+  }
+  const latestLine = Object.keys(series).map(name => {
+    const s = series[name];
+    const pt = s[s.length - 1];
+    const ir = inRange(pt);
+    return name + " " + round(pt.value) + unitOf(pt.unit) +
+      (ir === null ? "" : ir ? " (in range)" : " (outside " + range(pt) + ")");
+  });
+  if (latestLine.length) out.push("- **Latest numbers:** " + latestLine.join("; ") + ".");
+  out.push("");
+
+  /* 2. the risks and how they moved: only markers with at least two readings have a story */
+  const moved = Object.keys(series).filter(n => series[n].length > 1).map(name => {
+    const s = series[name];
+    const a = s[0], b = s[s.length - 1];
+    return { name: name, first: a, last: b, change: b.value - a.value, points: s.length };
+  }).sort((x, y) => {
+    /* what is out of range now leads; inside that, the fastest relative mover */
+    const ox = inRange(x.last) === false ? 0 : 1, oy = inRange(y.last) === false ? 0 : 1;
+    if (ox !== oy) return ox - oy;
+    return Math.abs(y.change / (Math.abs(y.first.value) || 1)) - Math.abs(x.change / (Math.abs(x.first.value) || 1));
+  });
+
+  out.push("## The risks, and how they moved");
+  out.push("");
+  if (!moved.length) {
+    out.push("No marker in this record was measured twice, so nothing here has a trend. One reading is a");
+    out.push("point, not a story.");
+  }
+  moved.forEach(m => {
+    const dir = m.change > 0 ? "up" : m.change < 0 ? "down" : "unchanged";
+    const ir = inRange(m.last);
+    const tail = ir === null ? "" : ir
+      ? " Inside the reference range today."
+      : " Still outside the reference range, which is " + range(m.last) + ".";
+    out.push("- **" + m.name + "** \u2014 " + round(m.first.value) + unitOf(m.first.unit) + " in " +
+      m.first.date + " \u2192 " + round(m.last.value) + unitOf(m.last.unit) + " in " + m.last.date +
+      " (" + dir + (m.change ? " " + round(Math.abs(m.change)) + unitOf(m.last.unit) : "") +
+      ", " + m.points + " readings)." + tail);
+  });
+  out.push("");
+
+  /* 3. what went well / what went badly, both read straight off the same series */
+  const cameIntoRange = moved.filter(m => inRange(m.first) === false && inRange(m.last) === true);
+  const wentOutOfRange = moved.filter(m => inRange(m.first) === true && inRange(m.last) === false);
+  const stillOut = Object.keys(series).map(n => ({ name: n, pt: series[n][series[n].length - 1] }))
+    .filter(x => inRange(x.pt) === false);
+
+  out.push("## What went well");
+  out.push("");
+  if (cameIntoRange.length) {
+    cameIntoRange.forEach(m => out.push("- **" + m.name + "** came into range: " +
+      round(m.first.value) + " in " + m.first.date + " \u2192 " + round(m.last.value) + " in " + m.last.date + "."));
+  }
+  if (procs.length) {
+    out.push("- **Procedures on the record:** " + procs.map(x => String(x.label) + " (" + whenDate(x.when) + ")").join("; ") + ".");
+  }
+  if (!cameIntoRange.length && !procs.length) out.push("- Nothing in this record can be called a win: no marker came into range, no procedure is recorded.");
+  out.push("");
+
+  out.push("## What went badly");
+  out.push("");
+  if (stillOut.length) {
+    out.push("- **Still out of range:** " + stillOut.map(x => x.name + " " + round(x.pt.value) + unitOf(x.pt.unit) + " (normal " + range(x.pt) + ")").join("; ") + ".");
+  }
+  if (wentOutOfRange.length) {
+    out.push("- **Slipped out of range:** " + wentOutOfRange.map(m => m.name + " (" + round(m.first.value) + " \u2192 " + round(m.last.value) + ")").join("; ") + ".");
+  }
+  const lateConditions = conditions.filter(c => whenDate(c.when) && whenDate(c.when) > first);
+  if (lateConditions.length) {
+    out.push("- **Added after the story started:** " + lateConditions.map(c => String(c.label) + " (" + whenDate(c.when) + ")").join("; ") + ".");
+  }
+  const stale = Object.keys(series).filter(n => {
+    const s = series[n], d = s[s.length - 1].date;
+    return d && (+dayOf(today) - +dayOf(d)) / 31557600000 >= 2;
+  });
+  if (stale.length) out.push("- **Not measured in two years or more:** " + stale.join("; ") + ".");
+  if (!stillOut.length && !wentOutOfRange.length && !lateConditions.length && !stale.length) {
+    out.push("- Nothing in this record went badly by its own numbers.");
+  }
+  out.push("");
+
+  out.push("## What this record does not say");
+  out.push("");
+  out.push("- Family history, sleep, alcohol, weight over time, vaccinations and mood are not recorded here.");
+  out.push("- It carries no cause and no advice: what to do about the numbers above is written in the");
+  out.push("  records themselves, by the people who wrote them.");
+  out.push("");
+  out.push("Built from the document at " + today + ": nothing in this text is inferred beyond comparing a");
+  out.push("marker with its own reference range and with its own earlier readings.");
+  return out.join("\n") + "\n";
+}
+document.getElementById("summaryBtn").onclick = () => {
+  const blob = new Blob([buildStory()], { type: "text/markdown" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "health-story-" + iso(new Date()) + ".md";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 };
 
 /* double-click any node to fly to it: the same framing a selection gets, no second camera path */
@@ -2765,6 +3094,19 @@ document.querySelectorAll("#sex button").forEach(b => b.onclick = () => {
   renderRightPanel();   // the baseline is the profile's sex: the forecast follows the switch
   buildProfile();       // and the profile view's knob row says which reading is on screen
 });
+/* widget 30's other knobs (SCRUM-16): the birth year moves the page's ages, the smoking switch
+   moves the reading the Lee rows state. Both are readings — `the document says … · reading as … ·
+   the file is not written` — and neither reaches the document. */
+document.getElementById("pvBorn").addEventListener("change", e => {
+  const year = Number(String(e.target.value).trim());
+  setBorn(Number.isInteger(year) && year > 0 ? year : null);
+});
+document.getElementById("pvBornDoc").onclick = () => setBorn(null);
+document.querySelectorAll("#pvSmoke button").forEach(b => b.onclick = () => {
+  const want = b.dataset.smoke === "yes";
+  state.smoker = state.smoker === want ? null : want;
+  buildProfile();
+});
 document.getElementById("collapse").onclick = e => {
   state.collapsed = !state.collapsed;
   document.getElementById("leftCol").classList.toggle("collapsed", state.collapsed);
@@ -2886,6 +3228,7 @@ function birthOf(meta) {
 
 let TL_META = {};
 let BIRTH = null;
+let DOC_BIRTH = null;        // the document's own birth date, before widget 30's knob moves the reading
 let LE_BY_SEX = { male: 74, female: 80 };
 let ANALYSES = [];
 /* every dated record of the document, whatever its kind: the left list reads this, the ruler and
@@ -2903,6 +3246,7 @@ function applyDocument(doc) {
   const birth = meta.birth || meta.profile ? dayOf(birthOf(meta)) : null;
   TL_META = meta;
   BIRTH = birth && !isNaN(+birth) ? birth : null;
+  DOC_BIRTH = BIRTH;
   LE_BY_SEX = meta.life_expectancy || { male: 74, female: 80 };
   ANALYSES = toAnalyses(doc && doc.nodes);
   DOC_NODES = (doc && doc.nodes) || [];
@@ -3535,19 +3879,156 @@ function paintProfileButton() {
   if (p.sex) btn.dataset.sex = p.sex; else delete btn.dataset.sex;
   btn.title = p.name ? "profile — " + p.name : "profile — who this record is about";
 }
+/* Widget 30's birth-year knob (SCRUM-16). The page keeps one reading of the year and every age on
+   the page is computed from `BIRTH`, so the knob moves that one value and rebuilds what is drawn
+   from it — the date readout's age, the ruler's span, the profile's age today, the record's age
+   span and the age the right panel's projection reads. `state.born` is the reader's year and
+   nothing else: it is `null` until a year is typed, it never reaches the document, and
+   `setBorn(null)` reads the document's own year again. */
+function workingYear() {
+  const doc = profileOf().year;
+  return state.born && state.born !== doc ? state.born : doc;
+}
+/* the document, with the reader's year in place of the file's: the right panel's age factor and
+   anything else the panel derives from the profile read the page's reading, not the file's */
+function workingMeta() {
+  const year = workingYear();
+  const doc = profileOf().year;
+  if (!year || year === doc) return TL_META;
+  return Object.assign({}, TL_META,
+    { profile: Object.assign({}, TL_META.profile, { year_of_birth: year }) });
+}
+function setBorn(year) {
+  const doc = profileOf().year;
+  const wanted = Number.isInteger(year) && year >= 1900 && year <= 2200 && year !== doc ? year : null;
+  state.born = wanted;
+  BIRTH = wanted ? new Date(wanted, 0, 1) : DOC_BIRTH;
+  buildTimeline();   // the ruler starts at birth, and its window is the age-shaped years around today
+  refreshPick();     // the readout's age, the marked row, the centre and the right panel
+  buildProfile();    // and this view's own rows
+}
+/* The profile view's blocks come out of `ProfileView` (lib/profile-view.js): the cohort (27), the
+   inputs (28), the blind spots (29) and the knob notes (30). The page only decides what a row
+   looks like; every number in them is the module's, and the module's test holds each one to the
+   file that produces it. A block the document cannot support says why, in words. */
+function pvEl(tag, cls, txt) {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (txt != null) el.textContent = txt;
+  return el;
+}
+const PV_MARK = { supplied: "●", absent: "—", refused: "✗" };
+/* a count of people is read, not scanned: 11,701 not 11701. Grouping is written here rather than
+   taken from toLocaleString, so the page reads the same in every locale. */
+function grouped(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+function pvRows(box, rows) {
+  rows.forEach(r => {
+    const row = pvEl("div", "pvrow");
+    row.dataset.fact = r.key;
+    row.dataset.state = r.state;
+    row.appendChild(pvEl("span", "pvmark", PV_MARK[r.state] || "—"));
+    const name = pvEl("span", "pvf", r.label);
+    if (r.record) name.appendChild(pvEl("span", "pvwhy", r.record + (r.date ? " · " + r.date : "")));
+    row.appendChild(name);
+    const value = pvEl("span", "pvv", r.value || "");
+    if (r.detail) value.appendChild(pvEl("span", "pvwhy", r.detail));
+    row.appendChild(value);
+    if (r.points !== null) row.appendChild(pvEl("span", "pvpts", r.points + (r.points === 1 ? " pt" : " pts")));
+    box.appendChild(row);
+  });
+}
+function renderProfileBlocks(v) {
+  const cohort = document.getElementById("pvCohort");
+  if (cohort) {
+    cohort.innerHTML = "";
+    const s = v.cohort.score2;
+    cohort.appendChild(pvEl("div", "mgroup", "SCORE2"));
+    cohort.appendChild(pvEl("p", "mtext",
+      s.title + " · derived for ages " + s.ages.min + "–" + s.ages.max +
+      " · four ESC regions: " + s.regions.join(", ") + " (src/score2.ts)."));
+    (s.refusals || []).forEach(r => cohort.appendChild(pvEl("div", "mgap", "✗ " + r)));
+    const l = v.cohort.lee;
+    cohort.appendChild(pvEl("div", "mgroup", "Lee"));
+    cohort.appendChild(pvEl("p", "mtext",
+      l.title + " · " + l.cohort + " · " + grouped(l.developed) + " people developed it, " +
+      grouped(l.validated) + " validated it · age " + l.ageMin + " and over (src/lee.ts, docs/LEE.md)."));
+    cohort.appendChild(pvEl("p", "mno",
+      "four printed bands, a group's observed 4-year mortality: " +
+      l.bands.map(b => b.from + (b.to === null ? "+" : "–" + b.to) + " → " + b.printed).join(" · ") +
+      " · discrimination c = " + l.discrimination.development + " development, " +
+      l.discrimination.validation + " validation. A band is a group's risk, not this person's probability."));
+  }
+
+  const inputs = document.getElementById("pvInputs");
+  if (inputs) {
+    inputs.innerHTML = "";
+    inputs.appendChild(pvEl("div", "mgroup", "SCORE2 reads"));
+    pvRows(inputs, v.inputs.score2.rows);
+    (v.inputs.score2.refusals || []).forEach(r =>
+      inputs.appendChild(pvEl("div", "mgap", "✗ no risk is printed: " + r)));
+    inputs.appendChild(pvEl("div", "mgroup", "Lee reads"));
+    pvRows(inputs, v.inputs.lee.rows);
+    const sum = v.inputs.lee.summary;
+    (v.inputs.lee.refusals || []).forEach(r =>
+      inputs.appendChild(pvEl("div", "mgap", "✗ no index is printed: " + r)));
+    inputs.appendChild(pvEl("p", "pvlegend",
+      PV_MARK.supplied + " supplied · " + PV_MARK.absent + " nobody asked · " + PV_MARK.refused +
+      " refused · supplied so far: " + sum.supplied + " of " + sum.items + " items, " +
+      sum.points + " of " + sum.maxPoints + " points"));
+  }
+
+  const blind = document.getElementById("pvBlind");
+  if (blind) blind.textContent = v.blind.map(b => b.name).join(" · ") +
+    " — named, not smoothed over: they stay in the record as facts, and neither estimate reads them.";
+  const blindWhy = document.getElementById("pvBlindWhy");
+  if (blindWhy) blindWhy.textContent = v.blind.map(b => b.name + " — " + b.why).join(" · ") + ".";
+
+  const sexBase = document.getElementById("sexBase");
+  if (sexBase) sexBase.textContent = v.knobs.sex.detail;
+  const born = document.getElementById("pvBorn");
+  if (born) {
+    const year = workingYear();
+    if (document.activeElement !== born) born.value = year ? String(year) : "";
+    born.dataset.document = v.knobs.birth.documentValue ? String(v.knobs.birth.documentValue) : "";
+  }
+  const bornNote = document.getElementById("bornNote");
+  if (bornNote) {
+    const k = v.knobs.birth;
+    bornNote.textContent =
+      (k.edited ? "the document says " + (k.documentValue || "no year") + " · reading as " + k.value + " · " : "") +
+      k.detail + (k.refusals.length ? " · " + k.refusals.join(" · ") : "");
+  }
+  const smokeNote = document.getElementById("smokeNote");
+  if (smokeNote) smokeNote.textContent = v.knobs.smoker.detail;
+  document.querySelectorAll("#pvSmoke button").forEach(b => b.classList.toggle("on",
+    (state.smoker === true && b.dataset.smoke === "yes") ||
+    (state.smoker === false && b.dataset.smoke === "no")));
+  const steps = document.getElementById("stepsNote");
+  if (steps) steps.textContent = v.knobs.steps.detail;
+
+  const span = document.getElementById("pvSpan");
+  if (span) {
+    const s = v.subject.span;
+    span.textContent = s
+      ? "the record runs from age " + s.fromAge + " to age " + s.toAge + " — " + s.dated +
+        (s.dated === 1 ? " dated event" : " dated events")
+      : "the record has no dated events to put an age on";
+  }
+}
 /* The profile view: the same shell as the record — the ruler, the left list and the right panel
    stay put, only the centre column changes — opened by widget 2 and closed by its back control.
-   It writes nothing: the identity is the document's, and the knob it carries moves the forecast's
-   baseline, never the file. */
+   It writes nothing: the identity is the document's, and the knobs move the reading the page
+   draws, never the file. */
 function buildProfile() {
   const p = profileOf();
-  const age = ageFromYear(p.year);
+  const year = workingYear();
+  const age = ageFromYear(year);
   const who = document.getElementById("pvWho");
   const sub = document.getElementById("pvSub");
   if (who) who.textContent = p.name || "unnamed profile";
   if (sub) sub.textContent = [
-    p.sex || "sex not in the document",
-    p.year ? "born " + p.year : "no birth year in the document",
+    state.sex || p.sex || "sex not in the document",
+    year ? "born " + year : "no birth year in the document",
     age !== null ? age + " today" : "no age to read"
   ].join(" · ");
   /* the subject speaks for the file, the knob for the reader. When the two differ the view says so
@@ -3557,6 +4038,17 @@ function buildProfile() {
     ? "the document says " + p.sex + " · reading as " + state.sex + "; the file is not written"
     : "the forecast's baseline follows it; the document is not written";
   document.querySelectorAll("#sex button").forEach(b => b.classList.toggle("on", b.dataset.sex === state.sex));
+  if (window.ProfileView) {
+    renderProfileBlocks(ProfileView.build({
+      meta: TL_META,
+      nodes: DOC_NODES,
+      sex: state.sex,
+      born: state.born,
+      smoker: state.smoker,
+      today: iso(new Date()),
+      leBySex: LE_BY_SEX
+    }));
+  }
 }
 
 function renderMain() {
@@ -3615,6 +4107,10 @@ function renderMain() {
   else if (view === "summary") renderSummary(body, row, node, context);
   else renderRecord(body, node, row, context);
   document.getElementById("mainKicker").textContent = row.date + " · " + view;
+  /* the collapsed centre keeps saying what this record IS: analysis, diagnosis, summary */
+  const rt = document.getElementById("railCentreType");
+  if (rt) rt.textContent = view;
+  updateRails();
   box.hidden = false;
   box.dataset.view = view;
   box.dataset.record = row.id;
@@ -3722,10 +4218,16 @@ function renderRightPanel() {
     sex: state.sex || profile.sex || "",
     byId: docById,
     /* the profile is where the age comes from: widget 21 lists age as a factor, and a document
-       carries a birth year, not an age */
-    meta: TL_META
+       carries a birth year, not an age — so the panel reads the year the page is reading */
+    meta: workingMeta()
   });
   box.dataset.past = panel.past ? "yes" : "no";
+  /* the collapsed panel is the number itself: 26px, whole years, then (solid) over now (paled) */
+  const f = (panel.sections && panel.sections.forecast) || {};
+  const yT = document.getElementById("railYearsThen");
+  const yN = document.getElementById("railYearsNow");
+  if (yT) yT.textContent = f.then && f.then.years != null ? String(Math.round(f.then.years)) : "\u2014";
+  if (yN) yN.textContent = panel.past && f.now && f.now.years != null ? String(Math.round(f.now.years)) : "";
   box.dataset.states = String(panel.states.length);
   const asof = document.getElementById("rpAsOf");
   if (asof) asof.textContent = panel.past ? panel.asOf + " \u2192 " + panel.today : panel.asOf;
@@ -4230,7 +4732,41 @@ window.__closeGraph = () => { setGraphView(false); return state.graph; };
 window.__profile = () => ({ open: state.profile, who: document.getElementById("profileWho").textContent,
                             name: document.getElementById("pvWho").textContent,
                             sub: document.getElementById("pvSub").textContent,
-                            sex: state.sex, date: state.date, event: state.event });
+                            sex: state.sex, date: state.date, event: state.event,
+                            born: state.born, smoker: state.smoker,
+                            span: document.getElementById("pvSpan").textContent });
+/* SCRUM-16: the profile view's blocks as the page actually drew them, and the two knobs the
+   acceptance run has to turn. `__setBorn` goes through the same `setBorn()` the input calls, so
+   what the run measures is the product's path and not a second one written for the test. */
+window.__profileBlocks = () => {
+  if (!window.ProfileView) return null;
+  const v = ProfileView.build({ meta: TL_META, nodes: DOC_NODES, sex: state.sex, born: state.born,
+                                smoker: state.smoker, today: iso(new Date()), leBySex: LE_BY_SEX });
+  return {
+    subject: v.subject,
+    cohort: v.cohort,
+    inputs: v.inputs,
+    blind: v.blind,
+    knobs: v.knobs,
+    drawn: [...document.querySelectorAll("#profileBody .pvrow")].map(row => ({
+      fact: row.dataset.fact, state: row.dataset.state, text: row.textContent
+    })),
+    legend: (document.querySelector("#profileBody .pvlegend") || {}).textContent || "",
+    span: document.getElementById("pvSpan").textContent
+  };
+};
+window.__setBorn = year => {
+  setBorn(year === null || year === undefined ? null : Number(year));
+  return { born: state.born, year: workingYear(), age: ageFromYear(workingYear()),
+           readout: document.getElementById("tlDate").textContent,
+           span: document.getElementById("pvSpan").textContent,
+           sub: document.getElementById("pvSub").textContent };
+};
+window.__setSmoker = value => {
+  state.smoker = value === null || value === undefined ? null : !!value;
+  buildProfile();
+  return state.smoker;
+};
 window.__openProfile = () => { setProfileView(true); return state.profile; };
 window.__closeProfile = () => { setProfileView(false); return state.profile; };
 window.__ask3d = () => { askLayer3d(true); return { shown: !document.getElementById("layerAsk").hidden,
@@ -4290,7 +4826,7 @@ window.__mainView = () => {
     text: body.innerText
   };
 };
-window.__mainClose = () => { document.getElementById("mainClose").click(); return Boolean(state.mainHidden); };
+window.__mainClose = () => { const b = document.getElementById("collapseCentre"); if (b) b.click(); return Boolean(document.body.classList.contains("centre-collapsed")); };
 /* the three columns as geometry, for the acceptance run: whether they are on screen, where their
    edges are, and whether the centre is carrying a record. Nothing here describes the design — it
    reports what the browser laid out. */

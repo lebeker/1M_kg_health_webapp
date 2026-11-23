@@ -86,13 +86,15 @@ describe('the header: one right-hand group, graph and profile (SCRUM-49)', () =>
   const at = (needle: string) => bar.indexOf(needle)
   const group = bar.slice(at('<div class="hgroup'), bar.indexOf('</div>', at('<div class="hgroup')))
 
-  test('the left of the header is the title alone', () => {
-    // the bar opens on the wordmark and nothing before it; round 1 already took the button off the
-    // left, and the reopen keeps it that way
-    const title = at('<b class="only-main">Body')
+  test('the left of the header is the title, and the summary button is the only control before it', () => {
+    // SCRUM-66 renamed the page and put the document's own summary at the leftmost edge. The bar
+    // still opens on nothing but that control and the wordmark; the title is the page's name.
+    const title = at('<b class="only-main">My health story</b>')
     expect(title).toBeGreaterThan(-1)
-    // between the bar's own tag and the title there is whitespace and a comment, never a control
-    expect(bar.slice(bar.indexOf('>') + 1, title)).not.toContain('<button')
+    // between the bar's own tag and the title: the summary button and nothing else
+    const before = bar.slice(bar.indexOf('>') + 1, title)
+    expect(before.match(/<button/g)?.length).toBe(1)
+    expect(before).toContain('id="summaryBtn"')
   })
 
   test('one group at the right end, two buttons, graph first', () => {

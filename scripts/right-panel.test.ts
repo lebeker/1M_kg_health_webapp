@@ -420,7 +420,10 @@ describe('three columns side by side (docs/wireframe-health-v13-past-compared.sv
   const style = page.slice(page.indexOf('<style>'), page.indexOf('</style>'))
 
   test('the panel width is one variable, and the centre stops where the panel starts', () => {
-    expect(style).toContain('--panelw:592px')
+    // SCRUM-67: the width is a fraction of the window rather than a fixed px value, so the three
+    // columns cannot overlap at any width — but it is still one variable both edges are written
+    // from, which is what keeps them tiled.
+    expect(style).toContain('--panelw:clamp(220px, 30vw, 592px)')
     expect(style).toContain('--colgap:12px')
     expect(style).toContain('width:var(--panelw)')
     expect(style).toContain('right:calc(var(--panelw) + var(--colgap) * 2)')
@@ -430,13 +433,22 @@ describe('three columns side by side (docs/wireframe-health-v13-past-compared.sv
   })
 
   test('a narrower window shrinks the panel before it hides it', () => {
-    expect(style).toContain('@media (max-width:1560px) { :root { --panelw:460px; } }')
-    expect(style).toContain('@media (max-width:1180px)')
+    // SCRUM-67 replaced the breakpoint ladder (592/460/372/296) with a clamp, because three fixed
+    // px columns exceed the viewport below their sum. The rule is the same one this test has
+    // always held: the panel narrows, it is never taken off the page.
+    expect(style).toContain('--panelw:clamp(220px, 30vw, 592px)')
+    expect(style).not.toContain('@media (max-width:1180px)')
+    // no breakpoint writes --panelw: the width follows the window, not a list of window sizes
+    expect(style).not.toMatch(/@media[^{]*\{[^}]*--panelw/)
   })
 
-  test('closing the centre lets the panel take its place instead of floating', () => {
-    expect(style).toContain('body.centre-closed #rightCol')
-    expect(page).toContain('classList.toggle("centre-closed"')
+  test('collapsing the centre gives it a rail, and the panel keeps its own column', () => {
+    // SCRUM-66: the centre has no ✕ and never closes. It collapses to a 44px rail at the left
+    // edge of its own column, and the panel stays where it was instead of sliding over it.
+    expect(style).toContain('body.centre-collapsed #main > .rail')
+    expect(style).toContain('body.centre-collapsed #main { right: calc(100% - var(--leftw) - 8px - var(--railw)); }')
+    expect(page).toContain('classList.toggle("centre-collapsed", COLLAPSE.centre)')
+    expect(page).not.toMatch(/body\.centre-closed #rightCol/)
   })
 
   test('the page opens on its latest item, so the centre is filled without a click', () => {

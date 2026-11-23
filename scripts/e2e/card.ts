@@ -28,6 +28,21 @@
  * a card written before the field existed keeps running the run it was written for. A card whose
  * claim is on the columns page must say so; `gate.ts` then refuses a graph-only receipt.
  *
+ * `view:` narrows a columns-page claim to the view it is drawn in, because the profile view is
+ * behind the header's second button and is not in the page's text until something opens it:
+ *
+ *   ## e2e
+ *   prompt: open the profile and read the cohort
+ *   page: case
+ *   view: profile
+ *   expect: family history
+ *
+ * Only `page: case` has a profile view, so `view: profile` beside the graph page (or beside
+ * `both`) is refused here rather than silently ignored by a probe that has no view to open — the
+ * same reason an unknown page or view name is refused. The capture then opens the view through
+ * the page's own hook and the run goes red if it did not open (see `viewCheck` in `capture.ts`):
+ * a claim read from the record column is not evidence of the profile view.
+ *
  * A card with no prompt is not guessed at. G0 says a card that does not state its own test
  * is blocked, not started; the harness exits 2 and says which block to add.
  */
@@ -53,8 +68,18 @@ export type Card = {
   expect: string[]
   /** Which built pages the claim lives on. Absent `page:` means `['graph']`. */
   pages: PageKind[]
+  /**
+   * Which view of the columns page the claim lives in. `record` (the default) is the centre
+   * column the page boots into; `profile` is widget 2's view, which is behind a button and
+   * therefore not in the page's text until something opens it. A card that claims something the
+   * reader only sees after clicking says `view: profile`, and the capture opens it through the
+   * page's own hook and records that it did.
+   */
+  view: ViewKind
   source: 'kanban' | 'file'
 }
+
+export type ViewKind = 'record' | 'profile'
 
 const TASK_ID = /^t_[0-9a-f]{4,}$/i
 const JIRA_KEY = /^SCRUM-\d+$/i
@@ -114,8 +139,8 @@ function readFileCard(path: string): Card {
  * ignored: a typo in the one line that says which page the claim lives on would otherwise fall
  * back to the graph page — the exact mismatch this field exists to make impossible.
  */
-export function parseE2e(body: string): { mode?: CardMode; prompt?: string; expect: string[]; pages?: PageKind[] } {
-  const result: { mode?: CardMode; prompt?: string; expect: string[]; pages?: PageKind[] } = { expect: [] }
+export function parseE2e(body: string): { mode?: CardMode; prompt?: string; expect: string[]; pages?: PageKind[]; view?: ViewKind } {
+  const result: { mode?: CardMode; prompt?: string; expect: string[]; pages?: PageKind[]; view?: ViewKind } = { expect: [] }
 
   const lightMarker = body.match(/^\s*e2e:\s*light\b/im)
   if (lightMarker) result.mode = 'light'
@@ -136,6 +161,7 @@ export function parseE2e(body: string): { mode?: CardMode; prompt?: string; expe
       if (key === 'prompt' && value) result.prompt = value
       if (key === 'mode' && /^(full|light)$/i.test(value)) result.mode = value.toLowerCase() as CardMode
       if (key === 'page' && value) result.pages = parsePages(value)
+      if (key === 'view' && value) result.view = parseView(value)
       if (key === 'expect' && value) {
         result.expect.push(...value.split(',').map((s) => s.trim()).filter(Boolean))
       }
@@ -171,21 +197,47 @@ export function parsePages(value: string): PageKind[] {
   return PAGE_KINDS.filter((kind) => wanted.has(kind))
 }
 
+/** `record` or `profile`; anything else is refused rather than quietly read as the record column. */
+export function parseView(value: string): ViewKind {
+  const wanted = value.trim().toLowerCase()
+  if (wanted === 'record' || wanted === 'profile') return wanted
+  throw new Error(`the card's ## e2e block says \`view: ${value}\`, and "${wanted}" is not a view — use record or profile`)
+}
+
 export function parseCard(
   body: string,
   title: string,
-): { title: string; body: string; mode: CardMode; prompt: string; expect: string[]; pages: PageKind[] } {
+): { title: string; body: string; mode: CardMode; prompt: string; expect: string[]; pages: PageKind[]; view: ViewKind } {
   const e2e = parseE2e(body)
+  // The page the harness has always captured, so a card that predates the field keeps the run
+  // it was written for. A claim on the columns page has to say `page: case`.
+  const pages = e2e.pages ?? ['graph']
+  // And within that page, the view the claim is drawn in. Absent means the centre column the
+  // page boots into, which is what every card before this field was written about.
+  const view = e2e.view ?? 'record'
+  // The profile view is the columns page's, and only the columns page has one. A card that asks
+  // for it beside the graph page (or beside `both`) can never be honoured: the graph probe has no
+  // view to open, and a claim checked against the record column is not the claim the card made.
+  // Refused here, where an unknown view name is refused, rather than recorded and ignored.
+  if (view === 'profile' && !(pages.length === 1 && pages[0] === 'case')) {
+    throw new Error(
+      `the card's ## e2e block says \`view: profile\`, and only the columns page has a profile view — say \`page: case\` beside it (not \`page: ${pageFieldText(pages)}\`)`,
+    )
+  }
   return {
     title,
     body,
     mode: e2e.mode ?? 'full',
     prompt: e2e.prompt ?? '',
     expect: e2e.expect,
-    // The page the harness has always captured, so a card that predates the field keeps the run
-    // it was written for. A claim on the columns page has to say `page: case`.
-    pages: e2e.pages ?? ['graph'],
+    pages,
+    view,
   }
+}
+
+/** How the card named its pages, so a refusal can quote it back. */
+function pageFieldText(pages: PageKind[]): string {
+  return pages.length === PAGE_KINDS.length ? 'both' : pages.join('+')
 }
 
 export function readCard(ref: string): Card {
@@ -204,7 +256,11 @@ export function missingPromptHelp(card: Card): string {
     '  expect: <text that must be visible when it worked>',
     '',
     'Add `page: case` beside them when the claim lives on the columns page (`dist/demo.html`,',
-    'widgets 19–25) rather than the graph view; the default is `page: graph`.',
+    'widgets 19–31) rather than the graph view; the default is `page: graph`.',
+    '',
+    'If the claim is only visible after the header\'s profile button is pressed, add `view: profile`',
+    'as well (with `page: case`): the capture opens the view through the page\'s own hook, and a run',
+    'that could not open it goes red — text read from the record column is not evidence of the view.',
     '',
     'Then run the harness again. Nothing was run.',
   ].join('\n')

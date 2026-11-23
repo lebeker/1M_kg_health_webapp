@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ARTIFACT, ROOT, TEMPLATE, buildDemo, serialize } from './build-demo'
+import { ARTIFACT, ROOT, TEMPLATE, buildDemo, serialize, unstamped } from './build-demo'
 import { ASSET_ROOT, BASE, PAGES, PUBLISHED, ROOT_PAGE, publishCase } from './build-case'
 
 /**
@@ -52,8 +52,11 @@ function payload(html: string): string {
 
 describe('the published case page is built from the template and the document', () => {
   test('both copies on disk are the builder output, byte for byte', () => {
-    const built = publishCase(template, doc)
-    for (const [name, html] of onDisk) expect(html, name).toBe(built)
+    // the build stamp is a clock, so it is compared out: what must match is everything the build
+    // derived from the template and the document
+    const built = unstamped(publishCase(template, doc))
+    for (const [name, html] of onDisk) expect(unstamped(html), name).toBe(built)
+    for (const [name, html] of onDisk) expect(html, name).toMatch(/<meta name="kg-build" content="[^"]+">/)
   })
 
   test('the bare address and the documented one serve the same bytes', () => {
@@ -66,9 +69,11 @@ describe('the published case page is built from the template and the document', 
   })
 
   test('the only difference from dist/demo.html is the one <base> its address needs', () => {
-    // a hand-edited page fails here instead of drifting from the template and the case document
+    // a hand-edited page fails here instead of drifting from the template and the case document.
+    // The stamp is compared out: the two files were built minutes apart, and the base is the whole
+    // of the difference the address makes.
     for (const html of both) {
-      expect(html.replace(BASE, '')).toBe(buildDemo(template, doc))
+      expect(unstamped(html.replace(BASE, ''))).toBe(unstamped(buildDemo(template, doc)))
       expect(html.split(BASE).length - 1).toBe(1)
     }
   })
@@ -123,10 +128,10 @@ describe('every relative URL the published page carries resolves from the reposi
     expect(existsSync(join(ROOT, ASSET_ROOT))).toBe(true)
   })
 
-  test('the twelve scripts and the model path all exist where the site serves them', () => {
+  test('the thirteen scripts and the model path all exist where the site serves them', () => {
     for (const html of both) {
       const relative = references(html)
-      expect(relative.length).toBe(12)
+      expect(relative.length).toBe(13)
       for (const url of relative) expect(existsSync(join(ROOT, ASSET_ROOT, url))).toBe(true)
       // the models are loaded by the page's own loader from a path it builds, not from an
       // attribute: `models/${file}.glb`, which the <base> resolves exactly like the script tags

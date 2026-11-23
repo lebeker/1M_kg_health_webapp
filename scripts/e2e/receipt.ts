@@ -110,15 +110,25 @@ export function receiptDescription(input: {
   gaps: Check[]
   run: string
   cardId: string
+  /**
+   * Which view of the page the claim was read from. Named on the receipt when it is the profile
+   * view: `[case]` alone says which page was opened, not that the text the claim matched came
+   * from the view the card named, and a reader of the status should not have to open the run for
+   * that. It sits after the marker, so `ci-gate.ts` still reads the page marker itself.
+   */
+  view?: 'record' | 'profile'
 }): string {
   const marker = `[${input.pages.join('+')}]`
+  // After the marker, never inside it: `ci-gate.ts` reads `[case]` as the page, and the view is
+  // the finer fact a reader wants beside it.
+  const view = input.view === 'profile' ? ' (profile view)' : ''
   if (input.failures.length === 0) {
     const gapText = input.gaps.length > 0 ? ` — ${input.gaps.length} evidence gap${input.gaps.length === 1 ? '' : 's'}` : ''
-    return `G3 ${marker} PASS${gapText} — ${input.run} — ${input.cardId}`
+    return `G3 ${marker} PASS${view}${gapText} — ${input.run} — ${input.cardId}`
   }
   const what = `${input.failures.length} failed: ${input.failures
     .map((check) => check.name)
     .slice(0, 2)
     .join(', ')}`
-  return `G3 ${marker} ${what} — ${input.run}`
+  return `G3 ${marker}${view} ${what} — ${input.run}`
 }

@@ -8,9 +8,10 @@
  * never in the template a reader's own page is rendered from.
  *
  * Nothing about the page changes with the data: the output is the template with the placeholder
- * replaced, byte for byte. The page's own assets travel beside it (`lib/`, and the anatomy models
- * it loads only when the reader asks), because the page addresses them relatively and has to keep
- * working from `file://` and from any static server rooted at `dist/`.
+ * replaced, byte for byte — plus the build stamp (`buildStamp()` stamps the page itself, so "is
+ * this the new file?" is answerable from the page). The stamp is the one thing that changes between
+ * two builds of the same inputs, so every comparison of a built page to its source goes through
+ * `unstamped()`: the content is compared, the clock is not.
  *
  *   bun scripts/build-demo.ts           # write dist/demo.html
  *   bun scripts/build-demo.ts --check   # fail if the artifact on disk is stale
@@ -65,16 +66,34 @@ export function buildDemo(template: string, doc: unknown): string {
   if (count !== 1) {
     throw new Error(`body/index.html must carry exactly one ${marker}, found ${count}`)
   }
-  /* A build stamp in the page itself. Two people looking at two different files and arguing about
-     whether a fix landed is an expensive way to find out the file was stale; the stamp makes the
-     question answerable from the page: window.KG_BUILD, the title attribute, and the console. */
-  const stamp = new Date().toISOString().replace(/\..*$/, 'Z')
+  const stamp = buildStamp()
   return template
     .replace(marker, `${SCRIPT_OPEN}${serialize(doc)}${SCRIPT_CLOSE}`)
     .replace('<title>My health story</title>',
       `<title>My health story</title><meta name="kg-build" content="${stamp}">`)
     .replace('<b class="only-main">My health story</b>',
       `<b class="only-main" title="built ${stamp}">My health story</b>`)
+}
+
+/** The build's own clock, to the second: the one value in the output that two builds disagree on. */
+export function buildStamp(): string {
+  return new Date().toISOString().replace(/\..*$/, 'Z')
+}
+
+/**
+ * The page with its build stamp taken out, so a built page can be compared to its source (and to
+ * another build of the same source) on content alone. The stamp is deliberately not comparable: it
+ * is a clock, so a `--check` that compared it could only pass in the second it was built, and the
+ * tests that hold `dist/demo.html` and the two published copies to the builder's output would be
+ * green or red depending on when they ran. Every such comparison goes through this.
+ *
+ * Narrow on purpose: a `<meta name="kg-build">` and the wordmark's `title="built …"`, never a
+ * reader's own title attribute.
+ */
+export function unstamped(html: string): string {
+  return html
+    .replace(/<meta name="kg-build" content="[^"]*">/g, '')
+    .replace(/ title="built [^"]*"/g, '')
 }
 
 /** Put the page's assets where the page looks for them, replacing whatever an earlier build left. */
@@ -115,7 +134,7 @@ function main(argv: string[]): number {
       console.error('dist/demo.html is missing — run `bun run build:demo`')
       return 1
     }
-    if (onDisk !== built) {
+    if (unstamped(onDisk) !== unstamped(built)) {
       console.error('dist/demo.html is stale — run `bun run build:demo`')
       return 1
     }

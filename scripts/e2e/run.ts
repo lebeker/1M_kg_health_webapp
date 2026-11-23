@@ -31,7 +31,7 @@ import { createHash } from 'node:crypto'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join, resolve, sep } from 'node:path'
-import { capturePages, describeValues, type PageCapture } from './capture'
+import { capturePages, describeValues, type PageCapture, viewCheck } from './capture'
 import { type Card, cardStatus, missingPromptHelp, type PageKind, readCard } from './card'
 import { findArtifacts, keepRoomCopy, prepareCleanRoom, runAgent } from './cleanroom'
 import type { ToolCall } from './hermes'
@@ -194,9 +194,9 @@ function run(command: string, args: string[], cwd: string): { ok: boolean; outpu
  * The third check is about scope, not about the machine: the capture session's documented surface
  * is three tools, and a session is only as narrow as its worst call.
  */
-function policyChecks(sessionCalls: ToolCall[], roomCalls: ToolCall[], captureCalls: ToolCall[]): Check[] {
+function policyChecks(sessionCalls: ToolCall[], roomCalls: ToolCall[], captureCalls: ToolCall[], room: string): Check[] {
   const hostApps = hostAppCalls(sessionCalls)
-  const escapes = outsideRoomCalls(roomCalls)
+  const escapes = outsideRoomCalls(roomCalls, room)
   const outOfScope = captureScopeViolations(captureCalls)
   return [
     {
@@ -239,6 +239,11 @@ type PageValues = {
   documentState?: string
   columns?: { left?: number; centre?: number; panel?: number; centreFilled?: boolean; centreRecord?: string; states?: number }
   records?: { total?: number; stored?: number; sample?: Array<{ kind?: string; date?: string }> }
+  /** Which view the captured text came from: the probe's own answer, judged by `viewCheck`. */
+  profileOpen?: boolean
+  view?: string
+  viewWanted?: string
+  viewDetail?: string
   domBytes?: number
   domSha256?: string
   domHead?: string
@@ -301,6 +306,10 @@ function pageChecks(stage: string, capture: PageCapture, document: KgDocument): 
             ? `the page holds a document and drew ${Number(columns.left ?? 0)} / ${Number(columns.centre ?? 0)} / ${Number(columns.panel ?? 0)} px of columns, centre on ${String(columns.centreRecord ?? '(none)')}`
             : `the columns page never finished its first render — document ${String(values.documentState ?? 'unknown')}, columns ${Number(columns.left ?? 0)} / ${Number(columns.centre ?? 0)} / ${Number(columns.panel ?? 0)} px`,
       },
+      // Hard, and it is the one check that makes `view: profile` mean something: the profile
+      // view's own text is already in the page before the view is opened, so a claim can pass on
+      // the record column and be evidence of nothing (`viewCheck` says why a failure happened).
+      viewCheck(stage, capture.view, values),
       {
         name: `${stage}.not-empty`,
         ok: values.documentState === 'present',
@@ -474,7 +483,7 @@ function evidenceBody(input: {
     ...input.captures.flatMap((capture) => {
       const values = capture.values as PageValues
       const claim = Array.isArray(values.claim) ? values.claim : []
-      const where = `${capture.label} (${capture.kind} page)`
+      const where = `${capture.label} (${capture.kind} page${capture.view === 'profile' ? ', profile view' : ''})`
       if (claim.length === 0) return [`- ${where}: the card states no expected text`]
       return claim.map((hit) => `- ${where}: ${hit.found ? 'visible' : 'NOT visible'} — "${hit.needle}"`)
     }),
@@ -528,6 +537,7 @@ async function main() {
     source: card.source,
     mode: card.mode,
     pages: card.pages,
+    view: card.view,
     prompt: card.prompt,
     prompt_source: options.promptOverride ? 'override' : 'card',
     expect: card.expect,
@@ -594,7 +604,7 @@ async function main() {
       if (!found.pagePath) writeFileSync(cleanroomPage, inject(buildBytes.toString('utf8'), document))
       const replayPage = join(evidence, 'replay.html')
 
-      const pages: Array<{ label: string; url: string; expect: string[]; kind: PageKind }> = []
+      const pages: Array<{ label: string; url: string; expect: string[]; kind: PageKind; view?: 'record' | 'profile' }> = []
       if (card.pages.includes('graph')) {
         if (card.mode === 'full') writeFileSync(replayPage, inject(buildBytes.toString('utf8'), document))
         pages.push({ label: 'cleanroom', url: `file://${cleanroomPage}`, expect: card.expect, kind: 'graph' })
@@ -613,7 +623,7 @@ async function main() {
           if (!existsSync(from)) throw new Error(`${from} is missing — the columns page loads ${asset}/ and the build did not install it`)
           if (!existsSync(to)) symlinkSync(from, to, 'dir')
         }
-        pages.push({ label: 'case', url: `file://${casePath}`, expect: card.expect, kind: 'case' })
+        pages.push({ label: 'case', url: `file://${casePath}`, expect: card.expect, kind: 'case', view: card.view })
       }
 
       const capture = await capturePages({ pages, outDir: evidence })
@@ -656,7 +666,7 @@ async function main() {
     await room.close()
   }
 
-  checks.push(...policyChecks(allCalls, roomCalls, captureCalls))
+  checks.push(...policyChecks(allCalls, roomCalls, captureCalls, room.dir))
 
   /**
    * Two lists, not one. `failures` are the product checks that are red and they are what makes the
@@ -675,6 +685,11 @@ async function main() {
     return {
       label: capture.label,
       kind: capture.kind,
+      // Which view the claim was read from, and whether the view actually opened: the report has
+      // to carry it, because a green receipt whose claim was read from the record column is the
+      // mismatch `case.view` exists to forbid.
+      view: capture.view,
+      profile_open: values.profileOpen === true,
       url: capture.url,
       screenshot: capture.screenshot,
       dom_bytes: Number(values.domBytes ?? 0),
@@ -683,7 +698,7 @@ async function main() {
     }
   })
   const report = {
-    card: { id: card.id, title: card.title, mode: card.mode, page: card.pages, prompt: card.prompt, expect: card.expect },
+    card: { id: card.id, title: card.title, mode: card.mode, page: card.pages, view: card.view, prompt: card.prompt, expect: card.expect },
     branch,
     commit,
     dirty,
@@ -733,6 +748,7 @@ async function main() {
       state,
       description: receiptDescription({
         pages: card.pages,
+        view: card.view,
         failures: failed,
         gaps,
         run: basename(evidence),
