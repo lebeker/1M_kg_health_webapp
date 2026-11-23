@@ -119,10 +119,27 @@ the year after the one it covers, and the today summary, which is the first row 
 launch, never stored as an event. Clicking a row moves the ruler to that day and scrolls the row to
 the middle of the panel.
 
-The rules (order, annual marker, today row) live in `lib/state-list.js`, pure and DOM-free, so
-`scripts/state-list.test.ts` can state them as dates. The page only decides what a row looks like.
-The body's layer rail now sits under the list in the same column; the collapse button folds the
-whole column, which is the width the stage's framing maths has always assumed.
+Every row carries two lines, as v11 draws them: the date and the row's kind, then **the record's own
+one line** — `LDL cholesterol 4.2 mmol/L · +3 more` for a panel titled "Lipid panel", `City Heart
+Centre · Dr Iryna Savchenko` for a visit whose title only repeats its date, `Hyperlipidaemia` for a
+diagnosis, where the label is the fact. The line is one line: the row is clipped with an ellipsis and
+carries the whole text in its `title`. It is never prose the page invented — the numbers, places and
+names are the document's — and it is never blank, because the label stands in when the record has
+nothing else to say. A record the document marks `confirmed: false` says `not confirmed` on that line.
+
+The today row's line is what moved and what was ignored, v11's `3 moved, 1 ignored`: a **track whose
+newest reading differs from the reading before it** counts as moved (`lipids 5.2 → 5.6`), and
+something the document **advised that no dated record carries** counts as ignored. Advice that has a
+date is done or still ahead, and is not ignored. The case page reads `6 moved, 0 ignored`.
+
+The row's marker is the same rule in one dot: solid for a record that has happened, dashed for one
+that has not — and the four lines of the `NOTES` block under the list say exactly that, in the
+wireframe's words. It is a legend, not a second list: nothing in it is a row, a count or a click.
+
+The rules (order, annual marker, today row, the one line, moved/ignored) live in `lib/state-list.js`,
+pure and DOM-free, so `scripts/state-list.test.ts` can state them as dates. The page only decides what
+a row looks like. The body's layer rail now sits under the list in the same column; the collapse
+button folds the whole column, which is the width the stage's framing maths has always assumed.
 
 ## Main view — the centre (T11)
 
