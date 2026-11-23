@@ -439,10 +439,13 @@ describe('three columns side by side (docs/wireframe-health-v13-past-compared.sv
     expect(page).toContain('classList.toggle("centre-closed"')
   })
 
-  test('the page opens on a record, so the centre is filled without a click', () => {
-    expect(page).toContain('openLatestRecord()')
-    expect(page).toContain('STATE_ROWS.find(row => row.stored)')
+  test('the page opens on its latest item, so the centre is filled without a click', () => {
+    // the latest item is the list's first row: today's summary, generated at launch
+    expect(page).toContain('openLatest();')
+    expect(page).toContain('const latest = STATE_ROWS[0];')
     expect(page).toContain('selectDate(dayOf(latest.date), latest.id)')
+    // and the row the list marks is the row the centre draws — one rule, both halves
+    expect(page).toContain('const row = currentRow();')
   })
 
   test('every block is the same two-track grid: then is the left half, now the right', () => {

@@ -145,8 +145,13 @@ with the agent's document in its `#kg-graph` slot — waits for
 the first render, reads the page title, the `N nodes · M edges` header (or, on the columns page,
 the three column widths and the record rows it drew), the visible text and a
 sha256 of the live DOM, answers the card's `expect` in the page itself, and takes the
-screenshot. All of it is written to `~/.hermes/e2e/<card>-<timestamp>/` next to the agent's
-`kg.json` and its record stream, and `report.json` names the page every claim was checked against.
+screenshot. When that session's `browser_vision` does not answer, the harness takes the picture
+itself with the same bundled `agent-browser` binary and headless Chromium, which the policy permits
+because the binary is the harness's own and is checked against the host-application patterns before
+it is spawned. All of it is written to `~/.hermes/e2e/<card>-<timestamp>/` next to the agent's
+`kg.json` and its record stream, and `report.json` names the page every claim was checked against,
+the route that took each screenshot, and any `evidence_gaps` — a capture the run could not make,
+recorded on a receipt that can still be green, because a broken camera is not a product defect.
 Then that `kg.json` is injected into the branch build and
 replayed: no crash, `bun run verify` green, the kg/1 contract over the agent's own document,
 the same claim visible. Every child session's tool calls are scanned afterwards — one that

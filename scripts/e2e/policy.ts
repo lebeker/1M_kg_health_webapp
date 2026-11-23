@@ -950,6 +950,15 @@ function shellCommand(call: ToolCall): string | null {
   return null
 }
 
+/** The first owner-policy hit in `text`, or `null`. The one reading both a child's call and a
+ * binary the harness is about to spawn are judged by, so there is no second list to drift. */
+export function hostAppHit(text: string): string | null {
+  for (const [pattern, what] of HOST_APP_PATTERNS) {
+    if (pattern.test(text)) return what
+  }
+  return null
+}
+
 /** Tool calls whose input matches any of `patterns`, described in the harness's own words. */
 export function offendingCalls(calls: ToolCall[], patterns: Array<[RegExp, string]>): string[] {
   const found: string[] = []

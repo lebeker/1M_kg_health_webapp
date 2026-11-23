@@ -388,7 +388,9 @@
     });
     out.planned.sort();
     out.done.sort();
-    out.note = "computed from the document: nobody has said what held and what was dropped";
+    out.note = (ctx.nodes || []).length
+      ? "computed from the document: nobody has said what held and what was dropped"
+      : "nothing is recorded yet: there is no plan and nothing done to roll up";
     return out;
   }
 

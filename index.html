@@ -51,13 +51,28 @@
     border-bottom:1px solid var(--line); font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--mut); }
   #leftCol header .btn { padding:2px 6px; border:1px solid transparent; background:transparent; color:var(--mut); }
   #state .rows { flex:1 1 auto; min-height:0; overflow:auto; padding:4px 6px 10px; }
-  .srow { padding:6px 7px; border-radius:6px; cursor:pointer; border-left:2px solid transparent; }
+  /* a row: the marker v11 draws in the gutter, then the date·kind line and the record's own one
+     line under it. One line means one line — the full text is the row's title. */
+  .srow { display:grid; grid-template-columns:10px minmax(0,1fr); column-gap:7px; align-items:start;
+    padding:6px 7px; border-radius:6px; cursor:pointer; border-left:2px solid transparent; }
   .srow:hover { background:#18202b; }
-  .srow .d { font-size:10px; letter-spacing:.04em; color:var(--mut); }
-  .srow .t { font-size:12.5px; color:#cfe0f0; margin-top:1px; line-height:1.35; }
+  .srow .dot { grid-column:1; grid-row:1 / span 2; width:8px; height:8px; border-radius:50%;
+    margin-top:5px; background:#dfe8f2; justify-self:center; }
+  /* a record that has not happened yet carries the dashed edge the notes block explains */
+  .srow[data-future="1"] .dot { background:transparent; border:1px dashed #93a4b5; }
+  .srow .d { grid-column:2; grid-row:1; font-size:10px; letter-spacing:.04em; color:var(--mut); }
+  .srow .t { grid-column:2; grid-row:2; font-size:12.5px; color:#cfe0f0; margin-top:1px;
+    line-height:1.35; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   /* widget 8: the selected row is the only marker in the list — a black row, nothing else */
   .srow.on { background:#05070a; border-left-color:#dfe8f2; }
   .srow.on .t { color:#fff; }
+  .srow.on .dot { background:#fff; }
+  /* the list's own legend, where v11 draws it: a rule, then four lines. Explanatory text, never a
+     widget — nothing here is a row, a count or a click. */
+  #state .notes { flex:0 0 auto; border-top:1px solid var(--line); padding:8px 10px 10px; }
+  #state .notes h6 { margin:0 0 5px; font-size:10px; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--mut); font-weight:600; }
+  #state .notes p { margin:0; font-size:11px; line-height:1.5; color:#7d8d9e; }
   .legend { display:flex; flex-direction:column; flex:0 1 auto; min-height:0; max-height:38%;
     border-top:1px solid var(--line); overflow:hidden; }
   .legend .rows { min-height:0; overflow:auto; padding:6px; display:grid;
@@ -462,6 +477,15 @@
   <aside id="state" aria-label="records">
     <header><span>records</span></header>
     <div class="rows" id="stateRows"></div>
+    <!-- the legend v11 draws under the list, in its own words. Not a widget and not a second list:
+         four lines that say what the one list is doing, so a reader never needs a caption row. -->
+    <div class="notes" id="stateNotes">
+      <h6>notes</h6>
+      <p>future above, past below — dates are enough</p>
+      <p>dashed edge = has not happened yet</p>
+      <p>annual summary stamped 01-01</p>
+      <p>list mixes analyses, diagnoses, summaries, decisions</p>
+    </div>
   </aside>
 
   <aside class="legend" id="legend">
@@ -3227,7 +3251,7 @@ let STATE_ROWS = [];
 function buildStateList() {
   const box = document.getElementById("stateRows");
   if (!box) return;
-  STATE_ROWS = StateList.rows(DOC_NODES, iso(new Date()));
+  STATE_ROWS = StateList.rows(DOC_NODES, iso(new Date()), DOC_EDGES);
   box.innerHTML = "";
   STATE_ROWS.forEach(row => {
     const el = document.createElement("div");
@@ -3235,11 +3259,15 @@ function buildStateList() {
     el.dataset.record = row.id;
     el.dataset.date = row.date;
     el.dataset.kind = row.kind;
+    el.dataset.future = row.future ? "1" : "0";   // the dashed marker v11 gives a record ahead
+    const dot = document.createElement("span");
+    dot.className = "dot";
     const d = document.createElement("div");
     d.className = "d"; d.textContent = row.date + " · " + row.title;
     const t = document.createElement("div");
     t.className = "t"; t.textContent = row.note;
-    el.appendChild(d); el.appendChild(t);
+    t.title = row.note;                 // the row is one line; this is the rest of it
+    el.appendChild(dot); el.appendChild(d); el.appendChild(t);
     el.addEventListener("click", () => {
       state.mainHidden = false;              // picking a record opens its view again
       selectDate(dayOf(row.date), row.id);   // the ruler moves to that record's day...
@@ -3251,13 +3279,24 @@ function buildStateList() {
   renderMain();
 }
 
-/* With a document in hand the page opens on the latest record it holds: the state the reader is
-   in now, drawn in the centre, with no click. The template carries no document, so it has no
-   stored row, nothing is chosen, and the centre stays closed — one rule, no flag and no mode. */
-function openLatestRecord() {
-  const latest = STATE_ROWS.find(row => row.stored);
-  if (!latest || state.event) return;
+/* The page opens on the latest item it holds: today's summary, the list's first row. In a rendered
+   page a kg skill generates that summary; with the case document it is the row the page makes at
+   launch — the same row, the same view, no fetch and no stored event. Opening it is the row's own
+   click path, so the centre is never empty while a row is marked, with a document or without one. */
+function openLatest() {
+  if (state.event) return;
+  const latest = STATE_ROWS[0];
+  if (!latest) return;
   selectDate(dayOf(latest.date), latest.id);   // selectDate opens the view and marks the row
+}
+
+/* The row the reader is standing on: the one they picked, else the latest row that carries the
+   chosen date. The list marks by this rule and the centre draws by it, so a marked row and the row
+   in the centre are always the same row — the two can never disagree about what is selected. */
+function currentRow() {
+  if (state.event) return STATE_ROWS.find(r => r.id === state.event) || null;
+  if (!state.date) return null;
+  return STATE_ROWS.find(r => r.date === state.date) || null;
 }
 
 /* widget 8: exactly one row is marked. Picking a record marks that record; a date chosen on the
@@ -3266,13 +3305,8 @@ function openLatestRecord() {
 function markStateRow() {
   const box = document.getElementById("stateRows");
   if (!box) return;
-  let marked = false;
-  [...box.children].forEach(el => {
-    const hit = state.event ? el.dataset.record === state.event
-                            : (!marked && !!state.date && el.dataset.date === state.date);
-    if (hit) marked = true;
-    el.classList.toggle("on", hit);
-  });
+  const row = currentRow();
+  [...box.children].forEach(el => el.classList.toggle("on", !!row && el.dataset.record === row.id));
 }
 
 /* clicking a row centres it: the list scrolls so the row sits in the middle of the panel, not at
@@ -3781,7 +3815,7 @@ function renderMain() {
   if (pbody) pbody.hidden = true;
   body.hidden = false;
   box.hidden = false;
-  const row = state.event ? STATE_ROWS.find(r => r.id === state.event) : null;
+  const row = currentRow();
   if (!row) {
     // the date carries no record — an empty stretch between two events. The centre column keeps its
     // header, so widget 6 stays under the reader's hand (v11 puts the player there and nothing else);
@@ -4381,7 +4415,7 @@ document.getElementById("layerNo").onclick = () => askLayer3d(false);
 
 buildLegend();
 buildStateList();       // today's summary is made here, at launch, and never stored
-openLatestRecord();     // a document with records opens on the latest of them
+openLatest();           // the page opens on its latest item: today's summary, the first row
 buildTimeline();        // the ruler is the product's: it no longer waits for the graph's models
 refreshPick();          // ends in markStateRow + renderMain — the main flow stands on its own
 tick();
@@ -4474,7 +4508,13 @@ window.__tlAt = (clientX) => {          // the strip's own pointer path, for the
 };
 window.__today = () => iso(new Date());
 window.__records = () => STATE_ROWS.map(r => ({ id: r.id, kind: r.kind, date: r.date,
-                                                 note: r.note, stored: r.stored }));
+                                                 note: r.note, stored: r.stored, future: r.future }));
+/* the list's legend as data, for the acceptance run: v11 draws it under the list, so a run can read
+   the four lines off the page instead of trusting the markup by eye. */
+window.__stateNotes = () => {
+  const box = document.getElementById("stateNotes");
+  return box ? [...box.querySelectorAll("p")].map(p => p.textContent) : [];
+};
 window.__selectRecord = id => {           // the row's own click path, for the acceptance run
   const el = [...document.querySelectorAll("#stateRows .srow")].find(x => x.dataset.record === id);
   if (!el) return null;

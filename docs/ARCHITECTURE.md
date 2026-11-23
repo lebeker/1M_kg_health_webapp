@@ -107,8 +107,11 @@ filename (Pages answers `/` with it), and `case.html` is the same bytes under th
 Nothing about the page changes with the data — same head, same scripts, same styles, one `<base>` —
 and a renderer does the same for the reader's own document.
 
-With a document in hand the page opens on its latest record; with no document it has no record to
-open and the centre stays closed, so the template still starts empty.
+The page opens on the latest item it holds — today's summary, the list's first row — so the centre
+carries a view from the first paint, with a document or without one. In a rendered page that summary
+is what the kg skill wrote; in the demo it is the row the page generates at launch (the same row and
+the same view, never a stored event). With no document the list holds only that row and the summary
+says there is nothing yet: no plan, nothing done to roll up.
 
 The right panel (widgets 19–25) and the drift view are parked, so no score or forecast an engine
 computes is drawn yet: the ruler shades future years with the page's own `annualRisk(age)`, which is not

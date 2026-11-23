@@ -2,15 +2,22 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Body — layers, sex, views</title>
+<title>My health story</title>
 <style>
   :root { color-scheme: dark; --bg:#0c0f13; --fg:#e6edf3; --mut:#93a4b5; --line:#25303c; --panel:#131922;
     /* the three columns, from one place: the list is 236px, the centre takes what is left, and the
        panel is the width the compared pair needs (docs/wireframe-health-v13-past-compared.svg).
        #main's right edge and #rightCol's width are both written from these two, so the columns
        tile instead of one floating beside the other. */
-    --colgap:12px; --panelw:592px; }
+    --colgap:12px; --panelw:592px; --leftw:236px; --railw:44px; }
   @media (max-width:1560px) { :root { --panelw:460px; } }
+  @media (max-width:1280px) { :root { --panelw:372px; } }
+  @media (max-width:1080px) { :root { --panelw:296px; } }
+  /* v11: three columns at every width. A column may COLLAPSE to a rail - it is never removed, so
+     there is no breakpoint anywhere below that hides one. On a narrow window the panel narrows and
+     the centre takes what is left; the page keeps all three. */
+  body.left-collapsed  { --leftw: var(--railw); }
+  body.right-collapsed { --panelw: var(--railw); }
   * { box-sizing: border-box; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
     font:13px/1.42 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; overflow:hidden; }
@@ -43,7 +50,7 @@
 
   /* the left column: the records list (widget 7) on top, the body's layer list under it. One column,
      one collapse button: the same width the stage's layout maths has always assumed. */
-  #leftCol { position:fixed; left:0; top:120px; bottom:0; width:236px; display:flex; flex-direction:column;
+  #leftCol { position:fixed; left:0; top:120px; bottom:0; width:var(--leftw); display:flex; flex-direction:column;
     background:var(--panel); border-top:1px solid var(--line); border-right:1px solid var(--line);
     overflow:hidden; transition:width .18s ease; z-index:2; }
   #state { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
@@ -51,13 +58,28 @@
     border-bottom:1px solid var(--line); font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--mut); }
   #leftCol header .btn { padding:2px 6px; border:1px solid transparent; background:transparent; color:var(--mut); }
   #state .rows { flex:1 1 auto; min-height:0; overflow:auto; padding:4px 6px 10px; }
-  .srow { padding:6px 7px; border-radius:6px; cursor:pointer; border-left:2px solid transparent; }
+  /* a row: the marker v11 draws in the gutter, then the date·kind line and the record's own one
+     line under it. One line means one line — the full text is the row's title. */
+  .srow { display:grid; grid-template-columns:10px minmax(0,1fr); column-gap:7px; align-items:start;
+    padding:6px 7px; border-radius:6px; cursor:pointer; border-left:2px solid transparent; }
   .srow:hover { background:#18202b; }
-  .srow .d { font-size:10px; letter-spacing:.04em; color:var(--mut); }
-  .srow .t { font-size:12.5px; color:#cfe0f0; margin-top:1px; line-height:1.35; }
+  .srow .dot { grid-column:1; grid-row:1 / span 2; width:8px; height:8px; border-radius:50%;
+    margin-top:5px; background:#dfe8f2; justify-self:center; }
+  /* a record that has not happened yet carries the dashed edge the notes block explains */
+  .srow[data-future="1"] .dot { background:transparent; border:1px dashed #93a4b5; }
+  .srow .d { grid-column:2; grid-row:1; font-size:10px; letter-spacing:.04em; color:var(--mut); }
+  .srow .t { grid-column:2; grid-row:2; font-size:12.5px; color:#cfe0f0; margin-top:1px;
+    line-height:1.35; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   /* widget 8: the selected row is the only marker in the list — a black row, nothing else */
   .srow.on { background:#05070a; border-left-color:#dfe8f2; }
   .srow.on .t { color:#fff; }
+  .srow.on .dot { background:#fff; }
+  /* the list's own legend, where v11 draws it: a rule, then four lines. Explanatory text, never a
+     widget — nothing here is a row, a count or a click. */
+  #state .notes { flex:0 0 auto; border-top:1px solid var(--line); padding:8px 10px 10px; }
+  #state .notes h6 { margin:0 0 5px; font-size:10px; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--mut); font-weight:600; }
+  #state .notes p { margin:0; font-size:11px; line-height:1.5; color:#7d8d9e; }
   .legend { display:flex; flex-direction:column; flex:0 1 auto; min-height:0; max-height:38%;
     border-top:1px solid var(--line); overflow:hidden; }
   .legend .rows { min-height:0; overflow:auto; padding:6px; display:grid;
@@ -128,7 +150,7 @@
   .bootbar i { display:block; height:100%; width:0; background:#7fb3e0; transition:width .2s ease; }
   .bootnum { color:#5f7183; font-size:11px; margin-top:7px; }
 
-#tl { position:fixed; left:244px; right:calc(var(--panelw) + var(--colgap) * 2); top:46px; height:74px; z-index:26;
+#tl { position:fixed; left:calc(var(--leftw) + 8px); right:calc(var(--panelw) + var(--colgap) * 2); top:46px; height:74px; z-index:26;
       pointer-events:auto; overflow:hidden; }   /* the strip is a scrubber over the centre column: it must receive the click */
 #tl .track { position:relative; height:44px; pointer-events:none; }
 #tl .base { position:absolute; left:0; right:0; top:26px; height:1px; background:#3a3a44; }
@@ -179,9 +201,9 @@
   /* widget 9: the main view. The event decides which layout fills it, so the container is one
      box with one header and the body is rebuilt on every selection. It opens over the body: the
      3D scene is a backdrop, not a second answer to the same question. */
-  #main { position:fixed; left:244px; top:122px; bottom:52px; width:auto;
+  #main { position:fixed; left:calc(var(--leftw) + 8px); top:122px; bottom:52px; width:auto;
     right:calc(var(--panelw) + var(--colgap) * 2);
-    min-width:420px; z-index:5; display:flex; flex-direction:column; overflow:hidden;
+    min-width:0; z-index:5; display:flex; flex-direction:column; overflow:hidden;
     background:rgba(12,15,19,.96); border:1px solid var(--line); border-radius:10px;
     box-shadow:0 18px 48px rgba(0,0,0,.55); }
   #main[hidden] { display:none; }
@@ -278,13 +300,40 @@
   /* the centre closed with ✕: the two columns that remain still fill the page — the panel takes the
      place of the centre instead of floating to the right of an empty one. Any row in the list
      brings the centre back (selectDate clears mainHidden). */
-  body.centre-closed #rightCol { left:244px; width:auto; }
+  /* v11: the panel keeps its own column. Collapsing the centre never lets it slide over. */
   #rightCol header { display:flex; align-items:baseline; justify-content:space-between; gap:8px;
     padding:8px 12px; border-bottom:1px solid var(--line); font-size:10.5px; letter-spacing:.09em;
     text-transform:uppercase; color:var(--mut); }
   #rightCol header .rpasof { font-size:10px; letter-spacing:.03em; text-transform:none; color:#6f7f90;
     font-variant-numeric:tabular-nums; white-space:nowrap; }
   #rightBody { padding:2px 12px 14px; overflow:auto; }
+  /* a collapse button per column: the same shape as the list's, so the three read as one control set */
+  .cbtn { padding:1px 6px; border:1px solid transparent; background:transparent; color:var(--mut);
+    border-radius:4px; font-size:11px; line-height:1.2; }
+  .cbtn:hover { background:#1b2532; color:#fff; border-color:#31465c; }
+  .rail { display:none; }
+  .rail .v { writing-mode:vertical-rl; text-orientation:mixed; letter-spacing:.16em;
+    text-transform:uppercase; font-size:10.5px; color:var(--mut); white-space:nowrap; }
+  body.left-collapsed #state > :not(.rail),
+  body.centre-collapsed #main > :not(.rail),
+  body.right-collapsed #rightCol > :not(.rail) { display:none; }
+  body.left-collapsed #state > .rail,
+  body.centre-collapsed #main > .rail,
+  body.right-collapsed #rightCol > .rail {
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    gap:10px; padding:10px 0; min-height:0; overflow:hidden; }
+  body.centre-collapsed #main > .rail { justify-content:flex-start; align-items:flex-start;
+    padding-left:14px; }
+  /* collapsed, the centre is a rail too - 44px at the left edge of its own column, not a wide panel
+     with a word floating in the middle */
+  body.centre-collapsed #main { right: calc(100% - var(--leftw) - 8px - var(--railw)); }
+  /* the panel's rail carries the projection, not prose: 26px, whole years, then over now */
+  .rail .years { font-size:26px; font-weight:600; color:#eef4fa; line-height:1.02;
+    font-variant-numeric:tabular-nums; }
+  .rail .years + .years { margin-top:6px; }
+  .rail .years.pale { color:#7f8c9a; }
+  .rail .rt { writing-mode:vertical-rl; text-orientation:mixed; font-size:9.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:#61707f; }
   .rpsec { border-top:1px solid #1b2430; padding:9px 0 4px; }
   .rpsec:first-child { border-top:0; }
   .rpsec h3 { margin:0 0 5px; font-size:10px; letter-spacing:.09em; text-transform:uppercase;
@@ -330,11 +379,10 @@
   .rpcell.now, .rpcol.now, .rphead span.now { opacity:.42; }
   .rpempty { padding:16px 2px; color:#8a7a4a; font-size:12px; line-height:1.5; }
   .rpempty b { display:block; color:#e8c34a; font-size:13px; margin-bottom:3px; }
-  @media (max-width:1180px) {
-    #rightCol { display:none; }
-    #main { right:8px; }
-    #tl { right:14px; }
-  }
+  /* There is deliberately no rule here that hides a column. The one that used to live at 1180px
+     (\`#rightCol { display:none }\`) is the defect SCRUM-66 removes: a narrow window is where the
+     agent's internal browser lives, so that breakpoint deleted the forecast exactly where it was
+     needed. Columns collapse to a rail; they are never taken off the page. */
 
   /* widgets 1 and 2, T27 + SCRUM-49: the graph is the app's data drawn as a view, and its button is
      the left half of the header's one right-hand group. v11 draws the pair at the right end of the
@@ -422,7 +470,14 @@
 </div>
 
 <div class="bar">
-  <b class="only-main">Body</b>
+  <!-- SCRUM-66: the page is a story about one person, not a body viewer, and the leftmost control
+       asks the document for a summary of itself - the file the reader can take away. -->
+  <button id="summaryBtn" class="only-main" title="download a summary of this document" aria-label="summary of the whole document">
+    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.1" aria-hidden="true">
+      <path d="M4 1.8h5.2L12.6 5v9.2H4z"/><path d="M9 1.9v3.3h3.4"/><path d="M5.8 8h5M5.8 10.2h5M5.8 12.4h3.2"/>
+    </svg>
+  </button>
+  <b class="only-main">My health story</b>
 
   <!-- the graph view's own chrome: back to the product, and what the view does and does not do -->
   <button id="graphBack" class="only-graph" title="back — returns to the selected date">← back</button>
@@ -460,8 +515,18 @@
 
 <div id="leftCol">
   <aside id="state" aria-label="records">
-    <header><span>records</span></header>
+    <header><span>records</span><button class="cbtn" id="collapseLeft" title="collapse the list" aria-label="collapse the records list">&#9664;</button></header>
     <div class="rows" id="stateRows"></div>
+    <div class="rail" aria-hidden="true"><div class="v" id="railLeftDate"></div></div>
+    <!-- the legend v11 draws under the list, in its own words. Not a widget and not a second list:
+         four lines that say what the one list is doing, so a reader never needs a caption row. -->
+    <div class="notes" id="stateNotes">
+      <h6>notes</h6>
+      <p>future above, past below — dates are enough</p>
+      <p>dashed edge = has not happened yet</p>
+      <p>annual summary stamped 01-01</p>
+      <p>list mixes analyses, diagnoses, summaries, decisions</p>
+    </div>
   </aside>
 
   <aside class="legend" id="legend">
@@ -491,9 +556,11 @@
         <button data-step="next" title="next event" aria-label="next event"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M3 2.4 L9.3 6 L3 9.6 Z" fill="currentColor"/></svg></button>
         <button data-step="end" title="end — last event" aria-label="end"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M1.5 2.4 L7.8 6 L1.5 9.6 Z" fill="currentColor"/><rect x="9.3" y="2" width="1.7" height="8" fill="currentColor"/></svg></button>
       </div>
-      <button class="btn" id="mainClose" title="close">✕</button>
+      <!-- v11/SCRUM-66: the centre has no x. A reader collapses it; nothing on this page closes a column. -->
+      <button class="cbtn" id="collapseCentre" title="collapse the record" aria-label="collapse the record">&#8250;</button>
     </div>
   </header>
+  <div class="rail" aria-hidden="true"><div class="v" id="railCentreType"></div></div>
   <div class="mbody" id="mainBody"></div>
 
   <!-- widget 2, the profile view (SCRUM-52's wireframe: docs/wireframe-health-v11d-profile.svg). It
@@ -567,8 +634,10 @@
      record draws one solid column. This is the corrected v12 (see docs/wireframe-health-v13-past-
      then-now.svg and docs/WIDGETS.md). -->
 <aside id="rightCol" class="only-main" aria-label="forecast and recommendations">
-  <header><span>forecast and recommendations</span><span class="rpasof" id="rpAsOf"></span></header>
+  <header><span>forecast and recommendations</span><span class="rpasof" id="rpAsOf"></span>
+    <button class="cbtn" id="collapseRight" title="collapse the panel" aria-label="collapse the forecast panel">&#9654;</button></header>
   <div id="rightBody"></div>
+  <div class="rail" aria-hidden="true"><div class="years" id="railYearsThen"></div><div class="years pale" id="railYearsNow"></div></div>
 </aside>
 
 <div id="tl"><div class="track" id="tlTrack"></div></div>
@@ -1261,11 +1330,55 @@ function closePanel() {
 document.getElementById("nodeClose").onclick = closePanel;
 /* the main view's ✕ hides the view and nothing else: the record stays selected and its row stays
    marked, because closing a view is not a deselection. */
-document.getElementById("mainClose").onclick = () => {
-  // ✕ closes the centre, and the profile view is the centre while it is open
-  if (state.profile) setProfileView(false);
-  state.mainHidden = true;
-  renderMain();
+/* v11/SCRUM-66: a column collapses; nothing on this page closes one, and the centre has no ✕.
+   One state object, three body classes, and each rail carries the fact its column is about: the
+   date on the left, the record's type in the centre, the projection on the right. */
+const COLLAPSE = { left: false, centre: false, right: false };
+function updateRails() {
+  const d = document.getElementById("railLeftDate");
+  if (d) d.textContent = state.date || "";
+}
+function applyCollapse() {
+  document.body.classList.toggle("left-collapsed", COLLAPSE.left);
+  document.body.classList.toggle("centre-collapsed", COLLAPSE.centre);
+  document.body.classList.toggle("right-collapsed", COLLAPSE.right);
+  updateRails();
+}
+document.getElementById("collapseLeft").onclick = () => { COLLAPSE.left = !COLLAPSE.left; applyCollapse(); };
+document.getElementById("collapseCentre").onclick = () => { COLLAPSE.centre = !COLLAPSE.centre; applyCollapse(); };
+document.getElementById("collapseRight").onclick = () => { COLLAPSE.right = !COLLAPSE.right; applyCollapse(); };
+
+/* the notepad: a summary of the whole document, built from the document and nothing else */
+document.getElementById("summaryBtn").onclick = () => {
+  const meta = TL_META || {};
+  const p = meta.profile || {};
+  const out = [];
+  out.push("# " + (meta.title || "My health story"));
+  out.push("");
+  const who = [p.name, p.sex, p.year_of_birth ? String(p.year_of_birth) : null].filter(Boolean).join(", ");
+  if (who) out.push("- who: " + who);
+  out.push("- " + DOC_NODES.length + " nodes, " + DOC_EDGES.length + " relations");
+  const byKind = {};
+  DOC_NODES.forEach(n => { const k = n.kind || n.type || "other"; byKind[k] = (byKind[k] || 0) + 1; });
+  if (Object.keys(byKind).length) {
+    out.push("- " + Object.keys(byKind).sort().map(k => byKind[k] + " " + k + (byKind[k] === 1 ? "" : "s")).join(", "));
+  }
+  out.push("");
+  out.push("## what the document holds, in order");
+  out.push("");
+  DOC_NODES.slice()
+    .sort((a, b) => String(a.when || "").localeCompare(String(b.when || "")))
+    .forEach(n => out.push("- " + (n.when || String.fromCharCode(8212)) + " \u00b7 " + (n.label || n.id)));
+  out.push("");
+  out.push("Generated from the document itself: no inference, no forecast.");
+  const blob = new Blob([out.join("\n") + "\n"], { type: "text/markdown" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "health-summary.md";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 };
 
 /* double-click any node to fly to it: the same framing a selection gets, no second camera path */
@@ -3227,7 +3340,7 @@ let STATE_ROWS = [];
 function buildStateList() {
   const box = document.getElementById("stateRows");
   if (!box) return;
-  STATE_ROWS = StateList.rows(DOC_NODES, iso(new Date()));
+  STATE_ROWS = StateList.rows(DOC_NODES, iso(new Date()), DOC_EDGES);
   box.innerHTML = "";
   STATE_ROWS.forEach(row => {
     const el = document.createElement("div");
@@ -3235,11 +3348,15 @@ function buildStateList() {
     el.dataset.record = row.id;
     el.dataset.date = row.date;
     el.dataset.kind = row.kind;
+    el.dataset.future = row.future ? "1" : "0";   // the dashed marker v11 gives a record ahead
+    const dot = document.createElement("span");
+    dot.className = "dot";
     const d = document.createElement("div");
     d.className = "d"; d.textContent = row.date + " · " + row.title;
     const t = document.createElement("div");
     t.className = "t"; t.textContent = row.note;
-    el.appendChild(d); el.appendChild(t);
+    t.title = row.note;                 // the row is one line; this is the rest of it
+    el.appendChild(dot); el.appendChild(d); el.appendChild(t);
     el.addEventListener("click", () => {
       state.mainHidden = false;              // picking a record opens its view again
       selectDate(dayOf(row.date), row.id);   // the ruler moves to that record's day...
@@ -3251,13 +3368,24 @@ function buildStateList() {
   renderMain();
 }
 
-/* With a document in hand the page opens on the latest record it holds: the state the reader is
-   in now, drawn in the centre, with no click. The template carries no document, so it has no
-   stored row, nothing is chosen, and the centre stays closed — one rule, no flag and no mode. */
-function openLatestRecord() {
-  const latest = STATE_ROWS.find(row => row.stored);
-  if (!latest || state.event) return;
+/* The page opens on the latest item it holds: today's summary, the list's first row. In a rendered
+   page a kg skill generates that summary; with the case document it is the row the page makes at
+   launch — the same row, the same view, no fetch and no stored event. Opening it is the row's own
+   click path, so the centre is never empty while a row is marked, with a document or without one. */
+function openLatest() {
+  if (state.event) return;
+  const latest = STATE_ROWS[0];
+  if (!latest) return;
   selectDate(dayOf(latest.date), latest.id);   // selectDate opens the view and marks the row
+}
+
+/* The row the reader is standing on: the one they picked, else the latest row that carries the
+   chosen date. The list marks by this rule and the centre draws by it, so a marked row and the row
+   in the centre are always the same row — the two can never disagree about what is selected. */
+function currentRow() {
+  if (state.event) return STATE_ROWS.find(r => r.id === state.event) || null;
+  if (!state.date) return null;
+  return STATE_ROWS.find(r => r.date === state.date) || null;
 }
 
 /* widget 8: exactly one row is marked. Picking a record marks that record; a date chosen on the
@@ -3266,13 +3394,8 @@ function openLatestRecord() {
 function markStateRow() {
   const box = document.getElementById("stateRows");
   if (!box) return;
-  let marked = false;
-  [...box.children].forEach(el => {
-    const hit = state.event ? el.dataset.record === state.event
-                            : (!marked && !!state.date && el.dataset.date === state.date);
-    if (hit) marked = true;
-    el.classList.toggle("on", hit);
-  });
+  const row = currentRow();
+  [...box.children].forEach(el => el.classList.toggle("on", !!row && el.dataset.record === row.id));
 }
 
 /* clicking a row centres it: the list scrolls so the row sits in the middle of the panel, not at
@@ -3781,7 +3904,7 @@ function renderMain() {
   if (pbody) pbody.hidden = true;
   body.hidden = false;
   box.hidden = false;
-  const row = state.event ? STATE_ROWS.find(r => r.id === state.event) : null;
+  const row = currentRow();
   if (!row) {
     // the date carries no record — an empty stretch between two events. The centre column keeps its
     // header, so widget 6 stays under the reader's hand (v11 puts the player there and nothing else);
@@ -3805,6 +3928,10 @@ function renderMain() {
   else if (view === "summary") renderSummary(body, row, node, context);
   else renderRecord(body, node, row, context);
   document.getElementById("mainKicker").textContent = row.date + " · " + view;
+  /* the collapsed centre keeps saying what this record IS: analysis, diagnosis, summary */
+  const rt = document.getElementById("railCentreType");
+  if (rt) rt.textContent = view;
+  updateRails();
   box.hidden = false;
   box.dataset.view = view;
   box.dataset.record = row.id;
@@ -3916,6 +4043,12 @@ function renderRightPanel() {
     meta: workingMeta()
   });
   box.dataset.past = panel.past ? "yes" : "no";
+  /* the collapsed panel is the number itself: 26px, whole years, then (solid) over now (paled) */
+  const f = (panel.sections && panel.sections.forecast) || {};
+  const yT = document.getElementById("railYearsThen");
+  const yN = document.getElementById("railYearsNow");
+  if (yT) yT.textContent = f.then && f.then.years != null ? String(Math.round(f.then.years)) : "\u2014";
+  if (yN) yN.textContent = panel.past && f.now && f.now.years != null ? String(Math.round(f.now.years)) : "";
   box.dataset.states = String(panel.states.length);
   const asof = document.getElementById("rpAsOf");
   if (asof) asof.textContent = panel.past ? panel.asOf + " \u2192 " + panel.today : panel.asOf;
@@ -4381,7 +4514,7 @@ document.getElementById("layerNo").onclick = () => askLayer3d(false);
 
 buildLegend();
 buildStateList();       // today's summary is made here, at launch, and never stored
-openLatestRecord();     // a document with records opens on the latest of them
+openLatest();           // the page opens on its latest item: today's summary, the first row
 buildTimeline();        // the ruler is the product's: it no longer waits for the graph's models
 refreshPick();          // ends in markStateRow + renderMain — the main flow stands on its own
 tick();
@@ -4474,7 +4607,13 @@ window.__tlAt = (clientX) => {          // the strip's own pointer path, for the
 };
 window.__today = () => iso(new Date());
 window.__records = () => STATE_ROWS.map(r => ({ id: r.id, kind: r.kind, date: r.date,
-                                                 note: r.note, stored: r.stored }));
+                                                 note: r.note, stored: r.stored, future: r.future }));
+/* the list's legend as data, for the acceptance run: v11 draws it under the list, so a run can read
+   the four lines off the page instead of trusting the markup by eye. */
+window.__stateNotes = () => {
+  const box = document.getElementById("stateNotes");
+  return box ? [...box.querySelectorAll("p")].map(p => p.textContent) : [];
+};
 window.__selectRecord = id => {           // the row's own click path, for the acceptance run
   const el = [...document.querySelectorAll("#stateRows .srow")].find(x => x.dataset.record === id);
   if (!el) return null;
@@ -4508,7 +4647,7 @@ window.__mainView = () => {
     text: body.innerText
   };
 };
-window.__mainClose = () => { document.getElementById("mainClose").click(); return Boolean(state.mainHidden); };
+window.__mainClose = () => { const b = document.getElementById("collapseCentre"); if (b) b.click(); return Boolean(document.body.classList.contains("centre-collapsed")); };
 /* the three columns as geometry, for the acceptance run: whether they are on screen, where their
    edges are, and whether the centre is carrying a record. Nothing here describes the design — it
    reports what the browser laid out. */
