@@ -731,7 +731,15 @@ async function main() {
       worktree,
       sha: commit,
       state,
-      description: receiptDescription({ pages: card.pages, failures: failed, gaps, run: basename(evidence), cardId: card.id }),
+      description: receiptDescription({
+        pages: card.pages,
+        failures: failed,
+        gaps,
+        run: basename(evidence),
+        // A kanban card is named by its id; a card file is named by its file, not by the absolute
+        // path the reader cannot use (and which spent the status's 140 characters on `/Users/…`).
+        cardId: card.source === 'kanban' ? card.id : basename(card.id),
+      }),
     })
     if (!posted.ok) return `NOT posted: ${posted.output.split('\n').slice(0, 2).join(' ')}`
     const gapNote = gaps.length > 0 ? ` — ${gaps.length} evidence gap(s): ${gaps.map((gap) => gap.name).join(', ')}` : ''
@@ -750,7 +758,7 @@ async function main() {
         `      ${capture.label}: ${describeValues(capture.values, capture.kind)} — ${capture.screenshot || '(no screenshot)'}${capture.screenshotRoute ? ` (${capture.screenshotRoute})` : ''}`,
       )
     }
-    for (const gap of describeGaps(gaps)) console.log(`      gap: ${gap}`)
+    for (const gap of describeGaps(gaps)) console.log(`      ${gap}`)
     if (options.comment && card.source === 'kanban') {
       const files = [
         join(evidence, 'report.json'),
