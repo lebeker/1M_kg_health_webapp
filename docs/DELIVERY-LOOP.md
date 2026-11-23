@@ -126,9 +126,29 @@ a card with no prompt exits 2 and is blocked at G0 instead of being guessed at.
 
 `page:` is which built page the claim lives on, and it is not decoration. The product has two —
 `graph` (`dist/graph.html`, the React viewer the skill installs) and `case` (`dist/demo.html`, the
-three-column page: timeline, record list, right panel, widgets 19–25). Absent means `graph`, which
+three-column page: timeline, record list, right panel, widgets 19–31). Absent means `graph`, which
 is the page the harness captured before this field existed; a card whose claim is on the columns
 page must say `page: case`, and `scripts/e2e/gate.ts` then refuses a receipt that never opened it.
+
+`view:` narrows a columns-page claim to the view it is drawn in. The profile view is behind the
+header's second button, so it is not in the page's text until something opens it:
+
+```markdown
+## e2e
+page: case
+view: profile
+prompt: open the profile and read the cohort
+expect: family history
+```
+
+Only the columns page has a profile view, so `view: profile` beside `page: graph` or `page: both`
+is refused before the run starts — the graph probe has no view to open, and a field that is
+recorded and then ignored is the loophole it was added to close. On a `view: profile` run the
+capture opens the view through the page's own `__openProfile()` hook and the receipt says which
+view answered; `case.view` is a **hard** check, so a capture that read the record column instead
+is red whatever its `expect` needles found. That matters because the profile view's copy already
+exists elsewhere on the page: three of the profile card's own needles are in the page's text with
+the view closed.
 
 **Load.** **The published Pages build cannot be used for unmerged work.** Pages serves `main`; a
 card's work exists on a branch. So the clean room loads a **build of the card's worktree**

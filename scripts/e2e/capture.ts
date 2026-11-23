@@ -23,6 +23,7 @@ import { isAbsolute, join } from 'node:path'
 import type { PageKind } from './card'
 import { browserEnv, endpointConfig, packagedAgentBrowser, runChat, writeHermesHome, type ToolCall } from './hermes'
 import { hostAppHit } from './policy'
+import type { Check } from './receipt'
 
 export type Page = { label: string; url: string; expect: string[]; kind: PageKind; view?: 'record' | 'profile' }
 
@@ -34,6 +35,8 @@ export type PageCapture = {
   url: string
   /** Which built page this is: `graph` (the React viewer) or `case` (the columns page). */
   kind: PageKind
+  /** Which view of the page the card's claim lives in. `capture.ts` opens it; `viewCheck` judges it. */
+  view: 'record' | 'profile'
   /** The object `browser_console` returned; `{}` when the session never got that far. */
   values: Record<string, unknown>
   /** Evidence-dir path of the PNG, or '' when there was none. */
@@ -99,13 +102,25 @@ export function probeExpression(expect: string[], kind: PageKind = 'graph', view
   const columns = cols() || {}
   // A view behind a button is not in the page's text until it is opened. A card whose claim lives
   // in the profile view (widget 2) says so with view: profile, and only then does the probe open
-  // it — through the page's own hook, and it records that it did, because a claim read from the
-  // record column is not a claim read from the profile view.
+  // it — through the page's own hook. What the probe answers is *which view the text below came
+  // from*, because a claim read from the record column is not a claim read from the view the card
+  // is about; viewCheck turns the answer into a red check when they disagree, and the refusal is
+  // named in words (viewDetail) so a reader is told why instead of being shown the wrong column's
+  // text.
   const wanted = ${JSON.stringify(view)}
   let profileOpen = false
-  if (wanted === 'profile' && typeof window.__openProfile === 'function') {
-    try { profileOpen = window.__openProfile() === true } catch (error) { profileOpen = false }
-    if (profileOpen) await new Promise((resolve) => setTimeout(resolve, 300))
+  let viewDetail = 'the centre column the page boots into'
+  if (wanted === 'profile') {
+    viewDetail = 'the page has no __openProfile hook, so the profile view could not be opened'
+    if (typeof window.__openProfile === 'function') {
+      try { profileOpen = window.__openProfile() === true } catch (error) { profileOpen = false }
+      if (profileOpen) {
+        viewDetail = 'opened through the page\\'s own __openProfile() hook'
+        await new Promise((resolve) => setTimeout(resolve, 300))
+      } else {
+        viewDetail = '__openProfile() did not report the view as open, so it was never drawn'
+      }
+    }
   }
   let records = { total: 0, stored: 0, sample: [] }
   try {
@@ -122,6 +137,10 @@ export function probeExpression(expect: string[], kind: PageKind = 'graph', view
   const sha = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('')
   return {
     url: location.href,
+    // readiness is the page's own shape, read before any view is opened: the profile view is a
+    // view of a page that already booted, not a page that never mounted. (Reading these after
+    // opening it made a perfectly drawn page report centreFilled: false, because the profile
+    // view is not a record and the page clears the centre's record while it is up.)
     ready: state() === 'present' && drawn(columns) && columns.centreFilled === true,
     page: 'case',
     title: document.title,
@@ -135,7 +154,12 @@ export function probeExpression(expect: string[], kind: PageKind = 'graph', view
       states: columns.states || 0,
     },
     records,
+    // which view the text below was read from, and whether the card's view could be opened at
+    // all: viewCheck is the check that reads these three fields, and it is hard.
     profileOpen: profileOpen,
+    view: profileOpen ? 'profile' : 'record',
+    viewWanted: wanted,
+    viewDetail: viewDetail,
     text: body.slice(0, 700),
     claim: ${needles}.map((needle) => ({ needle, found: lower.includes(needle.toLowerCase()) })),
     empty: state() === 'absent' ? 'document' : null,
@@ -176,6 +200,48 @@ export function probeExpression(expect: string[], kind: PageKind = 'graph', view
     capturedAt: new Date().toISOString(),
   }
 })()`
+}
+
+/**
+ * Did the text the claim was matched against come from the view the card asked for?
+ *
+ * `view: profile` stops being a label here. The probe records three facts — that it was asked
+ * for the profile view (`viewWanted`), whether the page's own hook opened it (`profileOpen`), and
+ * which view the text below came from (`view`), with the reason in words when it did not open
+ * (`viewDetail`). A card that names the profile view and a capture that read the record column
+ * instead is a red check, not a footnote on a summary line: this card's own needles (`family
+ * history`, `loneliness`, `Lee`) are in the page's text *before* the view is opened, so a claim
+ * can pass on the wrong column and mean nothing.
+ *
+ * A `record` card is untouched — the centre column the page boots into is the view it was
+ * written about. The check is hard (no `hard: false`): unlike a missing photograph, this is the
+ * product evidence being the wrong evidence.
+ */
+export function viewCheck(stage: string, wanted: 'record' | 'profile', values: Record<string, unknown>): Check {
+  if (wanted !== 'profile') {
+    return {
+      name: `${stage}.view`,
+      ok: true,
+      detail: 'the card names no view, so the claim was read from the centre column the page boots into',
+    }
+  }
+  const asked = values.viewWanted === 'profile'
+  const opened = values.profileOpen === true
+  const answered = values.view === 'profile'
+  if (asked && opened && answered) {
+    const why = typeof values.viewDetail === 'string' && values.viewDetail ? values.viewDetail : 'the view was open'
+    return { name: `${stage}.view`, ok: true, detail: `the card's claim was read from the profile view — ${why}` }
+  }
+  const why = !asked
+    ? 'the capture was not asked for the profile view'
+    : typeof values.viewDetail === 'string' && values.viewDetail
+      ? values.viewDetail
+      : 'the capture did not record which view it read'
+  return {
+    name: `${stage}.view`,
+    ok: false,
+    detail: `the card's claim lives in the profile view, and this capture did not read it — ${why}; the text it matched is the record column's, which is not evidence of the view`,
+  }
 }
 
 /**
@@ -423,6 +489,7 @@ export async function capturePages(options: CaptureOptions): Promise<CaptureRun>
     label: page.label,
     url: page.url,
     kind: page.kind,
+    view: page.view ?? 'record',
     values: {},
     screenshot: '',
     screenshotBytes: 0,

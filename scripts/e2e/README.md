@@ -105,6 +105,14 @@ expect: LDL cholesterol, mmol/L
 - `page` — `graph` (default), `case` or `both`; see **The two pages** above. A card whose claim
   is only visible on the columns page and does not say `page: case` gets a graph-page receipt, and
   `scripts/e2e/gate.ts` refuses it — that mismatch is the loophole this field closes.
+- `view` — `record` (default) or `profile`, and only on a `page: case` card. The profile view sits
+  behind the header's second button, so its text is not in the page until something opens it: the
+  probe opens it through the page's own `__openProfile()` hook, records which view the matched text
+  came from (`report.json` `pages[].view`, `pages[].profile_open`) and the receipt says
+  `(profile view)`. `case.view` is a hard check, so a `view: profile` card whose capture read the
+  record column is red whatever its `expect` needles found — they *will* be found, because the
+  profile view's copy also sits in the record column and the docs panel. `view: profile` beside
+  `page: graph` or `page: both` is refused before anything runs.
 - `expect` — optional text that must be visible in the page when the card is really done. Each
   entry is matched, case-insensitively, against the page's own `innerText` **inside the page**,
   and the browser's answer is what the harness asserts — the model never retypes it. The graph

@@ -85,6 +85,15 @@ describe('the receipt says what it could not photograph', () => {
     expect(receiptPages(description)).toEqual(['case', 'graph'])
   })
 
+  test('a profile-view receipt says so beside the page marker CI reads', () => {
+    const description = receiptDescription({ pages: ['case'], view: 'profile', failures: [], gaps: [], run: 'run', cardId: 't_x' })
+    expect(description).toContain('G3 [case] PASS (profile view)')
+    // the marker itself is unchanged: a status whose `[case]` moved is one `ci-gate.ts` cannot read
+    expect(receiptPages(description)).toEqual(['case'])
+    // a record-column run is not dressed as a view run
+    expect(receiptDescription({ pages: ['case'], view: 'record', failures: [], gaps: [], run: 'run', cardId: 't_x' })).not.toContain('profile view')
+  })
+
   test('a red receipt names the product checks, not the camera', () => {
     const description = receiptDescription({
       pages: ['graph'],

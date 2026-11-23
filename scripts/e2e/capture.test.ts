@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { describeValues, probeExpression } from './capture'
+import { describeValues, probeExpression, viewCheck } from './capture'
 
 /**
  * The line the harness prints at the end of a passing run. It is the only place a worker reads
@@ -79,5 +79,107 @@ describe('the columns probe reads the view it was asked about', () => {
 
   test('the graph probe is untouched: it has no profile view to open', () => {
     expect(probeExpression(['nodes'], 'graph', 'profile')).not.toContain('__openProfile')
+  })
+})
+
+/**
+ * The reviewer's reproduction, run for real (`t_1e5ae777`, review round 1): with the page's
+ * `__openProfile` hook removed, three of the card's own five needles — `family history`,
+ * `loneliness`, `Lee` — are still in the page's text, because the profile view's copy also exists
+ * in the record column and the docs panel. So `expect` matching alone can be green for a view
+ * that never opened, and the run has to go red on the view itself.
+ *
+ * The probe is a string, so these tests execute it: a stub page, the real expression, the real
+ * answer. `viewCheck` reads that answer. Between them the chain is fenced end to end — if the
+ * probe stops reporting which view it read, or the check stops requiring it, one of these fails.
+ */
+type StubWindow = {
+  __documentState: () => string
+  __columns: () => Record<string, unknown>
+  __openProfile?: () => unknown
+}
+
+const STUB_COLUMNS = {
+  left: { width: 240 },
+  centre: { width: 720 },
+  panel: { width: 320 },
+  centreFilled: true,
+  centreRecord: 'record-today',
+  states: 2,
+}
+
+const STUB_PAGE = {
+  document: { title: 'Body — layers, sex, views', documentElement: { outerHTML: '<html><body>page</body></html>' }, body: { innerText: 'family history is in the record column' } },
+  location: { href: 'file:///evidence/case.html' },
+}
+
+/** Run the columns probe against a stub page: the real expression, the real globals it asks for. */
+async function probeWith(hooks: Partial<StubWindow>): Promise<Record<string, unknown>> {
+  const expression = probeExpression(['family history'], 'case', 'profile')
+  const run = new Function('window', 'document', 'location', 'setTimeout', 'crypto', 'TextEncoder', `return ${expression}`) as (
+    ...args: unknown[]
+  ) => Promise<Record<string, unknown>>
+  return run(
+    { __documentState: () => 'present', __columns: () => STUB_COLUMNS, ...hooks },
+    STUB_PAGE.document,
+    STUB_PAGE.location,
+    setTimeout,
+    crypto,
+    TextEncoder,
+  )
+}
+
+describe('a profile claim is only evidence when the view actually opened', () => {
+  test('a page with no hook answers from the record column, and the check is red', async () => {
+    const values = await probeWith({})
+    expect(values.profileOpen).toBe(false)
+    expect(values.view).toBe('record')
+    expect(values.viewWanted).toBe('profile')
+    expect(String(values.viewDetail)).toContain('no __openProfile hook')
+    // The claim itself still "found" its needle — that is the loophole, and it is not the check.
+    expect((values.claim as Array<{ found: boolean }>)[0].found).toBe(true)
+    const check = viewCheck('case', 'profile', values)
+    expect(check.name).toBe('case.view')
+    expect(check.ok).toBe(false)
+    expect(check.hard).not.toBe(false)
+    expect(check.detail).toContain('record column')
+  })
+
+  test('a hook that does not open the view is red too', async () => {
+    const values = await probeWith({ __openProfile: () => false })
+    expect(values.view).toBe('record')
+    expect(String(values.viewDetail)).toContain('did not report the view as open')
+    expect(viewCheck('case', 'profile', values).ok).toBe(false)
+  })
+
+  test('a hook that opens the view answers from it, and the check is green', async () => {
+    const values = await probeWith({ __openProfile: () => true })
+    expect(values.profileOpen).toBe(true)
+    expect(values.view).toBe('profile')
+    expect(String(values.viewDetail)).toContain('__openProfile()')
+    const check = viewCheck('case', 'profile', values)
+    expect(check.ok).toBe(true)
+    expect(check.detail).toContain('profile view')
+  })
+
+  test('a capture that never ran the probe cannot pass a profile claim', () => {
+    expect(viewCheck('case', 'profile', {}).ok).toBe(false)
+    // and one whose probe was built for the record column is not a profile capture either
+    expect(viewCheck('case', 'profile', { profileOpen: true, view: 'profile', viewWanted: 'record' }).ok).toBe(false)
+  })
+
+  test('a record-column card is untouched: the column it boots into is the view it claims', () => {
+    expect(viewCheck('case', 'record', {}).ok).toBe(true)
+  })
+
+  test('a record probe never opens the profile view, even when the page has a hook', async () => {
+    const hooks = { __documentState: () => 'present', __columns: () => STUB_COLUMNS, __openProfile: () => true }
+    const expression = probeExpression(['family history'], 'case')
+    const run = new Function('window', 'document', 'location', 'setTimeout', 'crypto', 'TextEncoder', `return ${expression}`) as (
+      ...args: unknown[]
+    ) => Promise<Record<string, unknown>>
+    const values = await run(hooks, STUB_PAGE.document, STUB_PAGE.location, setTimeout, crypto, TextEncoder)
+    expect(values.profileOpen).toBe(false)
+    expect(values.viewWanted).toBe('record')
   })
 })

@@ -68,4 +68,22 @@ describe('the e2e block on a card', () => {
   test('a view nobody has is refused, not quietly read as the record column', () => {
     expect(() => parseE2e(['## e2e', 'prompt: p', 'view: profle', 'expect: x'].join('\n'))).toThrow(/not a view/)
   })
+
+  test('view: profile is refused unless it is the columns page the view lives in', () => {
+    // Only `page: case` has a profile view. Recorded beside the graph page it would be ignored by
+    // a probe with no view to open, and the claim would then be judged against the record column.
+    expect(() => parseCard(['## e2e', 'prompt: p', 'view: profile', 'expect: x'].join('\n'), 'T1')).toThrow(/only the columns page has a profile view/)
+    expect(() => parseCard(['## e2e', 'prompt: p', 'view: profile', 'expect: x'].join('\n'), 'T1')).toThrow(/page: graph/)
+    expect(() => parseCard(['## e2e', 'prompt: p', 'page: graph', 'view: profile', 'expect: x'].join('\n'), 'T1')).toThrow(/page: case/)
+    expect(() => parseCard(['## e2e', 'prompt: p', 'page: both', 'view: profile', 'expect: x'].join('\n'), 'T1')).toThrow(/page: both/)
+    // the pair that can be honoured is accepted, and only that pair
+    expect(parseCard(['## e2e', 'prompt: p', 'page: case', 'view: profile', 'expect: x'].join('\n'), 'T1').view).toBe('profile')
+  })
+
+  test('the message for a card with no prompt says how to name a view', () => {
+    const card = parseCard('Nothing here.', 'T21 — Demo case')
+    const help = missingPromptHelp({ ...card, id: 't_1', source: 'kanban' })
+    expect(help).toContain('view: profile')
+    expect(help).toContain('page: case')
+  })
 })

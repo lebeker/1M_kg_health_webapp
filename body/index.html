@@ -3923,7 +3923,7 @@ function pvRows(box, rows) {
     const value = pvEl("span", "pvv", r.value || "");
     if (r.detail) value.appendChild(pvEl("span", "pvwhy", r.detail));
     row.appendChild(value);
-    if (r.points !== null) row.appendChild(pvEl("span", "pvpts", r.points + " pts"));
+    if (r.points !== null) row.appendChild(pvEl("span", "pvpts", r.points + (r.points === 1 ? " pt" : " pts")));
     box.appendChild(row);
   });
 }
