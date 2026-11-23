@@ -307,8 +307,9 @@
      place of the centre instead of floating to the right of an empty one. Any row in the list
      brings the centre back (selectDate clears mainHidden). */
   /* v11: the panel keeps its own column. Collapsing the centre never lets it slide over. */
+  /* the collapse plate sits at the panel's top-right corner; the header's text stops before it */
   #rightCol header { display:flex; align-items:baseline; justify-content:space-between; gap:8px;
-    padding:8px 12px; border-bottom:1px solid var(--line); font-size:10.5px; letter-spacing:.09em;
+    padding:8px 30px 8px 12px; border-bottom:1px solid var(--line); font-size:10.5px; letter-spacing:.09em;
     text-transform:uppercase; color:var(--mut); }
   #rightCol header .rpasof { font-size:10px; letter-spacing:.03em; text-transform:none; color:#6f7f90;
     font-variant-numeric:tabular-nums; white-space:nowrap; }
@@ -337,9 +338,9 @@
      still inside the column and still clickable */
   /* one control, one look, three columns: a bordered square that reads as a button even at a glance,
      instead of a glyph that disappears into whatever sits next to it */
-  .cbtn { background:rgba(255,255,255,.045); border:1px solid var(--line); border-radius:5px;
-    color:var(--fg); }
-  .cbtn:hover { background:rgba(255,255,255,.12); border-color:#4a5a6a; }
+  .cbtn { background:#1b232d; border:1px solid #2c3947; border-radius:5px; color:#e6eef7;
+    box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 2px 8px rgba(0,0,0,.55); }
+  .cbtn:hover { background:#26313d; border-color:#43566a; }
   .cbtn.float { position:absolute; top:9px; right:4px; z-index:7; width:18px; height:18px; padding:0;
     display:flex; align-items:center; justify-content:center; }
   .cbtn.float:hover { background:rgba(255,255,255,.07); border-color:var(--line); color:#eaf1f8; }
@@ -661,8 +662,10 @@
      record draws one solid column. This is the corrected v12 (see docs/wireframe-health-v13-past-
      then-now.svg and docs/WIDGETS.md). -->
 <aside id="rightCol" class="only-main" aria-label="forecast and recommendations">
-  <header><span>forecast and recommendations</span><span class="rpasof" id="rpAsOf"></span>
-    <button class="cbtn" id="collapseRight" title="collapse the panel" aria-label="collapse the forecast panel"><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></header>
+  <header><span>forecast and recommendations</span><span class="rpasof" id="rpAsOf"></span></header>
+  <!-- v11/SCRUM-67: same as the centre. The control belongs to the column, not to the header: as the
+       panel narrows the header's text wraps, and a control inside it would move with the text. -->
+  <button class="cbtn float" id="collapseRight" title="collapse the panel" aria-label="collapse the forecast panel"><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
   <div id="rightBody"></div>
   <div class="rail" data-expand="right" title="expand this column"><button class="cbtn" id="expandRight" title="expand the panel" aria-label="expand the forecast panel"><svg class="flip" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.6 2.2 4 6l3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="years" id="railYearsThen"></div><div class="years pale" id="railYearsNow"></div></div>
 </aside>
