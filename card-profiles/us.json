@@ -1,0 +1,10 @@
+{
+  "id": "us",
+  "name": "US Core patient summary",
+  "basis": "US Core / IPS-derived",
+  "order": ["problems","medications","allergies","vitals","results","procedures","immunizations","devices","social"],
+  "required": ["allergies","medications","problems","vitals","results"],
+  "date": "MM/DD/YYYY",
+  "units": "recorded+conventional",
+  "conventional": { "mmol/L>mg/dL": 38.67, "C>F": null }
+}

@@ -1,0 +1,9 @@
+{
+  "id": "ips",
+  "name": "International Patient Summary",
+  "basis": "ISO 27269 / HL7 FHIR IPS",
+  "order": ["allergies","medications","problems","immunizations","procedures","results","vitals","devices","social"],
+  "required": ["allergies","medications","problems","immunizations","procedures","results","vitals","devices"],
+  "date": "YYYY-MM-DD",
+  "units": "recorded"
+}
