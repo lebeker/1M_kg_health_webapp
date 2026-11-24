@@ -55,7 +55,10 @@ const demo = JSON.parse(read('kg_demo.json')) as Demo
 const nodes = demo.nodes ?? []
 
 /** The six kinds that are events (docs/DATA-CONTRACT.md §Node kinds); a summary and a prediction are not. */
-const EVENT_KINDS = ['condition', 'observation', 'encounter', 'medication', 'procedure', 'document'] as const
+const EVENT_KINDS = [
+  'condition', 'observation', 'encounter', 'medication', 'procedure', 'document',
+  'immunization', 'device', 'allergy',
+] as const
 const events = nodes.filter((node) => (EVENT_KINDS as readonly string[]).includes(node.kind))
 const ofKind = (kind: string) => events.filter((node) => node.kind === kind)
 
@@ -187,9 +190,12 @@ describe('kg_demo.json is the case the card names', () => {
     expect(2026 - Number(demo.meta?.profile?.year_of_birth)).toBe(65)
   })
 
-  test('62 events, and the case the card names — 3 conditions, 5 medications, 2 procedures', () => {
-    expect(events.length).toBe(62)
-    expect(ofKind('condition').length).toBe(3)
+  test('72 events, and the case the card names — 5 conditions, 5 medications, 2 procedures, 3 immunizations', () => {
+    expect(events.length).toBe(72)
+    expect(ofKind('condition').length).toBe(5)
+    expect(ofKind('immunization').length).toBe(3)
+    expect(ofKind('device').length).toBe(1)
+    expect(ofKind('allergy').length).toBe(1)
     expect(ofKind('medication').length).toBe(5)
     expect(ofKind('procedure').length).toBe(2)
     // the other three event kinds carry the record: measurements, visits, and the papers behind them
@@ -199,11 +205,12 @@ describe('kg_demo.json is the case the card names', () => {
     expect(nodes.length).toBe(events.length) // a summary or a prediction would not be an event
   })
 
-  test('the 47 records the demo page opens on: every dated event that is not provenance', () => {
-    // the left list is `StateList.rows`, which drops documents from the record list: 62 events
-    // minus the 15 papers behind them is the case the SCRUM-48 acceptance names.
-    expect(ofKind('document').length).toBe(15)
-    expect(events.length - ofKind('document').length).toBe(47)
+  test('the records the demo page opens on: every dated event that is not provenance', () => {
+    // the left list is `StateList.rows`, which drops documents from the record list: 72 events
+    // minus the 18 papers behind them is what the SCRUM-48 acceptance names, now including the
+    // immunizations, the hearing aid and the penicillin intolerance.
+    expect(ofKind('document').length).toBe(18)
+    expect(events.length - ofKind('document').length).toBe(54)
   })
 
   test('twenty years: the first visit in 2006, the last note in 2026', () => {

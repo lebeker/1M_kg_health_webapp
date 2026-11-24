@@ -3,7 +3,13 @@
     "title": "Andrei, 65 — twenty years of an invented record",
     "schema": "kg/1",
     "app": "health-viewer",
-    "requires": { "skills": ["kg"], "plugins": [], "tools": [] },
+    "requires": {
+      "skills": [
+        "kg"
+      ],
+      "plugins": [],
+      "tools": []
+    },
     "colors": {
       "condition": "#c0504d",
       "observation": "#4f81bd",
@@ -12,7 +18,11 @@
       "encounter": "#8e7cc3",
       "document": "#9a9a9a"
     },
-    "profile": { "sex": "male", "year_of_birth": 1961, "name": "Andrei" },
+    "profile": {
+      "sex": "male",
+      "year_of_birth": 1961,
+      "name": "Andrei"
+    },
     "timezone": "Europe/Kyiv"
   },
   "nodes": [
@@ -45,14 +55,57 @@
       "panel": "lipid",
       "track": "lipids",
       "values": [
-        { "name": "Total cholesterol", "value": 5.3, "unit": "mmol/L", "ref": [0, 5], "flag": "high", "code": "2093-3" },
-        { "name": "LDL cholesterol", "value": 3.3, "unit": "mmol/L", "ref": [0, 3], "flag": "high", "code": "13457-7" },
-        { "name": "HDL cholesterol", "value": 1.25, "unit": "mmol/L", "ref": [1, 1.5], "flag": "normal", "code": "2085-9" },
-        { "name": "Triglycerides", "value": 1.6, "unit": "mmol/L", "ref": [0.4, 1.7], "flag": "normal", "code": "2571-8" }
+        {
+          "name": "Total cholesterol",
+          "value": 5.3,
+          "unit": "mmol/L",
+          "ref": [
+            0,
+            5
+          ],
+          "flag": "high",
+          "code": "2093-3"
+        },
+        {
+          "name": "LDL cholesterol",
+          "value": 3.3,
+          "unit": "mmol/L",
+          "ref": [
+            0,
+            3
+          ],
+          "flag": "high",
+          "code": "13457-7"
+        },
+        {
+          "name": "HDL cholesterol",
+          "value": 1.25,
+          "unit": "mmol/L",
+          "ref": [
+            1,
+            1.5
+          ],
+          "flag": "normal",
+          "code": "2085-9"
+        },
+        {
+          "name": "Triglycerides",
+          "value": 1.6,
+          "unit": "mmol/L",
+          "ref": [
+            0.4,
+            1.7
+          ],
+          "flag": "normal",
+          "code": "2571-8"
+        }
       ],
       "summary": "Four numbers from one draw. Total and LDL are just over the limit, the HDL is doing its job and the triglycerides are normal. At forty-five, with nothing else on the risk sheet, this is a number to watch at the next check rather than a prescription today.",
       "affects": [
-        { "organ": "heart", "how": "it is LDL over decades, not one panel, that builds plaque" }
+        {
+          "organ": "heart",
+          "how": "it is LDL over decades, not one panel, that builds plaque"
+        }
       ]
     },
     {
@@ -74,7 +127,10 @@
       "track": "glucose",
       "summary": "Fasting glucose 5.0 mmol/L, mid-range. The pancreas is keeping up today; one number says nothing about the years to come, which is why the check repeats it rather than commenting on it.",
       "affects": [
-        { "organ": "pancreas", "how": "a normal fasting glucose is the beta cells meeting demand — no strain visible" }
+        {
+          "organ": "pancreas",
+          "how": "a normal fasting glucose is the beta cells meeting demand — no strain visible"
+        }
       ]
     },
     {
@@ -115,15 +171,61 @@
       "panel": "lipid",
       "track": "lipids",
       "values": [
-        { "name": "Total cholesterol", "value": 5.9, "unit": "mmol/L", "ref": [0, 5], "flag": "high", "code": "2093-3" },
-        { "name": "LDL cholesterol", "value": 3.9, "unit": "mmol/L", "ref": [0, 3], "flag": "high", "code": "13457-7" },
-        { "name": "HDL cholesterol", "value": 1.1, "unit": "mmol/L", "ref": [1, 1.5], "flag": "normal", "code": "2085-9" },
-        { "name": "Triglycerides", "value": 2.2, "unit": "mmol/L", "ref": [0.4, 1.7], "flag": "high", "code": "2571-8" }
+        {
+          "name": "Total cholesterol",
+          "value": 5.9,
+          "unit": "mmol/L",
+          "ref": [
+            0,
+            5
+          ],
+          "flag": "high",
+          "code": "2093-3"
+        },
+        {
+          "name": "LDL cholesterol",
+          "value": 3.9,
+          "unit": "mmol/L",
+          "ref": [
+            0,
+            3
+          ],
+          "flag": "high",
+          "code": "13457-7"
+        },
+        {
+          "name": "HDL cholesterol",
+          "value": 1.1,
+          "unit": "mmol/L",
+          "ref": [
+            1,
+            1.5
+          ],
+          "flag": "normal",
+          "code": "2085-9"
+        },
+        {
+          "name": "Triglycerides",
+          "value": 2.2,
+          "unit": "mmol/L",
+          "ref": [
+            0.4,
+            1.7
+          ],
+          "flag": "high",
+          "code": "2571-8"
+        }
       ],
       "summary": "Three years on, the same four markers: LDL up from 3.3 to 3.9, triglycerides up, HDL down a little. The direction is the message. Nothing here is treatable on its own, and the ordinary answer is a repeat in a year and a look at the waistline, not a drug.",
       "affects": [
-        { "organ": "heart", "how": "the trend, not the value, is what shifts ten-year risk" },
-        { "organ": "liver", "how": "raised triglycerides usually mean the liver is making more fat than it burns" }
+        {
+          "organ": "heart",
+          "how": "the trend, not the value, is what shifts ten-year risk"
+        },
+        {
+          "organ": "liver",
+          "how": "raised triglycerides usually mean the liver is making more fat than it burns"
+        }
       ]
     },
     {
@@ -145,7 +247,10 @@
       "track": "liver",
       "summary": "Alanine aminotransferase 38 U/L, inside the range. A normal ALT does not rule out fat in the liver, but it does say the liver is not being injured right now.",
       "affects": [
-        { "organ": "liver", "how": "no injury visible on this marker today" }
+        {
+          "organ": "liver",
+          "how": "no injury visible on this marker today"
+        }
       ]
     },
     {
@@ -176,14 +281,50 @@
       "panel": "haemodynamics",
       "track": "blood-pressure",
       "values": [
-        { "name": "Systolic", "value": 146, "unit": "mm[Hg]", "ref": [90, 120], "flag": "high", "code": "8480-6" },
-        { "name": "Diastolic", "value": 93, "unit": "mm[Hg]", "ref": [60, 80], "flag": "high", "code": "8462-4" },
-        { "name": "Pulse", "value": 78, "unit": "/min", "ref": [60, 100], "flag": "normal", "code": "8867-4" }
+        {
+          "name": "Systolic",
+          "value": 146,
+          "unit": "mm[Hg]",
+          "ref": [
+            90,
+            120
+          ],
+          "flag": "high",
+          "code": "8480-6"
+        },
+        {
+          "name": "Diastolic",
+          "value": 93,
+          "unit": "mm[Hg]",
+          "ref": [
+            60,
+            80
+          ],
+          "flag": "high",
+          "code": "8462-4"
+        },
+        {
+          "name": "Pulse",
+          "value": 78,
+          "unit": "/min",
+          "ref": [
+            60,
+            100
+          ],
+          "flag": "normal",
+          "code": "8867-4"
+        }
       ],
       "summary": "A fortnight of twice-daily home readings averaged 146/93. That is stage 1 hypertension by the ordinary definition, and the average is the diagnosis — one nervous morning in a clinic is not. A second diary decides whether it is treated.",
       "affects": [
-        { "organ": "heart", "how": "higher afterload: the left ventricle thickens, then stiffens" },
-        { "organ": "kidneys", "how": "raised pressure filters harder; the damage is silent for years" }
+        {
+          "organ": "heart",
+          "how": "higher afterload: the left ventricle thickens, then stiffens"
+        },
+        {
+          "organ": "kidneys",
+          "how": "raised pressure filters harder; the damage is silent for years"
+        }
       ]
     },
     {
@@ -194,7 +335,10 @@
       "confirmed": true,
       "source": "doc-2011-02-15-diary",
       "clinic": "Family Practice",
-      "doctor": { "name": "Dr Petro Melnyk", "specialty": "family medicine" },
+      "doctor": {
+        "name": "Dr Petro Melnyk",
+        "specialty": "family medicine"
+      },
       "text": "The diary was brought in and read in the room. Repeat it for two weeks in the autumn before any decision."
     },
     {
@@ -225,13 +369,46 @@
       "panel": "haemodynamics",
       "track": "blood-pressure",
       "values": [
-        { "name": "Systolic", "value": 158, "unit": "mm[Hg]", "ref": [90, 120], "flag": "high", "code": "8480-6" },
-        { "name": "Diastolic", "value": 99, "unit": "mm[Hg]", "ref": [60, 80], "flag": "high", "code": "8462-4" },
-        { "name": "Pulse", "value": 80, "unit": "/min", "ref": [60, 100], "flag": "normal", "code": "8867-4" }
+        {
+          "name": "Systolic",
+          "value": 158,
+          "unit": "mm[Hg]",
+          "ref": [
+            90,
+            120
+          ],
+          "flag": "high",
+          "code": "8480-6"
+        },
+        {
+          "name": "Diastolic",
+          "value": 99,
+          "unit": "mm[Hg]",
+          "ref": [
+            60,
+            80
+          ],
+          "flag": "high",
+          "code": "8462-4"
+        },
+        {
+          "name": "Pulse",
+          "value": 80,
+          "unit": "/min",
+          "ref": [
+            60,
+            100
+          ],
+          "flag": "normal",
+          "code": "8867-4"
+        }
       ],
       "summary": "158/99 on the second averaged fortnight, a year after the first. Two separate home series above 140/90 is the ordinary threshold for treatment, and the note treats it.",
       "affects": [
-        { "organ": "heart", "how": "the second series confirms the first: this is blood pressure, not a bad day" }
+        {
+          "organ": "heart",
+          "how": "the second series confirms the first: this is blood pressure, not a bad day"
+        }
       ]
     },
     {
@@ -253,7 +430,10 @@
       "track": "kidney-function",
       "summary": "Creatinine 88 µmol/L — normal, and drawn before any blood-pressure drug so there is a baseline to compare the next decade against.",
       "affects": [
-        { "organ": "kidney", "how": "a baseline is what makes a later change readable" }
+        {
+          "organ": "kidney",
+          "how": "a baseline is what makes a later change readable"
+        }
       ]
     },
     {
@@ -275,22 +455,33 @@
       "track": "kidney-function",
       "summary": "eGFR 88, just under the 90 the lab prints as the lower edge of normal. At fifty this is a number to keep, not a diagnosis: one value near a cut-off is noise until it is repeated.",
       "affects": [
-        { "organ": "kidney", "how": "the slope over years is the signal; a single point near a cut-off is not" }
+        {
+          "organ": "kidney",
+          "how": "the slope over years is the signal; a single point near a cut-off is not"
+        }
       ]
     },
     {
       "id": "cond-hypertension",
       "kind": "condition",
       "label": "Hypertension, stage 1",
-      "when": { "from": "2012-03-14" },
+      "when": {
+        "from": "2012-03-14"
+      },
       "status": "active",
       "origin": "doctor",
       "code": "I10",
       "confirmed": true,
       "source": "doc-2012-03-14-gp",
       "organ": "cardio-vascular",
-      "doctor": { "name": "Dr Petro Melnyk", "specialty": "family medicine" },
-      "clinic": { "name": "Family Practice", "address": "3 Lypska St, Kyiv" },
+      "doctor": {
+        "name": "Dr Petro Melnyk",
+        "specialty": "family medicine"
+      },
+      "clinic": {
+        "name": "Family Practice",
+        "address": "3 Lypska St, Kyiv"
+      },
       "link": "sources/gp-note-2012-03-14.pdf",
       "text": "Repeated home averages 155/97 and 158/99, a year apart. Stage 1 hypertension. Start amlodipine 5 mg once daily; repeat the chemistry in three months; keep the home diary going one week a month.",
       "summary": "A diagnosis made from two averaged home series, not one clinic reading. The note decides three things — a drug, a repeat blood test, and keeping the diary — and none of them is a number the template has to invent."
@@ -303,14 +494,19 @@
       "confirmed": true,
       "source": "doc-2012-03-14-gp",
       "clinic": "Family Practice",
-      "doctor": { "name": "Dr Petro Melnyk", "specialty": "family medicine" },
+      "doctor": {
+        "name": "Dr Petro Melnyk",
+        "specialty": "family medicine"
+      },
       "text": "The appointment where the second diary was read and the first drug was written."
     },
     {
       "id": "med-amlodipine",
       "kind": "medication",
       "label": "Amlodipine 5 mg, once daily",
-      "when": { "from": "2012-04-02" },
+      "when": {
+        "from": "2012-04-02"
+      },
       "status": "active",
       "confirmed": true,
       "source": "doc-2012-03-14-gp",
@@ -345,8 +541,14 @@
       "track": "hba1c",
       "summary": "HbA1c 5.8%: the three-month average of blood glucose, just above the 5.6% the lab prints as normal. This is the prediabetic band — the year to change something, not yet the year for a drug.",
       "affects": [
-        { "organ": "pancreas", "how": "the beta cells are working harder than they should be" },
-        { "organ": "eye", "how": "years of slightly high glucose show in the retina before anything is felt" }
+        {
+          "organ": "pancreas",
+          "how": "the beta cells are working harder than they should be"
+        },
+        {
+          "organ": "eye",
+          "how": "years of slightly high glucose show in the retina before anything is felt"
+        }
       ]
     },
     {
@@ -377,15 +579,61 @@
       "panel": "lipid",
       "track": "lipids",
       "values": [
-        { "name": "Total cholesterol", "value": 6.3, "unit": "mmol/L", "ref": [0, 5], "flag": "high", "code": "2093-3" },
-        { "name": "LDL cholesterol", "value": 4.2, "unit": "mmol/L", "ref": [0, 3], "flag": "high", "code": "13457-7" },
-        { "name": "HDL cholesterol", "value": 1, "unit": "mmol/L", "ref": [1, 1.5], "flag": "normal", "code": "2085-9" },
-        { "name": "Triglycerides", "value": 2.6, "unit": "mmol/L", "ref": [0.4, 1.7], "flag": "high", "code": "2571-8" }
+        {
+          "name": "Total cholesterol",
+          "value": 6.3,
+          "unit": "mmol/L",
+          "ref": [
+            0,
+            5
+          ],
+          "flag": "high",
+          "code": "2093-3"
+        },
+        {
+          "name": "LDL cholesterol",
+          "value": 4.2,
+          "unit": "mmol/L",
+          "ref": [
+            0,
+            3
+          ],
+          "flag": "high",
+          "code": "13457-7"
+        },
+        {
+          "name": "HDL cholesterol",
+          "value": 1,
+          "unit": "mmol/L",
+          "ref": [
+            1,
+            1.5
+          ],
+          "flag": "normal",
+          "code": "2085-9"
+        },
+        {
+          "name": "Triglycerides",
+          "value": 2.6,
+          "unit": "mmol/L",
+          "ref": [
+            0.4,
+            1.7
+          ],
+          "flag": "high",
+          "code": "2571-8"
+        }
       ],
       "summary": "LDL 4.2 mmol/L, up again, with triglycerides at 2.6. Seven years of watching have not moved the numbers in the right direction, and this is the panel where a statin is usually offered.",
       "affects": [
-        { "organ": "heart", "how": "LDL 4.2 is the number that deposits in the arterial wall" },
-        { "organ": "liver", "how": "triglycerides at 2.6 travel with fat in the liver" }
+        {
+          "organ": "heart",
+          "how": "LDL 4.2 is the number that deposits in the arterial wall"
+        },
+        {
+          "organ": "liver",
+          "how": "triglycerides at 2.6 travel with fat in the liver"
+        }
       ]
     },
     {
@@ -407,7 +655,10 @@
       "track": "liver",
       "summary": "ALT 51, above the range for the first time. Fat in the liver is the usual cause in this picture; alcohol and drugs are the other two, and the note asks for a repeat in three months.",
       "affects": [
-        { "organ": "liver", "how": "a mildly raised ALT is an injury signal, not a diagnosis" }
+        {
+          "organ": "liver",
+          "how": "a mildly raised ALT is an injury signal, not a diagnosis"
+        }
       ]
     },
     {
@@ -424,15 +675,23 @@
       "id": "cond-hyperlipidaemia",
       "kind": "condition",
       "label": "Hyperlipidaemia",
-      "when": { "from": "2016-09-20" },
+      "when": {
+        "from": "2016-09-20"
+      },
       "status": "active",
       "origin": "doctor",
       "code": "E78.5",
       "confirmed": true,
       "source": "doc-2016-09-20-gp",
       "organ": "cardio-vascular",
-      "doctor": { "name": "Dr Petro Melnyk", "specialty": "family medicine" },
-      "clinic": { "name": "Family Practice", "address": "3 Lypska St, Kyiv" },
+      "doctor": {
+        "name": "Dr Petro Melnyk",
+        "specialty": "family medicine"
+      },
+      "clinic": {
+        "name": "Family Practice",
+        "address": "3 Lypska St, Kyiv"
+      },
       "link": "sources/gp-note-2016-09-20.pdf",
       "text": "LDL 4.2 with triglycerides 2.6, and the blood pressure has been treated for four years. Ten-year risk is above the threshold where a statin is worth it. Start atorvastatin 20 mg in the evening; repeat the panel in twelve weeks; alcohol down to two units a week.",
       "summary": "A threshold, not a lab flag: the panel alone would say watch, the risk calculation says treat. The note carries the number that decided it and the non-drug half of the plan in the same paragraph."
@@ -445,14 +704,19 @@
       "confirmed": true,
       "source": "doc-2016-09-20-gp",
       "clinic": "Family Practice",
-      "doctor": { "name": "Dr Petro Melnyk", "specialty": "family medicine" },
+      "doctor": {
+        "name": "Dr Petro Melnyk",
+        "specialty": "family medicine"
+      },
       "text": "The visit where the lipid panel was read against the blood-pressure history and the statin was prescribed."
     },
     {
       "id": "med-atorvastatin",
       "kind": "medication",
       "label": "Atorvastatin 20 mg, in the evening",
-      "when": { "from": "2016-10-11" },
+      "when": {
+        "from": "2016-10-11"
+      },
       "status": "active",
       "confirmed": true,
       "source": "doc-2016-09-20-gp",
@@ -462,7 +726,10 @@
       "id": "med-ramipril",
       "kind": "medication",
       "label": "Ramipril 5 mg, once daily",
-      "when": { "from": "2016-10-11", "to": "2019-08-20" },
+      "when": {
+        "from": "2016-10-11",
+        "to": "2019-08-20"
+      },
       "status": "stopped",
       "confirmed": true,
       "source": "doc-2019-08-20-cardio",
@@ -497,7 +764,10 @@
       "track": "troponin",
       "summary": "Troponin T 9 ng/L, inside the range. On the night of the chest pain this is the number that separates a heart attack from everything else, and it says this was not one.",
       "affects": [
-        { "organ": "heart", "how": "a normal troponin on the night rules out the injury an attack leaves" }
+        {
+          "organ": "heart",
+          "how": "a normal troponin on the night rules out the injury an attack leaves"
+        }
       ]
     },
     {
@@ -518,13 +788,46 @@
       "panel": "haemodynamics",
       "track": "blood-pressure",
       "values": [
-        { "name": "Systolic", "value": 152, "unit": "mm[Hg]", "ref": [90, 120], "flag": "high", "code": "8480-6" },
-        { "name": "Diastolic", "value": 96, "unit": "mm[Hg]", "ref": [60, 80], "flag": "high", "code": "8462-4" },
-        { "name": "Pulse", "value": 88, "unit": "/min", "ref": [60, 100], "flag": "normal", "code": "8867-4" }
+        {
+          "name": "Systolic",
+          "value": 152,
+          "unit": "mm[Hg]",
+          "ref": [
+            90,
+            120
+          ],
+          "flag": "high",
+          "code": "8480-6"
+        },
+        {
+          "name": "Diastolic",
+          "value": 96,
+          "unit": "mm[Hg]",
+          "ref": [
+            60,
+            80
+          ],
+          "flag": "high",
+          "code": "8462-4"
+        },
+        {
+          "name": "Pulse",
+          "value": 88,
+          "unit": "/min",
+          "ref": [
+            60,
+            100
+          ],
+          "flag": "normal",
+          "code": "8867-4"
+        }
       ],
       "summary": "152/96 in the emergency department, with pain and fear in the room. One reading in that room is not a diagnosis; it is the reason the discharge letter asks for the home diary at the follow-up.",
       "affects": [
-        { "organ": "heart", "how": "pain raises the pressure; the number has to be read against the context" }
+        {
+          "organ": "heart",
+          "how": "pain raises the pressure; the number has to be read against the context"
+        }
       ]
     },
     {
@@ -577,14 +880,57 @@
       "panel": "lipid",
       "track": "lipids",
       "values": [
-        { "name": "Total cholesterol", "value": 5.2, "unit": "mmol/L", "ref": [0, 5], "flag": "high", "code": "2093-3" },
-        { "name": "LDL cholesterol", "value": 3.2, "unit": "mmol/L", "ref": [0, 3], "flag": "high", "code": "13457-7" },
-        { "name": "HDL cholesterol", "value": 1.05, "unit": "mmol/L", "ref": [1, 1.5], "flag": "normal", "code": "2085-9" },
-        { "name": "Triglycerides", "value": 2.1, "unit": "mmol/L", "ref": [0.4, 1.7], "flag": "high", "code": "2571-8" }
+        {
+          "name": "Total cholesterol",
+          "value": 5.2,
+          "unit": "mmol/L",
+          "ref": [
+            0,
+            5
+          ],
+          "flag": "high",
+          "code": "2093-3"
+        },
+        {
+          "name": "LDL cholesterol",
+          "value": 3.2,
+          "unit": "mmol/L",
+          "ref": [
+            0,
+            3
+          ],
+          "flag": "high",
+          "code": "13457-7"
+        },
+        {
+          "name": "HDL cholesterol",
+          "value": 1.05,
+          "unit": "mmol/L",
+          "ref": [
+            1,
+            1.5
+          ],
+          "flag": "normal",
+          "code": "2085-9"
+        },
+        {
+          "name": "Triglycerides",
+          "value": 2.1,
+          "unit": "mmol/L",
+          "ref": [
+            0.4,
+            1.7
+          ],
+          "flag": "high",
+          "code": "2571-8"
+        }
       ],
       "summary": "On atorvastatin for nearly three years: LDL 3.2, down from 4.2. Not the 1.8 a cardiologist wants after an event — there was no event — but past the 3.0 the note is aiming at, barely.",
       "affects": [
-        { "organ": "heart", "how": "the statin is doing its job; the target is a little further down" }
+        {
+          "organ": "heart",
+          "how": "the statin is doing its job; the target is a little further down"
+        }
       ]
     },
     {
@@ -606,7 +952,10 @@
       "track": "kidney-function",
       "summary": "Creatinine 92 µmol/L, normal and nearly unchanged from the 2012 baseline. Nothing on the drug list has touched the kidney in seven years.",
       "affects": [
-        { "organ": "kidney", "how": "a stable creatinine is the kidney keeping up with the drugs" }
+        {
+          "organ": "kidney",
+          "how": "a stable creatinine is the kidney keeping up with the drugs"
+        }
       ]
     },
     {
@@ -617,7 +966,10 @@
       "confirmed": true,
       "source": "doc-2019-08-20-cardio",
       "clinic": "City Heart Centre",
-      "doctor": { "name": "Dr Iryna Savchenko", "specialty": "cardiology" },
+      "doctor": {
+        "name": "Dr Iryna Savchenko",
+        "specialty": "cardiology"
+      },
       "text": "The follow-up after the emergency: an angiogram the same morning, and a plan that keeps the statin and drops the ramipril."
     },
     {
@@ -649,8 +1001,14 @@
       "track": "hba1c",
       "summary": "HbA1c 7.0%: the prediabetic band has become diabetes by the ordinary definition. The average alone would not decide treatment; the fasting glucose on the same draw does.",
       "affects": [
-        { "organ": "pancreas", "how": "the beta cells are losing the argument with insulin resistance" },
-        { "organ": "kidney", "how": "glucose at this level starts to change the filtering membrane" }
+        {
+          "organ": "pancreas",
+          "how": "the beta cells are losing the argument with insulin resistance"
+        },
+        {
+          "organ": "kidney",
+          "how": "glucose at this level starts to change the filtering membrane"
+        }
       ]
     },
     {
@@ -672,7 +1030,10 @@
       "track": "glucose",
       "summary": "Fasting glucose 8.4 mmol/L, above 7.0 — with the HbA1c on the same sheet, that is type 2 diabetes, not a stress response.",
       "affects": [
-        { "organ": "pancreas", "how": "the fasting number is what the liver does overnight, and it is no longer being held" }
+        {
+          "organ": "pancreas",
+          "how": "the fasting number is what the liver does overnight, and it is no longer being held"
+        }
       ]
     },
     {
@@ -694,7 +1055,10 @@
       "track": "kidney-function",
       "summary": "Creatinine 95, still normal, nine years after the first baseline.",
       "affects": [
-        { "organ": "kidney", "how": "no change worth acting on" }
+        {
+          "organ": "kidney",
+          "how": "no change worth acting on"
+        }
       ]
     },
     {
@@ -716,7 +1080,10 @@
       "track": "kidney-function",
       "summary": "eGFR 84: below 90 for the second time, nine years apart. Not kidney disease on its own, and worth a number in the record to watch from here.",
       "affects": [
-        { "organ": "kidney", "how": "two points make a slope, not a diagnosis" }
+        {
+          "organ": "kidney",
+          "how": "two points make a slope, not a diagnosis"
+        }
       ]
     },
     {
@@ -733,15 +1100,23 @@
       "id": "cond-t2dm",
       "kind": "condition",
       "label": "Type 2 diabetes",
-      "when": { "from": "2021-04-08" },
+      "when": {
+        "from": "2021-04-08"
+      },
       "status": "active",
       "origin": "doctor",
       "code": "E11.9",
       "confirmed": true,
       "source": "doc-2021-04-08-gp",
       "organ": "pancreas",
-      "doctor": { "name": "Dr Petro Melnyk", "specialty": "family medicine" },
-      "clinic": { "name": "Family Practice", "address": "3 Lypska St, Kyiv" },
+      "doctor": {
+        "name": "Dr Petro Melnyk",
+        "specialty": "family medicine"
+      },
+      "clinic": {
+        "name": "Family Practice",
+        "address": "3 Lypska St, Kyiv"
+      },
       "link": "sources/gp-note-2021-04-08.pdf",
       "text": "HbA1c 7.0% and fasting glucose 8.4 mmol/L on the same draw. Type 2 diabetes. Start metformin 1000 mg twice daily with food; repeat HbA1c in three months; the statin and the blood-pressure drug stay as they are.",
       "summary": "The diagnosis this time comes from two numbers on one report — the three-month average and the overnight glucose — and the plan is one drug plus a repeat, not a list of prohibitions."
@@ -754,14 +1129,19 @@
       "confirmed": true,
       "source": "doc-2021-04-08-gp",
       "clinic": "Family Practice",
-      "doctor": { "name": "Dr Petro Melnyk", "specialty": "family medicine" },
+      "doctor": {
+        "name": "Dr Petro Melnyk",
+        "specialty": "family medicine"
+      },
       "text": "The appointment where the March panel was read and the third diagnosis of the record was written down."
     },
     {
       "id": "med-metformin",
       "kind": "medication",
       "label": "Metformin 1000 mg, twice daily with food",
-      "when": { "from": "2021-04-15" },
+      "when": {
+        "from": "2021-04-15"
+      },
       "status": "active",
       "confirmed": true,
       "source": "doc-2021-04-08-gp",
@@ -807,13 +1187,46 @@
       "panel": "cbc",
       "track": "cbc",
       "values": [
-        { "name": "Haemoglobin", "value": 139, "unit": "g/L", "ref": [130, 170], "flag": "normal", "code": "718-7" },
-        { "name": "MCV", "value": 91, "unit": "fL", "ref": [80, 100], "flag": "normal", "code": "787-2" },
-        { "name": "Platelets", "value": 214, "unit": "10^9/L", "ref": [150, 400], "flag": "normal", "code": "777-3" }
+        {
+          "name": "Haemoglobin",
+          "value": 139,
+          "unit": "g/L",
+          "ref": [
+            130,
+            170
+          ],
+          "flag": "normal",
+          "code": "718-7"
+        },
+        {
+          "name": "MCV",
+          "value": 91,
+          "unit": "fL",
+          "ref": [
+            80,
+            100
+          ],
+          "flag": "normal",
+          "code": "787-2"
+        },
+        {
+          "name": "Platelets",
+          "value": 214,
+          "unit": "10^9/L",
+          "ref": [
+            150,
+            400
+          ],
+          "flag": "normal",
+          "code": "777-3"
+        }
       ],
       "summary": "Haemoglobin 139 g/L, MCV 91 fL, platelets 214 — a normal blood count before the procedure, so the bowel was not quietly bleeding and nothing in the anaesthetic plan had to change.",
       "affects": [
-        { "organ": "blood", "how": "a normal count before a procedure means no hidden blood loss to explain" }
+        {
+          "organ": "blood",
+          "how": "a normal count before a procedure means no hidden blood loss to explain"
+        }
       ]
     },
     {
@@ -824,7 +1237,10 @@
       "confirmed": true,
       "source": "doc-2023-05-16-colonoscopy",
       "clinic": "City Endoscopy",
-      "doctor": { "name": "Dr Oksana Tkachenko", "specialty": "gastroenterology" },
+      "doctor": {
+        "name": "Dr Oksana Tkachenko",
+        "specialty": "gastroenterology"
+      },
       "text": "A screening invitation taken up at sixty-two; day case, home the same afternoon."
     },
     {
@@ -856,7 +1272,10 @@
       "track": "hba1c",
       "summary": "7.3% after almost three years on metformin. Slightly worse, not catastrophically: the note adds a second drug rather than replacing the first, which is the ordinary order of things.",
       "affects": [
-        { "organ": "pancreas", "how": "metformin alone is no longer enough, so the plan adds to it" }
+        {
+          "organ": "pancreas",
+          "how": "metformin alone is no longer enough, so the plan adds to it"
+        }
       ]
     },
     {
@@ -878,7 +1297,10 @@
       "track": "kidney-function",
       "summary": "eGFR 80, the third value below 90. The direction is the message and the number is not yet a diagnosis; the note puts it on a six-month repeat.",
       "affects": [
-        { "organ": "kidney", "how": "diabetes and blood pressure both lean on the same filter; this is where that is counted" }
+        {
+          "organ": "kidney",
+          "how": "diabetes and blood pressure both lean on the same filter; this is where that is counted"
+        }
       ]
     },
     {
@@ -889,14 +1311,19 @@
       "confirmed": true,
       "source": "doc-2024-02-13-diabetes",
       "clinic": "Family Practice",
-      "doctor": { "name": "Dr Petro Melnyk", "specialty": "family medicine" },
+      "doctor": {
+        "name": "Dr Petro Melnyk",
+        "specialty": "family medicine"
+      },
       "text": "The yearly review: bloods, feet, eyes asked about, and a second diabetes drug added."
     },
     {
       "id": "med-empagliflozin",
       "kind": "medication",
       "label": "Empagliflozin 10 mg, once daily",
-      "when": { "from": "2024-02-13" },
+      "when": {
+        "from": "2024-02-13"
+      },
       "status": "active",
       "confirmed": true,
       "source": "doc-2024-02-13-diabetes",
@@ -930,13 +1357,46 @@
       "panel": "haemodynamics",
       "track": "blood-pressure",
       "values": [
-        { "name": "Systolic", "value": 149, "unit": "mm[Hg]", "ref": [90, 120], "flag": "high", "code": "8480-6" },
-        { "name": "Diastolic", "value": 90, "unit": "mm[Hg]", "ref": [60, 80], "flag": "high", "code": "8462-4" },
-        { "name": "Pulse", "value": 74, "unit": "/min", "ref": [60, 100], "flag": "normal", "code": "8867-4" }
+        {
+          "name": "Systolic",
+          "value": 149,
+          "unit": "mm[Hg]",
+          "ref": [
+            90,
+            120
+          ],
+          "flag": "high",
+          "code": "8480-6"
+        },
+        {
+          "name": "Diastolic",
+          "value": 90,
+          "unit": "mm[Hg]",
+          "ref": [
+            60,
+            80
+          ],
+          "flag": "high",
+          "code": "8462-4"
+        },
+        {
+          "name": "Pulse",
+          "value": 74,
+          "unit": "/min",
+          "ref": [
+            60,
+            100
+          ],
+          "flag": "normal",
+          "code": "8867-4"
+        }
       ],
       "summary": "149/90 averaged over two weeks at home, on amlodipine alone since the ramipril was stopped. Stage 1 again — and the diary is the thing that stops this being a surprise at the next visit.",
       "affects": [
-        { "organ": "heart", "how": "fourteen years of treatment and the pressure is back where it started" }
+        {
+          "organ": "heart",
+          "how": "fourteen years of treatment and the pressure is back where it started"
+        }
       ]
     },
     {
@@ -967,14 +1427,57 @@
       "panel": "lipid",
       "track": "lipids",
       "values": [
-        { "name": "Total cholesterol", "value": 5.6, "unit": "mmol/L", "ref": [0, 5], "flag": "high", "code": "2093-3" },
-        { "name": "LDL cholesterol", "value": 3.6, "unit": "mmol/L", "ref": [0, 3], "flag": "high", "code": "13457-7" },
-        { "name": "HDL cholesterol", "value": 1.08, "unit": "mmol/L", "ref": [1, 1.5], "flag": "normal", "code": "2085-9" },
-        { "name": "Triglycerides", "value": 2, "unit": "mmol/L", "ref": [0.4, 1.7], "flag": "high", "code": "2571-8" }
+        {
+          "name": "Total cholesterol",
+          "value": 5.6,
+          "unit": "mmol/L",
+          "ref": [
+            0,
+            5
+          ],
+          "flag": "high",
+          "code": "2093-3"
+        },
+        {
+          "name": "LDL cholesterol",
+          "value": 3.6,
+          "unit": "mmol/L",
+          "ref": [
+            0,
+            3
+          ],
+          "flag": "high",
+          "code": "13457-7"
+        },
+        {
+          "name": "HDL cholesterol",
+          "value": 1.08,
+          "unit": "mmol/L",
+          "ref": [
+            1,
+            1.5
+          ],
+          "flag": "normal",
+          "code": "2085-9"
+        },
+        {
+          "name": "Triglycerides",
+          "value": 2,
+          "unit": "mmol/L",
+          "ref": [
+            0.4,
+            1.7
+          ],
+          "flag": "high",
+          "code": "2571-8"
+        }
       ],
       "summary": "LDL 3.6 on atorvastatin 20 mg, seven years after the angiogram. The statin is working and the target is not met; doubling the dose is the ordinary next step and the note takes it.",
       "affects": [
-        { "organ": "heart", "how": "on treatment and still above target is the case for a higher dose, not a different drug" }
+        {
+          "organ": "heart",
+          "how": "on treatment and still above target is the case for a higher dose, not a different drug"
+        }
       ]
     },
     {
@@ -996,8 +1499,14 @@
       "track": "hba1c",
       "summary": "7.5%, the highest in the record, on metformin and empagliflozin. Three months of a higher number is a reason to look at what changed — the winter, the weight, the missed doses — before adding a third drug.",
       "affects": [
-        { "organ": "pancreas", "how": "two drugs and the average is still climbing" },
-        { "organ": "kidney", "how": "the same years that raise glucose lower the filter rate" }
+        {
+          "organ": "pancreas",
+          "how": "two drugs and the average is still climbing"
+        },
+        {
+          "organ": "kidney",
+          "how": "the same years that raise glucose lower the filter rate"
+        }
       ]
     },
     {
@@ -1019,7 +1528,10 @@
       "track": "kidney-function",
       "summary": "eGFR 77: fourteen years after the first 88. The slope is what matters now, and the note asks for the number every six months rather than once a year.",
       "affects": [
-        { "organ": "kidney", "how": "a slow slope over fourteen years is the thing to watch, not the value" }
+        {
+          "organ": "kidney",
+          "how": "a slow slope over fourteen years is the thing to watch, not the value"
+        }
       ]
     },
     {
@@ -1041,7 +1553,10 @@
       "track": "liver",
       "summary": "ALT 44, mildly up again with a normal bilirubin. The liver is being watched, not diagnosed.",
       "affects": [
-        { "organ": "liver", "how": "mildly raised for a decade, with no sign of the liver failing" }
+        {
+          "organ": "liver",
+          "how": "mildly raised for a decade, with no sign of the liver failing"
+        }
       ]
     },
     {
@@ -1052,84 +1567,533 @@
       "confirmed": true,
       "source": "doc-2026-11-19-cardio",
       "clinic": "City Heart Centre",
-      "doctor": { "name": "Dr Iryna Savchenko", "specialty": "cardiology" },
+      "doctor": {
+        "name": "Dr Iryna Savchenko",
+        "specialty": "cardiology"
+      },
       "text": "The last visit in the record: sixty-five, no chest pain since 2019, and a note that raises the statin, keeps the diabetes drugs and asks the GP to watch the kidney every six months."
+    },
+    {
+      "id": "doc-2024-10-15-vaccination",
+      "kind": "document",
+      "label": "Vaccination record — Family Practice, 15 Oct 2024",
+      "when": "2024-10-15",
+      "confirmed": true,
+      "link": "sources/vaccination-2024-10-15.pdf",
+      "publisher": "Family Practice",
+      "address": "3 Lypska St, Kyiv"
+    },
+    {
+      "id": "doc-2024-10-16-self-note",
+      "kind": "document",
+      "label": "Patient's own note, 16 Oct 2024",
+      "when": "2024-10-16",
+      "confirmed": false,
+      "link": "sources/self-note-2024-10-16.txt",
+      "publisher": "self",
+      "address": ""
+    },
+    {
+      "id": "doc-2019-05-20-audiology",
+      "kind": "document",
+      "label": "Audiology report — City ENT, 20 May 2019",
+      "when": "2019-05-20",
+      "confirmed": true,
+      "link": "sources/audiology-2019-05-20.pdf",
+      "publisher": "City ENT",
+      "address": "12 Honchara St, Kyiv"
+    },
+    {
+      "id": "imm-influenza-2024",
+      "kind": "immunization",
+      "label": "Influenza vaccine, quadrivalent (single dose)",
+      "when": "2024-10-15",
+      "confirmed": true,
+      "source": "doc-2024-10-15-vaccination",
+      "clinic": "Family Practice",
+      "text": "Autumn campaign dose. No immediate reaction recorded at the practice."
+    },
+    {
+      "id": "imm-influenza-2025",
+      "kind": "immunization",
+      "label": "Influenza vaccine, quadrivalent (single dose)",
+      "when": "2025-10-20",
+      "confirmed": true,
+      "source": "doc-2024-10-15-vaccination",
+      "clinic": "Family Practice",
+      "text": "Repeated the following autumn; the record carries the same batch note."
+    },
+    {
+      "id": "imm-pneumococcal-2021",
+      "kind": "immunization",
+      "label": "Pneumococcal conjugate vaccine (single dose)",
+      "when": "2021-04-20",
+      "confirmed": true,
+      "source": "doc-2021-03-30-lab",
+      "clinic": "Family Practice",
+      "text": "Offered with the diabetes diagnosis, as the practice does for everyone over 60."
+    },
+    {
+      "id": "cond-mild-fever-2024",
+      "kind": "condition",
+      "label": "Mild fever, 37.5 °C, with weakness",
+      "when": {
+        "from": "2024-10-16",
+        "to": "2024-10-17"
+      },
+      "status": "resolved",
+      "origin": "self",
+      "confirmed": false,
+      "source": "doc-2024-10-16-self-note",
+      "text": "The day after the influenza dose: 37.5 °C and weakness, gone within 36 hours. Could equally have been a common cold — nothing in the record separates the two."
+    },
+    {
+      "id": "cond-hearing-loss-2019",
+      "kind": "condition",
+      "label": "Hearing loss, right ear (moderate, high-frequency)",
+      "when": {
+        "from": "2019-05-20"
+      },
+      "status": "active",
+      "origin": "doctor",
+      "code": "H90.3",
+      "confirmed": true,
+      "source": "doc-2019-05-20-audiology",
+      "text": "Audiogram: 45 dB at 4 kHz on the right, 20 dB on the left. Attributed to age and to years of workshop noise; no sudden onset."
+    },
+    {
+      "id": "dev-hearing-aid-2019",
+      "kind": "device",
+      "label": "Hearing aid, right ear (behind-the-ear, 8-channel)",
+      "when": {
+        "from": "2019-06-03"
+      },
+      "status": "active",
+      "confirmed": true,
+      "source": "doc-2019-05-20-audiology",
+      "link": "https://example.org/datasheets/8ch-bte-hearing-aid",
+      "text": "Fitted three weeks after the audiogram. Open dome, 8 channels, 312 zinc-air cell changed every 9 days. Limits: no water resistance, no telecoil, and it must come out before the MRI the cardiology work-up may need."
+    },
+    {
+      "id": "allergy-penicillin",
+      "kind": "allergy",
+      "label": "Penicillin — rash",
+      "when": {
+        "from": "2009-05-20"
+      },
+      "status": "active",
+      "origin": "doctor",
+      "confirmed": true,
+      "source": "doc-2009-05-20-lab",
+      "text": "Widespread rash two days into a course; no swelling, no breathing trouble. Recorded as intolerance rather than anaphylaxis."
     }
   ],
   "edges": [
-    { "from": "obs-lipids-2006", "to": "doc-2006-04-18-checkup", "label": "derived_from" },
-    { "from": "obs-glucose-2006", "to": "doc-2006-04-18-checkup", "label": "derived_from" },
-    { "from": "enc-checkup-2006", "to": "doc-2006-04-18-checkup", "label": "derived_from" },
-    { "from": "obs-lipids-2009", "to": "doc-2009-05-20-lab", "label": "derived_from" },
-    { "from": "obs-alt-2009", "to": "doc-2009-05-20-lab", "label": "derived_from" },
-    { "from": "obs-bp-2011", "to": "doc-2011-02-15-diary", "label": "derived_from" },
-    { "from": "enc-gp-2011", "to": "doc-2011-02-15-diary", "label": "derived_from" },
-    { "from": "obs-bp-2012", "to": "doc-2012-03-14-gp", "label": "derived_from" },
-    { "from": "obs-creatinine-2012", "to": "doc-2012-03-14-gp", "label": "derived_from" },
-    { "from": "obs-egfr-2012", "to": "doc-2012-03-14-gp", "label": "derived_from" },
-    { "from": "cond-hypertension", "to": "doc-2012-03-14-gp", "label": "derived_from" },
-    { "from": "enc-gp-2012", "to": "doc-2012-03-14-gp", "label": "derived_from" },
-    { "from": "med-amlodipine", "to": "doc-2012-03-14-gp", "label": "derived_from" },
-    { "from": "obs-hba1c-2014", "to": "doc-2014-06-03-lab", "label": "derived_from" },
-    { "from": "obs-lipids-2016", "to": "doc-2016-09-14-lab", "label": "derived_from" },
-    { "from": "obs-alt-2016", "to": "doc-2016-09-14-lab", "label": "derived_from" },
-    { "from": "cond-hyperlipidaemia", "to": "doc-2016-09-20-gp", "label": "derived_from" },
-    { "from": "enc-gp-2016", "to": "doc-2016-09-20-gp", "label": "derived_from" },
-    { "from": "med-atorvastatin", "to": "doc-2016-09-20-gp", "label": "derived_from" },
-    { "from": "obs-troponin-2019", "to": "doc-2019-08-12-er", "label": "derived_from" },
-    { "from": "obs-bp-2019", "to": "doc-2019-08-12-er", "label": "derived_from" },
-    { "from": "enc-er-2019", "to": "doc-2019-08-12-er", "label": "derived_from" },
-    { "from": "proc-coronary-angiography-2019", "to": "doc-2019-08-20-cardio", "label": "derived_from" },
-    { "from": "obs-lipids-2019", "to": "doc-2019-08-20-cardio", "label": "derived_from" },
-    { "from": "obs-creatinine-2019", "to": "doc-2019-08-20-cardio", "label": "derived_from" },
-    { "from": "med-ramipril", "to": "doc-2019-08-20-cardio", "label": "derived_from" },
-    { "from": "enc-cardiology-2019", "to": "doc-2019-08-20-cardio", "label": "derived_from" },
-    { "from": "obs-hba1c-2021", "to": "doc-2021-03-30-lab", "label": "derived_from" },
-    { "from": "obs-glucose-2021", "to": "doc-2021-03-30-lab", "label": "derived_from" },
-    { "from": "obs-creatinine-2021", "to": "doc-2021-03-30-lab", "label": "derived_from" },
-    { "from": "obs-egfr-2021", "to": "doc-2021-03-30-lab", "label": "derived_from" },
-    { "from": "cond-t2dm", "to": "doc-2021-04-08-gp", "label": "derived_from" },
-    { "from": "enc-gp-2021", "to": "doc-2021-04-08-gp", "label": "derived_from" },
-    { "from": "med-metformin", "to": "doc-2021-04-08-gp", "label": "derived_from" },
-    { "from": "proc-colonoscopy-2023", "to": "doc-2023-05-16-colonoscopy", "label": "derived_from" },
-    { "from": "obs-cbc-2023", "to": "doc-2023-05-16-colonoscopy", "label": "derived_from" },
-    { "from": "enc-gastro-2023", "to": "doc-2023-05-16-colonoscopy", "label": "derived_from" },
-    { "from": "obs-hba1c-2024", "to": "doc-2024-02-13-diabetes", "label": "derived_from" },
-    { "from": "obs-egfr-2024", "to": "doc-2024-02-13-diabetes", "label": "derived_from" },
-    { "from": "med-empagliflozin", "to": "doc-2024-02-13-diabetes", "label": "derived_from" },
-    { "from": "enc-diabetes-review-2024", "to": "doc-2024-02-13-diabetes", "label": "derived_from" },
-    { "from": "obs-bp-2025", "to": "doc-2025-11-04-diary", "label": "derived_from" },
-    { "from": "obs-lipids-2026", "to": "doc-2026-11-19-cardio", "label": "derived_from" },
-    { "from": "obs-hba1c-2026", "to": "doc-2026-11-19-cardio", "label": "derived_from" },
-    { "from": "obs-egfr-2026", "to": "doc-2026-11-19-cardio", "label": "derived_from" },
-    { "from": "obs-alt-2026", "to": "doc-2026-11-19-cardio", "label": "derived_from" },
-    { "from": "enc-cardiology-2026", "to": "doc-2026-11-19-cardio", "label": "derived_from" },
-
-    { "from": "obs-bp-2012", "to": "cond-hypertension", "label": "tracks" },
-    { "from": "obs-bp-2019", "to": "cond-hypertension", "label": "tracks" },
-    { "from": "obs-bp-2025", "to": "cond-hypertension", "label": "tracks" },
-    { "from": "obs-lipids-2016", "to": "cond-hyperlipidaemia", "label": "tracks" },
-    { "from": "obs-lipids-2019", "to": "cond-hyperlipidaemia", "label": "tracks" },
-    { "from": "obs-lipids-2026", "to": "cond-hyperlipidaemia", "label": "tracks" },
-    { "from": "obs-hba1c-2021", "to": "cond-t2dm", "label": "tracks" },
-    { "from": "obs-glucose-2021", "to": "cond-t2dm", "label": "tracks" },
-    { "from": "obs-hba1c-2024", "to": "cond-t2dm", "label": "tracks" },
-    { "from": "obs-hba1c-2026", "to": "cond-t2dm", "label": "tracks" },
-
-    { "from": "cond-hypertension", "to": "med-amlodipine", "label": "treated_by", "valid_from": "2012-04-02" },
-    { "from": "cond-hypertension", "to": "med-ramipril", "label": "treated_by", "valid_from": "2016-10-11", "valid_to": "2019-08-20" },
-    { "from": "cond-hyperlipidaemia", "to": "med-atorvastatin", "label": "treated_by", "valid_from": "2016-10-11" },
-    { "from": "cond-t2dm", "to": "med-metformin", "label": "treated_by", "valid_from": "2021-04-15" },
-    { "from": "cond-t2dm", "to": "med-empagliflozin", "label": "treated_by", "valid_from": "2024-02-13" },
-
-    { "from": "enc-gp-2012", "to": "med-amlodipine", "label": "advised" },
-    { "from": "enc-gp-2012", "to": "obs-bp-2012", "label": "advised" },
-    { "from": "enc-gp-2016", "to": "med-atorvastatin", "label": "advised" },
-    { "from": "enc-er-2019", "to": "obs-troponin-2019", "label": "advised" },
-    { "from": "enc-cardiology-2019", "to": "obs-lipids-2019", "label": "advised" },
-    { "from": "enc-gp-2021", "to": "med-metformin", "label": "advised" },
-    { "from": "enc-diabetes-review-2024", "to": "med-empagliflozin", "label": "advised" },
-    { "from": "enc-cardiology-2026", "to": "obs-lipids-2026", "label": "advised" },
-    { "from": "enc-cardiology-2026", "to": "obs-egfr-2026", "label": "advised" }
+    {
+      "from": "obs-lipids-2006",
+      "to": "doc-2006-04-18-checkup",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-glucose-2006",
+      "to": "doc-2006-04-18-checkup",
+      "label": "derived_from"
+    },
+    {
+      "from": "enc-checkup-2006",
+      "to": "doc-2006-04-18-checkup",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-lipids-2009",
+      "to": "doc-2009-05-20-lab",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-alt-2009",
+      "to": "doc-2009-05-20-lab",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-bp-2011",
+      "to": "doc-2011-02-15-diary",
+      "label": "derived_from"
+    },
+    {
+      "from": "enc-gp-2011",
+      "to": "doc-2011-02-15-diary",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-bp-2012",
+      "to": "doc-2012-03-14-gp",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-creatinine-2012",
+      "to": "doc-2012-03-14-gp",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-egfr-2012",
+      "to": "doc-2012-03-14-gp",
+      "label": "derived_from"
+    },
+    {
+      "from": "cond-hypertension",
+      "to": "doc-2012-03-14-gp",
+      "label": "derived_from"
+    },
+    {
+      "from": "enc-gp-2012",
+      "to": "doc-2012-03-14-gp",
+      "label": "derived_from"
+    },
+    {
+      "from": "med-amlodipine",
+      "to": "doc-2012-03-14-gp",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-hba1c-2014",
+      "to": "doc-2014-06-03-lab",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-lipids-2016",
+      "to": "doc-2016-09-14-lab",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-alt-2016",
+      "to": "doc-2016-09-14-lab",
+      "label": "derived_from"
+    },
+    {
+      "from": "cond-hyperlipidaemia",
+      "to": "doc-2016-09-20-gp",
+      "label": "derived_from"
+    },
+    {
+      "from": "enc-gp-2016",
+      "to": "doc-2016-09-20-gp",
+      "label": "derived_from"
+    },
+    {
+      "from": "med-atorvastatin",
+      "to": "doc-2016-09-20-gp",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-troponin-2019",
+      "to": "doc-2019-08-12-er",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-bp-2019",
+      "to": "doc-2019-08-12-er",
+      "label": "derived_from"
+    },
+    {
+      "from": "enc-er-2019",
+      "to": "doc-2019-08-12-er",
+      "label": "derived_from"
+    },
+    {
+      "from": "proc-coronary-angiography-2019",
+      "to": "doc-2019-08-20-cardio",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-lipids-2019",
+      "to": "doc-2019-08-20-cardio",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-creatinine-2019",
+      "to": "doc-2019-08-20-cardio",
+      "label": "derived_from"
+    },
+    {
+      "from": "med-ramipril",
+      "to": "doc-2019-08-20-cardio",
+      "label": "derived_from"
+    },
+    {
+      "from": "enc-cardiology-2019",
+      "to": "doc-2019-08-20-cardio",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-hba1c-2021",
+      "to": "doc-2021-03-30-lab",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-glucose-2021",
+      "to": "doc-2021-03-30-lab",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-creatinine-2021",
+      "to": "doc-2021-03-30-lab",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-egfr-2021",
+      "to": "doc-2021-03-30-lab",
+      "label": "derived_from"
+    },
+    {
+      "from": "cond-t2dm",
+      "to": "doc-2021-04-08-gp",
+      "label": "derived_from"
+    },
+    {
+      "from": "enc-gp-2021",
+      "to": "doc-2021-04-08-gp",
+      "label": "derived_from"
+    },
+    {
+      "from": "med-metformin",
+      "to": "doc-2021-04-08-gp",
+      "label": "derived_from"
+    },
+    {
+      "from": "proc-colonoscopy-2023",
+      "to": "doc-2023-05-16-colonoscopy",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-cbc-2023",
+      "to": "doc-2023-05-16-colonoscopy",
+      "label": "derived_from"
+    },
+    {
+      "from": "enc-gastro-2023",
+      "to": "doc-2023-05-16-colonoscopy",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-hba1c-2024",
+      "to": "doc-2024-02-13-diabetes",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-egfr-2024",
+      "to": "doc-2024-02-13-diabetes",
+      "label": "derived_from"
+    },
+    {
+      "from": "med-empagliflozin",
+      "to": "doc-2024-02-13-diabetes",
+      "label": "derived_from"
+    },
+    {
+      "from": "enc-diabetes-review-2024",
+      "to": "doc-2024-02-13-diabetes",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-bp-2025",
+      "to": "doc-2025-11-04-diary",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-lipids-2026",
+      "to": "doc-2026-11-19-cardio",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-hba1c-2026",
+      "to": "doc-2026-11-19-cardio",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-egfr-2026",
+      "to": "doc-2026-11-19-cardio",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-alt-2026",
+      "to": "doc-2026-11-19-cardio",
+      "label": "derived_from"
+    },
+    {
+      "from": "enc-cardiology-2026",
+      "to": "doc-2026-11-19-cardio",
+      "label": "derived_from"
+    },
+    {
+      "from": "obs-bp-2012",
+      "to": "cond-hypertension",
+      "label": "tracks"
+    },
+    {
+      "from": "obs-bp-2019",
+      "to": "cond-hypertension",
+      "label": "tracks"
+    },
+    {
+      "from": "obs-bp-2025",
+      "to": "cond-hypertension",
+      "label": "tracks"
+    },
+    {
+      "from": "obs-lipids-2016",
+      "to": "cond-hyperlipidaemia",
+      "label": "tracks"
+    },
+    {
+      "from": "obs-lipids-2019",
+      "to": "cond-hyperlipidaemia",
+      "label": "tracks"
+    },
+    {
+      "from": "obs-lipids-2026",
+      "to": "cond-hyperlipidaemia",
+      "label": "tracks"
+    },
+    {
+      "from": "obs-hba1c-2021",
+      "to": "cond-t2dm",
+      "label": "tracks"
+    },
+    {
+      "from": "obs-glucose-2021",
+      "to": "cond-t2dm",
+      "label": "tracks"
+    },
+    {
+      "from": "obs-hba1c-2024",
+      "to": "cond-t2dm",
+      "label": "tracks"
+    },
+    {
+      "from": "obs-hba1c-2026",
+      "to": "cond-t2dm",
+      "label": "tracks"
+    },
+    {
+      "from": "cond-hypertension",
+      "to": "med-amlodipine",
+      "label": "treated_by",
+      "valid_from": "2012-04-02"
+    },
+    {
+      "from": "cond-hypertension",
+      "to": "med-ramipril",
+      "label": "treated_by",
+      "valid_from": "2016-10-11",
+      "valid_to": "2019-08-20"
+    },
+    {
+      "from": "cond-hyperlipidaemia",
+      "to": "med-atorvastatin",
+      "label": "treated_by",
+      "valid_from": "2016-10-11"
+    },
+    {
+      "from": "cond-t2dm",
+      "to": "med-metformin",
+      "label": "treated_by",
+      "valid_from": "2021-04-15"
+    },
+    {
+      "from": "cond-t2dm",
+      "to": "med-empagliflozin",
+      "label": "treated_by",
+      "valid_from": "2024-02-13"
+    },
+    {
+      "from": "enc-gp-2012",
+      "to": "med-amlodipine",
+      "label": "advised"
+    },
+    {
+      "from": "enc-gp-2012",
+      "to": "obs-bp-2012",
+      "label": "advised"
+    },
+    {
+      "from": "enc-gp-2016",
+      "to": "med-atorvastatin",
+      "label": "advised"
+    },
+    {
+      "from": "enc-er-2019",
+      "to": "obs-troponin-2019",
+      "label": "advised"
+    },
+    {
+      "from": "enc-cardiology-2019",
+      "to": "obs-lipids-2019",
+      "label": "advised"
+    },
+    {
+      "from": "enc-gp-2021",
+      "to": "med-metformin",
+      "label": "advised"
+    },
+    {
+      "from": "enc-diabetes-review-2024",
+      "to": "med-empagliflozin",
+      "label": "advised"
+    },
+    {
+      "from": "enc-cardiology-2026",
+      "to": "obs-lipids-2026",
+      "label": "advised"
+    },
+    {
+      "from": "enc-cardiology-2026",
+      "to": "obs-egfr-2026",
+      "label": "advised"
+    },
+    {
+      "from": "imm-influenza-2024",
+      "to": "doc-2024-10-15-vaccination",
+      "label": "derived_from"
+    },
+    {
+      "from": "imm-influenza-2025",
+      "to": "doc-2024-10-15-vaccination",
+      "label": "derived_from"
+    },
+    {
+      "from": "imm-pneumococcal-2021",
+      "to": "doc-2021-03-30-lab",
+      "label": "derived_from"
+    },
+    {
+      "from": "cond-mild-fever-2024",
+      "to": "doc-2024-10-16-self-note",
+      "label": "derived_from"
+    },
+    {
+      "from": "cond-mild-fever-2024",
+      "to": "imm-influenza-2024",
+      "label": "hypothetical"
+    },
+    {
+      "from": "cond-hearing-loss-2019",
+      "to": "dev-hearing-aid-2019",
+      "label": "treated_by"
+    },
+    {
+      "from": "cond-hearing-loss-2019",
+      "to": "doc-2019-05-20-audiology",
+      "label": "derived_from"
+    },
+    {
+      "from": "dev-hearing-aid-2019",
+      "to": "doc-2019-05-20-audiology",
+      "label": "derived_from"
+    },
+    {
+      "from": "allergy-penicillin",
+      "to": "doc-2009-05-20-lab",
+      "label": "derived_from"
+    }
   ]
 }

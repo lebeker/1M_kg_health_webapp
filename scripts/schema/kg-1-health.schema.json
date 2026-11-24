@@ -10,25 +10,115 @@
   "x-contract-change": "2.1.0 — T18: a `prediction` is a simulation with a shape — `target` (what it is about), `horizon` (the date it is about), `condition` (the predicate it waits on), `delta_median` (the change it would make), `source` and `confidence` — and no `when`, because its date is the horizon. 2.0.0 — T06: `source` is renamed to `document` (the document is the provenance and has the date printed on it), `procedure` becomes its own event kind, and the six event kinds are the spine of the model: condition, observation, encounter, medication, procedure, document. A summary and a prediction stay non-events (a marker and a simulation).",
   "x-contract-snapshot": "There is no stored snapshot shape. A snapshot is derived, not recorded: the state at date D is every node whose `when` is on or before D plus every edge whose validity window holds at D (DATA-CONTRACT §Temporal rule). The immutable snapshot store is proposal T08, explicitly not approved (PLAN §B2), so this contract covers the snapshot by making that derivation well-defined — an event always has a date, and a temporary relation is closed with valid_from/valid_to instead of deleted.",
   "x-relations": {
-    "tracks": { "from": ["observation"], "to": ["condition"] },
-    "treated_by": { "from": ["condition"], "to": ["medication"] },
-    "contradicts": { "from": ["observation"], "to": ["condition"] },
-    "preceded_by": {
-      "from": ["condition", "observation", "encounter", "medication", "procedure", "document"],
-      "to": ["condition", "observation", "encounter", "medication", "procedure", "document"]
+    "tracks": {
+      "from": [
+        "observation"
+      ],
+      "to": [
+        "condition"
+      ]
     },
-    "derived_from": { "from": ["*"], "to": ["document"] },
-    "advised": { "from": ["encounter"], "to": ["medication", "observation"] },
-    "projected": { "from": ["prediction"], "to": ["condition", "observation"] },
-    "part_of": { "from": ["observation"], "to": ["observation"] }
+    "treated_by": {
+      "from": [
+        "condition"
+      ],
+      "to": [
+        "medication",
+        "device"
+      ]
+    },
+    "contradicts": {
+      "from": [
+        "observation"
+      ],
+      "to": [
+        "condition"
+      ]
+    },
+    "preceded_by": {
+      "from": [
+        "condition",
+        "observation",
+        "encounter",
+        "medication",
+        "procedure",
+        "document"
+      ],
+      "to": [
+        "condition",
+        "observation",
+        "encounter",
+        "medication",
+        "procedure",
+        "document"
+      ]
+    },
+    "derived_from": {
+      "from": [
+        "*"
+      ],
+      "to": [
+        "document"
+      ]
+    },
+    "advised": {
+      "from": [
+        "encounter"
+      ],
+      "to": [
+        "medication",
+        "observation"
+      ]
+    },
+    "projected": {
+      "from": [
+        "prediction"
+      ],
+      "to": [
+        "condition",
+        "observation"
+      ]
+    },
+    "part_of": {
+      "from": [
+        "observation"
+      ],
+      "to": [
+        "observation"
+      ]
+    },
+    "hypothetical": {
+      "from": [
+        "*"
+      ],
+      "to": [
+        "*"
+      ]
+    }
   },
   "type": "object",
-  "required": ["meta", "nodes", "edges"],
+  "required": [
+    "meta",
+    "nodes",
+    "edges"
+  ],
   "additionalProperties": false,
   "properties": {
-    "meta": { "$ref": "#/$defs/meta" },
-    "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" } },
-    "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } }
+    "meta": {
+      "$ref": "#/$defs/meta"
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/edge"
+      }
+    }
   },
   "$defs": {
     "date": {
@@ -39,19 +129,38 @@
     "when": {
       "description": "the date a thing happened — a point, or an interval {from, to} for something that lasts",
       "oneOf": [
-        { "$ref": "#/$defs/date" },
+        {
+          "$ref": "#/$defs/date"
+        },
         {
           "type": "object",
-          "required": ["from"],
+          "required": [
+            "from"
+          ],
           "additionalProperties": false,
           "properties": {
-            "from": { "$ref": "#/$defs/date" },
-            "to": { "oneOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }] }
+            "from": {
+              "$ref": "#/$defs/date"
+            },
+            "to": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/date"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         }
       ]
     },
-    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
     "nonEmptyText": {
       "description": "a string with something in it. Both readers of this contract trim before they answer — `isNonEmptyString` in scripts/lib/kg-contract.ts, `conditionProblems` in src/rules.ts, `loadPredictions` in src/prediction.ts — so a string of spaces is empty to them, while a bare `minLength: 1` counts it as content. A document this file accepted would then be thrown out by the loader, which is the disagreement this gate exists to prevent, so the rule is spelled once here and referred to by the fields that are read that way: a node id, a fact name, a forecast's target and source, and the two ends of an edge.",
       "type": "string",
@@ -62,7 +171,17 @@
     },
     "factValue": {
       "description": "one value a fact may hold, and so one value a comparison may compare it with",
-      "oneOf": [{ "type": "number" }, { "type": "string" }, { "type": "boolean" }]
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
     },
     "predicate": {
       "description": "a condition over the facts of a record — one comparison, or a group of them joined by all / any / not. Deliberately the same vocabulary a rule uses (src/rules.ts): a rule's `when` and a prediction's `condition` are one language, so the engine that decides whether a rule fires decides whether a forecast is live. A condition is about facts — `age`, `current_smoker`, `ldl_cholesterol` — and never about time; dates live on nodes. What a comparison's `value` may be is decided operator by operator, because the engine (`conditionProblems`) refuses an `exists` that carries a value and a list where one value belongs: a condition this file accepts is a condition the engine reads, and one it refuses is refused here first.",
@@ -70,10 +189,22 @@
         {
           "description": "one comparison: a fact, an operator, and the value it is compared with",
           "type": "object",
-          "required": ["fact", "op"],
+          "required": [
+            "fact",
+            "op"
+          ],
           "properties": {
             "op": {
-              "enum": ["eq", "ne", "lt", "le", "gt", "ge", "in", "exists"],
+              "enum": [
+                "eq",
+                "ne",
+                "lt",
+                "le",
+                "gt",
+                "ge",
+                "in",
+                "exists"
+              ],
               "description": "eq, ne, lt, le, gt, ge compare one value; `in` takes a non-empty list; `exists` asks only whether the fact is known"
             }
           },
@@ -81,89 +212,166 @@
             {
               "description": "eq: the fact equals one value",
               "type": "object",
-              "required": ["op", "value"],
+              "required": [
+                "op",
+                "value"
+              ],
               "additionalProperties": false,
               "properties": {
-                "fact": { "$ref": "#/$defs/nonEmptyText" },
-                "op": { "const": "eq" },
-                "value": { "$ref": "#/$defs/factValue" }
+                "fact": {
+                  "$ref": "#/$defs/nonEmptyText"
+                },
+                "op": {
+                  "const": "eq"
+                },
+                "value": {
+                  "$ref": "#/$defs/factValue"
+                }
               }
             },
             {
               "description": "ne: the fact is not one value",
               "type": "object",
-              "required": ["op", "value"],
+              "required": [
+                "op",
+                "value"
+              ],
               "additionalProperties": false,
               "properties": {
-                "fact": { "$ref": "#/$defs/nonEmptyText" },
-                "op": { "const": "ne" },
-                "value": { "$ref": "#/$defs/factValue" }
+                "fact": {
+                  "$ref": "#/$defs/nonEmptyText"
+                },
+                "op": {
+                  "const": "ne"
+                },
+                "value": {
+                  "$ref": "#/$defs/factValue"
+                }
               }
             },
             {
               "description": "lt: the fact is below one value",
               "type": "object",
-              "required": ["op", "value"],
+              "required": [
+                "op",
+                "value"
+              ],
               "additionalProperties": false,
               "properties": {
-                "fact": { "$ref": "#/$defs/nonEmptyText" },
-                "op": { "const": "lt" },
-                "value": { "$ref": "#/$defs/factValue" }
+                "fact": {
+                  "$ref": "#/$defs/nonEmptyText"
+                },
+                "op": {
+                  "const": "lt"
+                },
+                "value": {
+                  "$ref": "#/$defs/factValue"
+                }
               }
             },
             {
               "description": "le: the fact is at or below one value",
               "type": "object",
-              "required": ["op", "value"],
+              "required": [
+                "op",
+                "value"
+              ],
               "additionalProperties": false,
               "properties": {
-                "fact": { "$ref": "#/$defs/nonEmptyText" },
-                "op": { "const": "le" },
-                "value": { "$ref": "#/$defs/factValue" }
+                "fact": {
+                  "$ref": "#/$defs/nonEmptyText"
+                },
+                "op": {
+                  "const": "le"
+                },
+                "value": {
+                  "$ref": "#/$defs/factValue"
+                }
               }
             },
             {
               "description": "gt: the fact is above one value",
               "type": "object",
-              "required": ["op", "value"],
+              "required": [
+                "op",
+                "value"
+              ],
               "additionalProperties": false,
               "properties": {
-                "fact": { "$ref": "#/$defs/nonEmptyText" },
-                "op": { "const": "gt" },
-                "value": { "$ref": "#/$defs/factValue" }
+                "fact": {
+                  "$ref": "#/$defs/nonEmptyText"
+                },
+                "op": {
+                  "const": "gt"
+                },
+                "value": {
+                  "$ref": "#/$defs/factValue"
+                }
               }
             },
             {
               "description": "ge: the fact is at or above one value",
               "type": "object",
-              "required": ["op", "value"],
+              "required": [
+                "op",
+                "value"
+              ],
               "additionalProperties": false,
               "properties": {
-                "fact": { "$ref": "#/$defs/nonEmptyText" },
-                "op": { "const": "ge" },
-                "value": { "$ref": "#/$defs/factValue" }
+                "fact": {
+                  "$ref": "#/$defs/nonEmptyText"
+                },
+                "op": {
+                  "const": "ge"
+                },
+                "value": {
+                  "$ref": "#/$defs/factValue"
+                }
               }
             },
             {
               "description": "in: the fact is one of a non-empty list of values",
               "type": "object",
-              "required": ["op", "value"],
+              "required": [
+                "op",
+                "value"
+              ],
               "additionalProperties": false,
               "properties": {
-                "fact": { "$ref": "#/$defs/nonEmptyText" },
-                "op": { "const": "in" },
-                "value": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/factValue" } }
+                "fact": {
+                  "$ref": "#/$defs/nonEmptyText"
+                },
+                "op": {
+                  "const": "in"
+                },
+                "value": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "$ref": "#/$defs/factValue"
+                  }
+                }
               }
             },
             {
               "description": "exists: the fact is known — the operator asks whether it is there, so it takes no value",
               "type": "object",
-              "required": ["op"],
+              "required": [
+                "op"
+              ],
               "additionalProperties": false,
               "properties": {
-                "fact": { "$ref": "#/$defs/nonEmptyText" },
-                "op": { "const": "exists" },
-                "value": { "not": { "description": "exists takes no value — it asks only whether the fact is there" } }
+                "fact": {
+                  "$ref": "#/$defs/nonEmptyText"
+                },
+                "op": {
+                  "const": "exists"
+                },
+                "value": {
+                  "not": {
+                    "description": "exists takes no value — it asks only whether the fact is there"
+                  }
+                }
               }
             }
           ]
@@ -171,71 +379,171 @@
         {
           "description": "all of these comparisons hold",
           "type": "object",
-          "required": ["all"],
+          "required": [
+            "all"
+          ],
           "additionalProperties": false,
-          "properties": { "all": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/predicate" } } }
+          "properties": {
+            "all": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/predicate"
+              }
+            }
+          }
         },
         {
           "description": "at least one of these comparisons holds",
           "type": "object",
-          "required": ["any"],
+          "required": [
+            "any"
+          ],
           "additionalProperties": false,
-          "properties": { "any": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/predicate" } } }
+          "properties": {
+            "any": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/predicate"
+              }
+            }
+          }
         },
         {
           "description": "this comparison does not hold",
           "type": "object",
-          "required": ["not"],
+          "required": [
+            "not"
+          ],
           "additionalProperties": false,
-          "properties": { "not": { "$ref": "#/$defs/predicate" } }
+          "properties": {
+            "not": {
+              "$ref": "#/$defs/predicate"
+            }
+          }
         }
       ]
     },
     "meta": {
       "type": "object",
-      "required": ["title", "schema", "app", "profile"],
+      "required": [
+        "title",
+        "schema",
+        "app",
+        "profile"
+      ],
       "properties": {
-        "title": { "type": "string", "minLength": 1 },
-        "schema": { "const": "kg/1" },
-        "app": { "const": "health-viewer" },
-        "app_url": { "type": "string", "minLength": 1 },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schema": {
+          "const": "kg/1"
+        },
+        "app": {
+          "const": "health-viewer"
+        },
+        "app_url": {
+          "type": "string",
+          "minLength": 1
+        },
         "requires": {
           "type": "object",
           "properties": {
-            "skills": { "type": "array", "items": { "type": "string" } },
-            "plugins": { "type": "array", "items": { "type": "string" } },
-            "tools": { "type": "array", "items": { "type": "string" } }
+            "skills": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "plugins": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "tools": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           }
         },
         "colors": {
           "type": "object",
           "description": "kind → hex; health kinds ship defaults, a document may override them",
-          "additionalProperties": { "type": "string", "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" }
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+          }
         },
-        "profile": { "$ref": "#/$defs/profile" },
-        "timezone": { "type": "string", "minLength": 1 }
+        "profile": {
+          "$ref": "#/$defs/profile"
+        },
+        "timezone": {
+          "type": "string",
+          "minLength": 1
+        }
       },
       "description": "the envelope; identity lives in meta.profile and nowhere else"
     },
     "profile": {
       "type": "object",
-      "required": ["sex", "year_of_birth"],
+      "required": [
+        "sex",
+        "year_of_birth"
+      ],
       "properties": {
-        "sex": { "type": "string", "minLength": 1 },
-        "year_of_birth": { "type": "integer", "minimum": 1900, "maximum": 2200 },
-        "name": { "type": ["string", "null"] }
+        "sex": {
+          "type": "string",
+          "minLength": 1
+        },
+        "year_of_birth": {
+          "type": "integer",
+          "minimum": 1900,
+          "maximum": 2200
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       },
       "description": "sex and year of birth are data, never a constant in the template; a full date and a name are optional"
     },
     "node": {
       "type": "object",
-      "required": ["id", "kind", "confirmed"],
+      "required": [
+        "id",
+        "kind",
+        "confirmed"
+      ],
       "description": "eight kinds, six of them events. An event is a fact in the record with a date in `when` and, unless it is the document itself, a `source` naming the document it came from. A summary is a virtual marker and a prediction is a simulation: both are visible, neither is an event. Fields outside this list are carried through untouched, which is how the viewer gains a key without the contract changing — and a field the contract puts on one kind (an observation's value, a condition's status) is typed only where the contract puts it.",
       "properties": {
-        "id": { "$ref": "#/$defs/nonEmptyText", "description": "unique and stable; never reused for different content" },
-        "label": { "type": "string" },
+        "id": {
+          "$ref": "#/$defs/nonEmptyText",
+          "description": "unique and stable; never reused for different content"
+        },
+        "label": {
+          "type": "string"
+        },
         "kind": {
-          "enum": ["condition", "observation", "encounter", "medication", "procedure", "document", "summary", "prediction"],
+          "enum": [
+            "condition",
+            "observation",
+            "encounter",
+            "medication",
+            "procedure",
+            "document",
+            "summary",
+            "prediction",
+            "immunization",
+            "device",
+            "allergy"
+          ],
           "description": "eight kinds, no free-form ones: the template has a layout for each and nothing for the rest. Six of them are events: condition, observation, encounter, medication, procedure, document"
         },
         "confirmed": {
@@ -246,106 +554,315 @@
           "$ref": "#/$defs/nonEmptyText",
           "description": "id of the document node this fact came from; a document node carries none, because it is the provenance"
         },
-        "when": { "$ref": "#/$defs/when" },
-        "confidence": { "$ref": "#/$defs/confidence" },
-        "valid_from": { "$ref": "#/$defs/date" },
-        "valid_to": { "oneOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }] }
+        "when": {
+          "$ref": "#/$defs/when"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "valid_from": {
+          "$ref": "#/$defs/date"
+        },
+        "valid_to": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
       },
       "oneOf": [
         {
           "description": "a condition needs the date it started, its status and the document it came from",
           "properties": {
-            "kind": { "const": "condition" },
-            "status": { "enum": ["active", "resolved", "suspected", "stopped"] },
-            "origin": { "enum": ["doctor", "generated"] },
-            "code": { "type": "string", "description": "ICD-10 or SNOMED" }
+            "kind": {
+              "const": "condition"
+            },
+            "status": {
+              "enum": [
+                "active",
+                "resolved",
+                "suspected",
+                "stopped"
+              ]
+            },
+            "origin": {
+              "enum": [
+                "doctor",
+                "generated",
+                "self"
+              ]
+            },
+            "code": {
+              "type": "string",
+              "description": "ICD-10 or SNOMED"
+            }
           },
-          "required": ["when", "status", "source"]
+          "required": [
+            "when",
+            "status",
+            "source"
+          ]
         },
         {
           "description": "an observation needs its date, its value, its unit and the document it came from",
           "properties": {
-            "kind": { "const": "observation" },
-            "value": { "type": "number", "description": "a number, not a string: \"4.9 mmol/L\" cannot be plotted, sorted or compared" },
-            "unit": { "type": "string", "minLength": 1, "description": "UCUM code where one exists (mmol/L, mm[Hg])" },
-            "ref_low": { "type": "number" },
-            "ref_high": { "type": "number" },
-            "flag": { "enum": ["low", "normal", "high", "critical"], "description": "as the lab printed it, never derived" },
-            "code": { "type": "string", "description": "LOINC" }
+            "kind": {
+              "const": "observation"
+            },
+            "value": {
+              "type": "number",
+              "description": "a number, not a string: \"4.9 mmol/L\" cannot be plotted, sorted or compared"
+            },
+            "unit": {
+              "type": "string",
+              "minLength": 1,
+              "description": "UCUM code where one exists (mmol/L, mm[Hg])"
+            },
+            "ref_low": {
+              "type": "number"
+            },
+            "ref_high": {
+              "type": "number"
+            },
+            "flag": {
+              "enum": [
+                "low",
+                "normal",
+                "high",
+                "critical"
+              ],
+              "description": "as the lab printed it, never derived"
+            },
+            "code": {
+              "type": "string",
+              "description": "LOINC"
+            }
           },
-          "required": ["when", "value", "unit", "source"]
+          "required": [
+            "when",
+            "value",
+            "unit",
+            "source"
+          ]
         },
         {
           "description": "an encounter needs its date and the document it came from",
-          "properties": { "kind": { "const": "encounter" } },
-          "required": ["when", "source"]
+          "properties": {
+            "kind": {
+              "const": "encounter"
+            }
+          },
+          "required": [
+            "when",
+            "source"
+          ]
         },
         {
           "description": "a medication needs the date it started, its status and the document it came from",
           "properties": {
-            "kind": { "const": "medication" },
-            "status": { "enum": ["active", "resolved", "suspected", "stopped"] }
+            "kind": {
+              "const": "medication"
+            },
+            "status": {
+              "enum": [
+                "active",
+                "resolved",
+                "suspected",
+                "stopped"
+              ]
+            }
           },
-          "required": ["when", "status", "source"]
+          "required": [
+            "when",
+            "status",
+            "source"
+          ]
         },
         {
           "description": "a procedure needs the date it was performed and the document it came from",
           "properties": {
-            "kind": { "const": "procedure" },
-            "code": { "type": "string", "description": "SNOMED CT, ICD-10-PCS or OPCS-4 — as the document printed it" }
+            "kind": {
+              "const": "procedure"
+            },
+            "code": {
+              "type": "string",
+              "description": "SNOMED CT, ICD-10-PCS or OPCS-4 — as the document printed it"
+            }
           },
-          "required": ["when", "source"]
+          "required": [
+            "when",
+            "source"
+          ]
         },
         {
           "description": "a document needs the date printed on it: it is the provenance every other fact points at, so it has none of its own",
           "properties": {
-            "kind": { "const": "document" },
-            "link": { "type": "string", "minLength": 1, "description": "where the file lives, relative to the document (sources/discharge-2021-05-14.pdf)" }
+            "kind": {
+              "const": "document"
+            },
+            "link": {
+              "type": "string",
+              "minLength": 1,
+              "description": "where the file lives, relative to the document (sources/discharge-2021-05-14.pdf)"
+            }
           },
-          "required": ["when"],
+          "required": [
+            "when"
+          ],
           "not": {
-            "required": ["source"],
+            "required": [
+              "source"
+            ],
             "description": "a document node is the provenance, it does not point at one"
           }
         },
         {
           "description": "a summary needs the end of the period it rolls up and the document it came from",
           "properties": {
-            "kind": { "const": "summary" },
-            "origin": { "enum": ["doctor", "generated"], "description": "a generated summary never looks like a doctor's" }
+            "kind": {
+              "const": "summary"
+            },
+            "origin": {
+              "enum": [
+                "doctor",
+                "generated",
+                "self"
+              ],
+              "description": "a generated summary never looks like a doctor's"
+            }
           },
-          "required": ["when", "source"]
+          "required": [
+            "when",
+            "source"
+          ]
         },
         {
           "description": "a prediction is a simulation, not a fact: it needs what it is about, the date it is about, the condition it waits on and the median change it would make",
           "properties": {
-            "kind": { "const": "prediction" },
+            "kind": {
+              "const": "prediction"
+            },
             "target": {
               "$ref": "#/$defs/nonEmptyText",
               "description": "id of the condition or observation this forecast is about"
             },
-            "horizon": { "$ref": "#/$defs/date", "description": "the date the forecast is about — not the day it was made, which is the date printed on its source document" },
-            "condition": { "$ref": "#/$defs/predicate", "description": "the condition that has to be met before this forecast may move an estimate" },
+            "horizon": {
+              "$ref": "#/$defs/date",
+              "description": "the date the forecast is about — not the day it was made, which is the date printed on its source document"
+            },
+            "condition": {
+              "$ref": "#/$defs/predicate",
+              "description": "the condition that has to be met before this forecast may move an estimate"
+            },
             "delta_median": {
               "type": "number",
               "description": "the median change the forecast would make to the estimate of its scale, in that scale's unit, once its condition is met"
             }
           },
-          "required": ["target", "horizon", "condition", "delta_median", "source", "confidence"],
+          "required": [
+            "target",
+            "horizon",
+            "condition",
+            "delta_median",
+            "source",
+            "confidence"
+          ],
           "not": {
-            "required": ["when"],
+            "required": [
+              "when"
+            ],
             "description": "a prediction is not an event: its date is the horizon, and a second date in `when` would be the second kind of time this contract exists to prevent"
           }
+        },
+        {
+          "description": "an immunization is a dose given on a day, with the document that recorded it; it is not a procedure — the two are kept apart because a card lists them apart",
+          "properties": {
+            "kind": {
+              "const": "immunization"
+            },
+            "status": {
+              "enum": [
+                "active",
+                "stopped"
+              ]
+            },
+            "clinic": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "when",
+            "source"
+          ]
+        },
+        {
+          "description": "a device is in or on the person from a date; it carries the datasheet it was fitted from, and the limits it imposes",
+          "properties": {
+            "kind": {
+              "const": "device"
+            },
+            "status": {
+              "enum": [
+                "active",
+                "stopped"
+              ]
+            },
+            "link": {
+              "type": "string",
+              "minLength": 1,
+              "description": "the datasheet — the manufacturer's page or PDF describing what this thing is and what it forbids"
+            }
+          },
+          "required": [
+            "when",
+            "source"
+          ]
+        },
+        {
+          "description": "an allergy or an intolerance: a reaction, when it was first recorded, and whether it still stands",
+          "properties": {
+            "kind": {
+              "const": "allergy"
+            },
+            "status": {
+              "enum": [
+                "active",
+                "resolved",
+                "suspected",
+                "stopped"
+              ]
+            },
+            "code": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "when",
+            "status",
+            "source"
+          ]
         }
       ]
     },
     "edge": {
       "type": "object",
-      "required": ["from", "to", "label"],
+      "required": [
+        "from",
+        "to",
+        "label"
+      ],
       "description": "a relation. `source` and `confidence` are carried when they are known; `valid_from`/`valid_to` when the relation itself is temporary — a relation that was true between two dates and is not true now is still a fact about the past, so it is closed, not deleted.",
       "properties": {
-        "from": { "$ref": "#/$defs/nonEmptyText" },
-        "to": { "$ref": "#/$defs/nonEmptyText" },
+        "from": {
+          "$ref": "#/$defs/nonEmptyText"
+        },
+        "to": {
+          "$ref": "#/$defs/nonEmptyText"
+        },
         "label": {
           "enum": [
             "tracks",
@@ -355,14 +872,31 @@
             "derived_from",
             "advised",
             "projected",
-            "part_of"
+            "part_of",
+            "hypothetical"
           ],
           "description": "the relation; the list is closed, and a new relation needs an entry in docs/DATA-CONTRACT.md first"
         },
-        "source": { "$ref": "#/$defs/nonEmptyText", "description": "id of the document node this relation came from" },
-        "confidence": { "$ref": "#/$defs/confidence" },
-        "valid_from": { "$ref": "#/$defs/date" },
-        "valid_to": { "oneOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }] }
+        "source": {
+          "$ref": "#/$defs/nonEmptyText",
+          "description": "id of the document node this relation came from"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "valid_from": {
+          "$ref": "#/$defs/date"
+        },
+        "valid_to": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
       }
     }
   }

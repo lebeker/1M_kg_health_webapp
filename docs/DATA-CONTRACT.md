@@ -56,9 +56,11 @@ a key the viewer would have filled in anyway.
 
 ## Node kinds
 
-Eight kinds, and no free-form ones. Six of them are **events**: a fact in the record that happened on
-a date and came from a document. A kind that is not on this list is a modelling error, because the
-template has a layout for each and nothing for the rest.
+Eleven kinds, and no free-form ones. Nine of them are **events**: a fact in the record that happened
+on a date and came from a document. A kind that is not on this list is a modelling error, because the
+template has a row for each and nothing for the rest. The list is a convention about *layout*, not
+about what a graph may contain: `kg/1` itself takes any kind string, and an unrecognised one is
+carried through as a plain record rather than refused.
 
 | kind | an event? | date | what it is | example |
 |---|---|---|---|---|
@@ -68,6 +70,9 @@ template has a layout for each and nothing for the rest.
 | `medication` | yes | `when`: start, `to` when stopped | a drug and a regimen | atorvastatin 20 mg |
 | `procedure` | yes | `when`: the day it was performed | something done to the person | coronary angiography 2021-05-15 |
 | `document` | yes | `when`: the date printed on it | the file the facts came from | discharge note, page 2 |
+| `immunization` | yes | `when`: the day it was given | a dose in the person, with the clinic that gave it | influenza, 15 Oct 2024 |
+| `device` | yes | `when`: `from` the day it was fitted | something in or on the person that stays; carries `link`, its datasheet, and `text`, the limits it imposes | hearing aid, right ear |
+| `allergy` | yes | `when`: `from` the day it was first recorded | a reaction, with `status`: active, resolved or suspected | penicillin — rash |
 | `summary` | no | `when`: the period end | a period rolled up: annual or today. Virtual | 2025 annual summary |
 | `prediction` | no | `horizon`: the date it is about | a simulated projection under a condition | LDL < 3.0 by 2028 |
 
@@ -279,7 +284,7 @@ the date printed on it.
 
 The document is valid when:
 
-- it matches the schema: the envelope, the eight kinds (six of them events), the eight relations, the
+- it matches the schema: the envelope, the eleven kinds (nine of them events), the nine relations, the
   fields as typed (a `value` is a number, a `when` is a real calendar date), and per kind the fields
   that kind cannot do without (an observation its date, value, unit and source; a condition its onset,
   status and source; an encounter and a procedure their date and source; a document the date printed

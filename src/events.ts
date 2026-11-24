@@ -1,6 +1,7 @@
 /**
  * The event model: everything the viewer draws as having happened is an event with a date and a
- * source. Six kinds — condition, observation, medication, procedure, encounter, document — and this
+ * source. Nine kinds — condition, observation, medication, procedure, encounter, document,
+ * immunization, device, allergy — and this
  * module is where the template builds one and where it refuses the mistakes that make a timeline
  * lie: an event with no date, and a fact with no document behind it.
  *
@@ -13,7 +14,7 @@
  * `src/events.test.ts` holds this list against the schema, so the model cannot drift from the gate.
  */
 
-export const EVENT_KINDS = ['observation', 'condition', 'medication', 'procedure', 'encounter', 'document'] as const
+export const EVENT_KINDS = ['observation', 'condition', 'medication', 'procedure', 'encounter', 'document', 'immunization', 'device', 'allergy'] as const
 
 export type EventKind = (typeof EVENT_KINDS)[number]
 

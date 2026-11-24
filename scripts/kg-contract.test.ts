@@ -144,7 +144,7 @@ describe('the schema is the contract, and it is versioned', () => {
     }
   })
 
-  test('an event is one of the six kinds T06 names; a summary marker and a prediction are not', () => {
+  test('an event is a kind that requires a date; a summary marker and a prediction are not', () => {
     expect([...HEALTH_EVENT_KINDS]).toEqual([
       'condition',
       'observation',
@@ -152,6 +152,9 @@ describe('the schema is the contract, and it is versioned', () => {
       'medication',
       'procedure',
       'document',
+      'immunization',
+      'device',
+      'allergy',
     ])
     expect(TEMPORAL_NODE_KINDS).toContain('prediction')
     expect(TEMPORAL_NODE_KINDS).not.toContain('document')
