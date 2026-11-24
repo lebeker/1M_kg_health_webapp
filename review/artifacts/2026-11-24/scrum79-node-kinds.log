@@ -1,0 +1,107 @@
+SCRUM-79 review run — PR #63, branch feat/SCRUM-79_new-node-kinds, head a6dd903
+reviewer: lia (liamijatovich). Date: 2026-11-24.
+Page under review: dist/demo.html built from this head with `bun run build:demo`
+(300,902 bytes, sha256 b4003979c267c48f25cc87800e328c43eececfeedfafcc9d162019b3722ff403),
+opened over file:// in the Hermes browser at 1280x577, 0 JavaScript errors, 0 console messages.
+Baseline for the marker-count check: `bun scripts/build-demo.ts` on 752cdde (origin/main, the PR's
+merge base) in a detached worktree; dist/demo.html 296,978 bytes.
+
+WHAT THE CARD ASKED ME TO SEE
+1. list year counts  2025: 2 records | 2024: 6 | 2019: 9 | 2009: 3        PASS
+2. timeline 66 markers                                                     PASS (66 .mark, 66 .srow)
+3. click the 2025 influenza dose: RECORD / IMMUNIZATION, its text,
+   WHERE IT CAME FROM, LINKED ITEMS -> derived_from                        PASS (see panel text below)
+4. the hearing aid opens with its datasheet link                           FAIL (see FINDING)
+5. the penicillin allergy is a record, not a diagnosis                     PASS (kicker "2009-05-20 · record")
+6. negative check: no row/marker/panel missing for the three new kinds     PASS (see counts below)
+
+MEASUREMENTS (DOM, on the built page)
+  document: 72 nodes / 80 edges (baseline 62 / 71)
+  rows .srow 66, markers #tl .mark 66 (baseline 59 / 59)
+  rows by data-kind on this head:
+    analysis 27, visit 10, diagnosis 5, medication 5, procedure 2,
+    immunization 3, device 1, allergy 1, summary 11, today 1  = 66
+  rows by data-kind on 752cdde:
+    analysis 27, visit 10, diagnosis 3, medication 5, procedure 2,
+    summary 11, today 1 = 59
+  delta +7 rows / +7 markers = 3 immunization + 1 device + 1 allergy + 2 conditions added to
+  kg_demo.json by this PR. Every record kind present in the document has a row and a marker; no
+  kind is dropped by ROW_KIND.
+  year headings, baseline -> this head: 2025 1 -> 2, 2024 4 -> 6, 2023 3 -> 3, 2021 7 -> 8,
+  2019 7 -> 9, 2016 6 -> 6, 2014 1 -> 1, 2012 6 -> 6, 2011 2 -> 2, 2009 2 -> 3, 2006 3 -> 3.
+
+CLICKS (real pointer clicks on #stateRows rows; the row scrolls into view first)
+  2025-10-20 · immunization, "Influenza vaccine, quadrivalent (single dose)"
+    centre header 2025-10-20 · RECORD / 2025-10-20 · 64 y
+    kind line     2025-10-20 · IMMUNIZATION
+    text          "Repeated the following autumn; the record carries the same batch note."
+    WHERE IT CAME FROM / document / Vaccination record — Family Practice, 15 Oct 2024 /
+                  open the document -> sources/vaccination-2024-10-15.pdf
+    LINKED ITEMS / derived_from / Vaccination record — Family Practice, 15 Oct 2024 / 2024-10-15
+    the row is .on and exactly one marker is .cur; the right panel reads 2025-10-20 -> 2026-11-24
+  2019-06-03 · device, "Hearing aid, right ear (behind-the-ear, 8-channel)"
+    centre header 2019-06-03 · RECORD / 2019-06-03 · 58 y
+    kind line     2019-06-03 · DEVICE · ACTIVE
+    text          "Fitted three weeks after the audiogram. Open dome, 8 channels, 312 zinc-air cell
+                  changed every 9 days. Limits: no water resistance, no telecoil, and it must come
+                  out before the MRI the cardiology work-up may need."
+    WHERE IT CAME FROM / document / Audiology report — City ENT, 20 May 2019 /
+                  open the document -> sources/audiology-2019-05-20.pdf
+    LINKED ITEMS / treated_by Hearing loss, right ear (moderate, high-frequency) 2019-05-20 /
+                  derived_from Audiology report — City ENT, 20 May 2019 2019-05-20
+    no datasheet link anywhere in the panel, and the word "datasheet" is not printed on the page
+  2009-05-20 · allergy, "Penicillin — rash"
+    kicker "2009-05-20 · record" (view = record, not diagnosis)
+    centre header 2009-05-20 · RECORD / 2009-05-20 · 48 y
+    kind line     2009-05-20 · ALLERGY · ACTIVE
+    text          "Widespread rash two days into a course; no swelling, no breathing trouble.
+                  Recorded as intolerance rather than anaphylaxis."
+    WHERE IT CAME FROM / document / Lipid panel — City Lab, 20 May 2009 /
+    LINKED ITEMS / derived_from Lipid panel — City Lab, 20 May 2009 2009-05-20
+
+FINDING — the device record carries its datasheet in the document and the page never draws it
+  kg_demo.json, dev-hearing-aid-2019:
+    "link": "https://example.org/datasheets/8ch-bte-hearing-aid"
+  docs/DATA-CONTRACT.md (this PR) describes a device as "carries `link`, its datasheet, and `text`",
+  and scripts/schema/kg-1-health.schema.json says the link is "the datasheet — the manufacturer's
+  page or PDF describing what this thing is and what it forbids".
+  On the page: 0 anchors with an http(s) href in the whole document (graph view opened and closed
+  again to check), and the record panel above lists two actionable things — "open the document"
+  (the audiology report PDF, the source) and "derived_from" (the same PDF). The datasheet URL is
+  never rendered.
+  Cause, read in the template this PR does not touch: `renderRecord()` in body/index.html builds
+  the heading, the kind line, the text, WHERE IT CAME FROM (the `source` document and its link) and
+  LINKED ITEMS, and prints no link of the record's own — its comment says so on purpose: "a record
+  is not a lab report: it carries the document that holds it, never a lab's address". Analyses do
+  render their own `link` (as a window.open button), so the omission is specific to records, and
+  device is the first record kind whose whole point is a datasheet.
+  body/index.html is not in this PR's diff (11 files: body/lib/state-list.js, case.html,
+  docs/DATA-CONTRACT.md, index.html, kg_demo.json, scripts/case-artifact.test.ts,
+  scripts/kg-contract.test.ts, scripts/lib/kg-contract.ts, scripts/schema/kg-1-health.schema.json,
+  src/events.test.ts, src/events.ts), so no renderer change could have supplied it.
+  The design artifact is silent on where a datasheet link belongs in the record panel, so the fix
+  needs a layout decision as well as code — hence a fail, not a pass with a caveat.
+
+SECOND FINDING — `bun run typecheck` fails on this head
+  $ bun run typecheck
+  src/events.ts(67,14): error TS2739: Type '{ observation: string[]; condition: string[];
+  medication: string[]; procedure: string[]; encounter: string[]; document: string[]; }' is missing
+  the following properties from type 'Record<"document" | "observation" | "condition" | "medication"
+  | "procedure" | "encounter" | "immunization" | "device" | "allergy", readonly string[]'>:
+  immunization, device, allergy
+  This PR widened `EVENT_KINDS` (src/events.ts:17) and therefore `EventKind`, and left
+  `REQUIRED_FIELDS: Record<EventKind, readonly string[]>` (src/events.ts:65) with the six old kinds.
+  So the event model enforces no required field for an immunization, a device or an allergy, and the
+  package does not compile. CI's verify job runs `review:gate` first and aborts on it, so the
+  typecheck step has never run on this branch: "red only on the review gate" is not the whole
+  picture — a passing verdict would turn verify red on typecheck in the same job.
+  Everything else in the verify job is green on this head: lint 102 files, 1 pre-existing warning in
+  scripts/e2e/policy.test.ts (not in the diff); test 964 pass / 0 fail; test:contract 25 fixtures,
+  0 failures; check:case current at 300,921 bytes; check:demo current at 300,902 bytes; branch name
+  feat/SCRUM-79_new-node-kinds valid. `bun run test` passing is itself the third observation: no
+  unit test holds REQUIRED_FIELDS to EVENT_KINDS, which is how the missing three slipped through.
+
+ARTIFACTS
+  scrum79-01-three-columns.png      the built page as it opens (list, ruler, centre)
+  scrum79-02-immunization-2025.png  2025-10-20 influenza dose opened in the centre
+  scrum79-03-device-no-datasheet.png the hearing aid opened: the panel the card's claim fails on
