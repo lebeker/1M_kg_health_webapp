@@ -108,12 +108,14 @@ export const HEALTH_EVENT_KINDS = NODE_BRANCHES.filter(
  */
 export const TEMPORAL_NODE_KINDS = [...HEALTH_EVENT_KINDS.filter((kind) => kind !== 'document'), 'prediction'] as const
 
-// The event list and the branches are two statements of one fact. T06 says six events; a document is
-// the one event without `source`, because the document is the provenance itself. A schema whose
-// branches contradict either statement is refused at load, not discovered by a card in review.
-if (HEALTH_EVENT_KINDS.length !== 6) {
+// The event list and the branches are two statements of one fact: an event is a branch that requires
+// `when`, minus the virtual markers. A document is the one event without `source`, because the
+// document is the provenance itself. The list grows with the record — immunization, device and
+// allergy joined it — so the count is not pinned; the two statements are checked against each other
+// in src/events.test.ts, which is where a drift becomes a failing test instead of a surprise.
+if (HEALTH_EVENT_KINDS.length < 6) {
   throw new Error(
-    `scripts/schema/kg-1-health.schema.json: T06 names six event kinds, the schema's branches require \`when\` on ${HEALTH_EVENT_KINDS.length} (${HEALTH_EVENT_KINDS.join(', ')})`,
+    `scripts/schema/kg-1-health.schema.json: the branches require \`when\` on only ${HEALTH_EVENT_KINDS.length} kinds (${HEALTH_EVENT_KINDS.join(', ')}), fewer than the six the record has always had`,
   )
 }
 for (const kind of HEALTH_EVENT_KINDS) {
@@ -362,7 +364,7 @@ function crossReferences(doc: Json, health: boolean): Issue[] {
         message: `${label} starts at ${String(from.kind)}, expected ${rule.from.join(' or ')}`,
       })
     }
-    if (!rule.to.includes(String(to.kind))) {
+    if (!rule.to.includes('*') && !rule.to.includes(String(to.kind))) {
       issues.push({ path: `${path}.to`, message: `${label} ends at ${String(to.kind)}, expected ${rule.to.join(' or ')}` })
     }
   })

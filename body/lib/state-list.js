@@ -30,7 +30,10 @@
     encounter: "visit",
     medication: "medication",
     procedure: "procedure",
-    prediction: "projected"
+    prediction: "projected",
+    immunization: "immunization",
+    device: "device",
+    allergy: "allergy"
   };
 
   /* a calendar day, not an instant: "2019-04-12" is that day in the reader's calendar whatever

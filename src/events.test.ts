@@ -21,6 +21,9 @@ const minimal: Record<string, NewEvent> = {
   procedure: { id: 'proc-1', kind: 'procedure', when: '2021-05-15', source: 'doc-1' },
   encounter: { id: 'enc-1', kind: 'encounter', when: '2021-05-14', source: 'doc-1' },
   document: { id: 'doc-1', kind: 'document', when: '2021-05-14', label: 'Discharge note' },
+  immunization: { id: 'imm-1', kind: 'immunization', when: '2024-10-15', source: 'doc-1' },
+  device: { id: 'dev-1', kind: 'device', when: '2024-10-15', source: 'doc-1' },
+  allergy: { id: 'allergy-1', kind: 'allergy', when: '2024-10-15', status: 'active', source: 'doc-1' },
 }
 
 const documentOf = (events: NewEvent[]): unknown => ({
@@ -44,9 +47,12 @@ const rejection = (input: unknown): string => {
   throw new Error('createEvent accepted an event it should have refused')
 }
 
-describe('the six-kind event model', () => {
-  test('it is the six kinds T06 names, and the contract agrees', () => {
-    expect([...EVENT_KINDS]).toEqual(['observation', 'condition', 'medication', 'procedure', 'encounter', 'document'])
+describe('the event model', () => {
+  test('it is the contract\'s event kinds, and they agree', () => {
+    expect([...EVENT_KINDS]).toEqual([
+      'observation', 'condition', 'medication', 'procedure', 'encounter', 'document',
+      'immunization', 'device', 'allergy',
+    ])
     expect([...EVENT_KINDS].sort()).toEqual([...HEALTH_EVENT_KINDS].sort())
     for (const kind of EVENT_KINDS) expect(HEALTH_KINDS).toContain(kind)
   })
@@ -167,7 +173,7 @@ describe('reading events out of a document', () => {
     ],
   }
 
-  test('only the six event kinds come out, in document order', () => {
+  test('only the event kinds come out, in document order', () => {
     expect(eventsOf(doc).map((event) => event.id)).toEqual(['doc-1', 'cond-1', 'obs-1'])
   })
 
