@@ -1,0 +1,95 @@
+SCRUM-70b review run — docs/components/timeline.md scenarios 5-7
+reviewer: lia (liamijatovich)   when: 2026-11-24T10:50Z
+
+ROOM (fresh directory, nothing reused from the #60 render)
+  /Users/denistatarenko/Work/other/render-SCRUM-70b
+  skill    lebeker/1M_kg_skill @30d8971 (catalogue: health-viewer)
+  pr       lebeker/1M_kg_health_webapp #61 head 0cbc869bf4def658de25bb7d9bf531d6b18d560a
+  graph    kg_demo.json from that head (62 nodes / 71 edges)
+  template webapp/body/index.html copied to skill/assets/health-viewer.html
+  render   python3 skill/scripts/kg.py render --graph webapp/kg_demo.json \
+             --app health-viewer --out page/index.html
+           -> "rendered 62 nodes / 71 edges", 18 notes from docs/
+  page     page/index.html  298,089 bytes
+           sha256 2224300cde2e0e9a4aa7ad5c2bdc32ff3da9500cfe5678b58c72428bd3ce1
+  browser  Hermes browser (isolated, file://), innerWidth 1280, dpr 1
+  console  0 JS errors
+  surface  HEAD surface for review-gate = 11ca282679aad21c
+           (review/verdict.json at 0cbc869 still covers 7ea1d69068af3c11, the #60 page)
+
+SCENARIO 5 — count markers against the records list
+  PASS. 59 #tl .mark against 59 .srow rows; the two id sets are equal.
+  13 months hold more than one record and each record is its own marker:
+    2026-11 x4, 2026-10 x2, 2024-02 x4, 2023-05 x3, 2021-04 x3, 2021-03 x4,
+    2019-08 x7, 2016-10 x2, 2016-09 x4, 2012-03 x5, 2011-02 x2, 2009-05 x2, 2006-04 x3
+  Same-day records are fanned, not merged, e.g. 2026-11-12 at x 733.2 and 741.2,
+  2012-03-14 holds 5 markers. Ticks 151, labels 26, "today" line 1.
+
+SCENARIO 6 — click the marker of the ALT 2026-10-21 analysis
+  PASS. Real pointer click on the marker whose title is "ALT · 2026-10-21":
+    centre kicker   2026-10-21 · ANALYSIS   (#mainKicker)
+    centre heading   ALT                    (not the today summary)
+    records row      .srow[data-record=obs-alt-2026] gains class "on"
+    panel heading    2026-10-21 -> 2026-11-24   (#rpAsOf; the doc says -> 2026-11-23,
+                     the right end is today, which is now 2026-11-24)
+    marker           9x9 px rgb(127,179,224); every other marker 7x7 grey
+    current markers  ["obs-alt-2026"] only
+    readout          2026-10-21 · 65 y
+    no "no record on this date" anywhere
+
+SCENARIO 7 — click the bare strip between two markers
+  PASS as written, by snapping: the picked day always has a record on it.
+    x=567.5, 101 px gap between "annual summary · 2025-01-01" and
+    "Blood pressure · 2025-11-04": day 2026-11-24 -> 2025-01-01, centre
+    "2025-01-01 · SUMMARY" (annual summary), current marker ["annual:2024"],
+    which sits on that day; no "no record" text.
+
+  But the page no longer picks the day under the pointer, which is what
+  docs/components/timeline.md rule 5 still requires ("Clicking the bare strip
+  picks the day, which is a different thing"), and what "What it is" still
+  requires ("Picking anywhere on it moves the whole page to that day").
+  Measured every bare-strip click at 1280 px:
+    x=15    -> 2006-04-18 (obs-lipids-2006)      readout 2006-04-18 · 45 y
+    x=300   -> 2006-04-18 (obs-lipids-2006)      readout 2006-04-18 · 45 y
+    x=567.5 -> 2025-01-01 (annual:2024)          readout 2025-01-01 · 64 y
+    x=690   -> 2026-10-21 (obs-lipids-2026)      readout 2026-10-21 · 65 y
+    x=743   -> 2026-11-19 (enc-cardiology-2026)  readout 2026-11-19 · 65 y
+       (2 px right of the ALT marker at 734..741: the 5.5 px neighbour wins the
+        distance, so a near miss opens a different record than the one aimed at)
+    x=900   -> 2026-11-24 (today)                 readout 2026-11-24 · 65 y
+    x=1200  -> 2026-11-24 (today)                 readout 2026-11-24 · 65 y
+  The last two matter: everything to the right of "today" (the 2026..2065
+  projection band, ~40 % of the strip) can no longer move the page at all, so
+  the forecast panel can never be read at a future age any more. Rule 7 and the
+  panel's then/now columns still describe a ruler that decides the date.
+
+OTHER CHECKS ON THE HEAD
+  bun run test                 964 pass, 0 fail, 6373 expect(), 48 files
+  bun run check:case           "the published case page is current at both
+                               addresses (297601 bytes)"
+  branch name                  fix/SCRUM-70_timeline-click-nearest - valid
+  diff 752cdde..0cbc869        body/index.html, case.html, index.html,
+                               scripts/timeline-player.test.ts  (4 files)
+  docs/components/timeline.md  NOT in the diff; PR body says "scenarios 5-7
+                               updated to say this" - no such change exists
+  CI                           verify FAIL: review verdict covers surface
+                               7ea1d69..., HEAD is 11ca282... (the #60 verdict)
+
+CODE READ (src of truth: body/index.html)
+  + RECORDS and TL.records are assigned in buildTimeline and never read
+    anywhere (grep: only the let/assignment lines). Dead code.
+  + the nearest-record distance uses xOf(m.at), which ignores the +-8 px fan
+    used to place same-day markers, so the fan does not participate in snapping.
+  + the new unit test asserts three source strings
+    ('selectDate(best.at, best.id)', 'if (e.target.closest(".mark")) return;',
+    'const list = TL.marks || [];'), not behaviour: a handler that snapped to
+    the farthest record would still pass it.
+
+VERDICT: changes requested.
+  Scenarios 5, 6 and 7 pass on the page rendered by the skill in this room, and
+  the pixel-miss bug the card describes is gone (no "no record on this date" on
+  any of the seven clicks above). The PR cannot be released as it stands because
+  the normative component doc still specifies the behaviour this PR removed and
+  the handoff states a doc change that is not in the diff; and because the
+  snapping rule silently removes future-date navigation that rule 7 and the
+  forecast panel depend on.

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><base href="body/">
-<title>My health story</title><meta name="kg-build" content="2026-11-23T21:17:42Z">
+<title>My health story</title><meta name="kg-build" content="2026-11-24T10:40:08Z">
 <style>
   :root { color-scheme: dark; --bg:#0c0f13; --fg:#e6edf3; --mut:#93a4b5; --line:#25303c; --panel:#131922;
     /* the three columns, from one place: the list is 236px, the centre takes what is left, and the
@@ -520,7 +520,7 @@
       <path d="M4 1.8h5.2L12.6 5v9.2H4z"/><path d="M9 1.9v3.3h3.4"/><path d="M5.8 8h5M5.8 10.2h5M5.8 12.4h3.2"/>
     </svg>
   </button>
-  <b class="only-main" title="built 2026-11-23T21:17:42Z">My health story</b>
+  <b class="only-main" title="built 2026-11-24T10:40:08Z">My health story</b>
 
   <!-- the graph view's own chrome: back to the product, and what the view does and does not do -->
   <button id="graphBack" class="only-graph" title="back — returns to the selected date">← back</button>
@@ -3304,6 +3304,7 @@ let BIRTH = null;
 let DOC_BIRTH = null;        // the document's own birth date, before widget 30's knob moves the reading
 let LE_BY_SEX = { male: 74, female: 80 };
 let ANALYSES = [];
+let RECORDS = [];        // every dated record: the ruler's markers, and what a click on it snaps to
 /* every dated record of the document, whatever its kind: the left list reads this, the ruler and
    the marks keep reading ANALYSES, because a diagnosis has no value to paint a sphere with */
 let DOC_NODES = [];
@@ -3471,6 +3472,13 @@ function buildTimeline() {
     return;
   }
   const now = new Date();
+  /* Every dated record, whatever its kind. The ruler marks these, and a click anywhere on the strip
+     snaps to the nearest one: a 1-pixel marker is not a target, and a day between two records shows
+     the reader an empty column they did not ask for. */
+  RECORDS = (DOC_NODES || [])
+    .map(n => ({ id: n.id, kind: n.kind || "", label: n.label || n.id, at: dayOf(whenOf(n)) }))
+    .filter(r => r.at && !isNaN(+r.at));
+  TL.records = RECORDS;
   /* ±2 years of months around today, the rest of the ruler in years. If the reader is younger
      than the window, the window starts at birth: the ruler never draws time before a life. */
   const wfRaw = new Date(now.getFullYear() - 2, now.getMonth(), 1);
@@ -3504,18 +3512,20 @@ function buildTimeline() {
          record of its own to open. Rebuilding the track here would take that element out from
          under the click, the mark's handler would never fire, and the strip's day would win. Only
          the bare strip picks a day. */
-      if (e.target.closest(".tick") || e.target.closest(".mark")) return;
+      if (e.target.closest(".mark")) return;    // the marker opens its own record
+      /* Anywhere else on the strip opens the nearest record, not the day under the pointer: a
+         marker is a few pixels wide, and a click that lands between two of them used to leave the
+         centre saying "no record on this date" about a day nobody asked to see. */
       const r = T.getBoundingClientRect();
       const x = e.clientX - r.left;
-      let lo = +BIRTH, hi = new Date(TL.endYear, 0, 1).getTime();
-      if (!(hi > lo) || !TL.stepY) return;
-      for (let i = 0; i < 56; i++) {
-        const mid = (lo + hi) / 2;
-        if (xOf(new Date(mid)) < x) lo = mid; else hi = mid;
-      }
-      const d = new Date((lo + hi) / 2);
-      d.setHours(12, 0, 0, 0);     // the day under the pointer, not the first of its month
-      selectDate(d);
+      const list = TL.marks || [];
+      if (!list.length) return;
+      let best = null, bestD = Infinity;
+      list.forEach(m => {
+        const dist = Math.abs(xOf(m.at) - x);
+        if (dist < bestD) { bestD = dist; best = m; }
+      });
+      if (best) selectDate(best.at, best.id);
     });
   }
 
@@ -3554,7 +3564,6 @@ function buildTimeline() {
     if (+d > Date.now()) el.style.background = riskColour(annualRisk(ageAt(d)));
     el.addEventListener("mouseenter", e => tlCard(e, d, hits));
     el.addEventListener("mouseleave", () => { TL.card.hidden = true; });
-    el.addEventListener("click", () => { selectDate(d); });
     if (label) {
       const l = document.createElement("div");
       /* a January inside the window is a named year on the month scale: the label pass keeps it
@@ -3578,7 +3587,6 @@ function buildTimeline() {
     if (+d > +now) el.style.background = riskColour(annualRisk(ageAt(d)));
     el.addEventListener("mouseenter", e => tlCard(e, d, hits));
     el.addEventListener("mouseleave", () => { TL.card.hidden = true; });
-    el.addEventListener("click", () => { selectDate(d); });
     T.appendChild(el);
     const every = Math.max(5, Math.ceil(26 / Math.max(1, TL.stepY)));   // a label needs ~26 px
     if ((y % every === 0 || y === now.getFullYear()) && y !== BIRTH.getFullYear()) {
