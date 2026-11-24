@@ -98,10 +98,14 @@ describe('the ruler the page draws', () => {
     expect(page.match(/riskColour\(annualRisk\(ageAt\(d\)\)\)/g)?.length).toBe(2)
   })
 
-  test('a click anywhere on the strip selects that date', () => {
-    // one path for every date change: the projection and the marker cannot disagree
+  test('a click anywhere on the strip opens the nearest record', () => {
+    // one path for every date change: the projection and the marker cannot disagree. The strip
+    // snaps to a record rather than to a day, because a marker is 1 px wide and a day between two
+    // records shows an empty column nobody asked for.
     expect(page).toContain('document.getElementById("tl").addEventListener("pointerdown"')
-    expect(page).toContain('selectDate(d)')
+    expect(page).toContain('if (e.target.closest(".mark")) return;')
+    expect(page).toContain('selectDate(best.at, best.id)')
+    expect(page).toContain('const list = TL.marks || [];')
     expect(page).not.toContain('state.date = iso(d); paintFade(); refreshPick();')
   })
 
