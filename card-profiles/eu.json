@@ -1,0 +1,9 @@
+{
+  "id": "eu",
+  "name": "European patient summary (EEHRxF)",
+  "basis": "EEHRxF Patient Summary, built on IPS",
+  "order": ["problems","medications","allergies","results","vitals","procedures","immunizations","devices","social"],
+  "required": ["allergies","medications","problems","results","vitals","procedures","immunizations"],
+  "date": "YYYY-MM-DD",
+  "units": "recorded"
+}
