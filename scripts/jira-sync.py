@@ -32,16 +32,25 @@ State mapping (three-column workflow: To Do / In Progress / Done):
 **Done is the one gated state.** Jira is the ledger a human reads, and a Done there says "this reached
 main". A card's status alone does not say that — a card can be closed while its PR is still open — and
 there is no supported transition back out of Done, so a wrong write cannot be undone. The sync
-therefore resolves the card's pull request (its branch, else any PR whose body *opens* with
-`Task: <card-id>`) and writes Done only on evidence the work is on `origin/main`:
+therefore resolves the card's pull request (its branch, else a PR whose *title* names the ticket, else
+any PR whose body *opens* with `Task: <card-id>`) and writes Done only on evidence the work is on
+`origin/main`:
 
     MERGED PR whose merge commit is reachable from origin/main        -> Done
     `no-change-needed: <commit>` in a card comment, commit on origin/main -> Done
-    OPEN PR, or a PR closed without merging                           -> no transition; `pending-merge`
-    anything else: no PR, unreachable commit, gh unavailable          -> no transition; `no-merge-evidence`
+    OPEN PR                                                           -> no transition; `pending-merge`
+    CLOSED-unmerged PR, no declaration, no PR at all                  -> no transition; `no-merge-evidence`
+    a declaration or merge commit off `origin/main`                   -> no transition; `unverifiable`
+
+A closed-unmerged PR is *not* the last word: work lands through another commit often enough (a PR is
+closed while main is red, or superseded by the owner's own commit) that the card's own
+`no-change-needed: <commit>` line has to be read after it, and only a PR still open can hold a card
+by itself.
 
 A refusal posts a comment saying why and leaves the status as it was. It is logged on its own line, so
-`grep pending-merge` over a run log lists every card the ledger is waiting on.
+`grep pending-merge` over a run log lists every card the ledger is waiting on. **A refusal is not a
+failure**: nothing was written and nothing is wrong, so it is counted apart from both failures and
+warnings and never changes the exit code — which reports transport and write trouble only.
 
 **A status never moves backwards.** `running -> review -> running` is the normal rework path, and
 `ready` after a reviewer's changes is normal too: a card that maps to *To Do* while its issue is *In
@@ -341,6 +350,7 @@ class PullRequest:
     merge_commit: str = ""   # the commit on main; empty until merged
     branch: str = ""
     body: str = ""
+    title: str = ""
 
 
 @dataclass(frozen=True)
@@ -410,9 +420,30 @@ def declares_card(pr: PullRequest, card_id: str, key: str = "") -> bool:
     return opener == f"Task: {card_id}" or (bool(key) and opener == f"Task: {key}")
 
 
+def ticket_in_title(pr: PullRequest, key: str) -> bool:
+    """Does this PR's *title* name the card's ticket — `SCRUM-46 — graph view: fit by measurement`?
+
+    A card created in a `scratch` workspace records no `branch_name`, so there is no branch to ask
+    GitHub about; and the body opener is written by whoever opened the PR, which is not always the
+    delivery convention. The title is: every branch name, every squash commit and every PR title in
+    this repo follows `<KEY> <verb> …` (or `fix(SCRUM-60): …`). SCRUM-46/PR #31, SCRUM-60/PR #47 and
+    SCRUM-65/PR #54 all landed this way and all three needed a hand-written `no-change-needed` line
+    to close, because nothing bound them.
+
+    Only the *first* ticket a title names counts, and only as a whole token: PR #59 is
+    `fix(SCRUM-68): rebuild the published case page from SCRUM-67's template`, and reading the second
+    ticket out of that prose would hand SCRUM-67's card a PR it does not own. `SCRUM-4` and
+    `SCRUM-460` are different tickets from `SCRUM-46` for the same reason.
+    """
+    if not key:
+        return False
+    found = keys_in(pr.title)
+    return bool(found) and found[0] == key
+
+
 def resolve_pull_requests(card_id: str, branches: Iterable[str], prs: Iterable[PullRequest],
                           key: str = "") -> list[PullRequest]:
-    """Every PR that could be this card's, newest first: branch matches ahead of body matches.
+    """Every PR that could be this card's, newest first: branch, then title, then body opener.
 
     More than one is normal — a card whose first PR was closed and re-opened has several — so the gate
     reads them all and prefers merged evidence instead of picking one and hoping.
@@ -421,9 +452,11 @@ def resolve_pull_requests(card_id: str, branches: Iterable[str], prs: Iterable[P
     pool = list(prs)
     by_branch = sorted((pr for pr in pool if pr.branch and pr.branch in wanted),
                        key=lambda p: p.number, reverse=True)
+    by_title = sorted((pr for pr in pool if ticket_in_title(pr, key)),
+                      key=lambda p: p.number, reverse=True)
     by_body = sorted((pr for pr in pool if declares_card(pr, card_id, key)), key=lambda p: p.number, reverse=True)
     ordered: list[PullRequest] = []
-    for pr in by_branch + by_body:
+    for pr in by_branch + by_title + by_body:
         if all(seen.number != pr.number for seen in ordered):
             ordered.append(pr)
     return ordered
@@ -490,13 +523,13 @@ def evaluate_merge_gate(card_id: str, detail: dict, prs: Iterable[PullRequest],
             reason=f"PR #{pr.number} is still OPEN, so there is no merge to record",
         )
 
+    # A closed-unmerged PR is *not* evidence and it is not the last word either. Work lands through
+    # another commit often enough — a PR is closed while main is red, or superseded by the owner's
+    # own commit — that the card's `no-change-needed: <commit>` line has to be read here, after the
+    # closed PR and before giving up. Reading the closed PR first is how `t_7bcec2ed` (SCRUM-68) sat
+    # on `pending-merge` for two hours while its regeneration was already on main as f8f8485 and the
+    # card declared exactly that.
     closed = [pr for pr in candidates if pr.state == "CLOSED"]
-    if closed:
-        pr = closed[0]
-        return MergeEvidence(
-            token="pending-merge", pr_number=pr.number,
-            reason=f"PR #{pr.number} was CLOSED without being merged, so there is no merge to record",
-        )
 
     commit, problem = declared_no_change(detail)
     if problem:
@@ -513,13 +546,22 @@ def evaluate_merge_gate(card_id: str, detail: dict, prs: Iterable[PullRequest],
                     "from origin/main"),
         )
 
+    if closed:
+        pr = closed[0]
+        return MergeEvidence(
+            token="no-merge-evidence", pr_number=pr.number,
+            reason=(f"PR #{pr.number} was CLOSED without being merged, and the card declares no "
+                    "'no-change-needed: <commit>', so there is nothing to record as Done"),
+        )
+
     named = [f"'{branch}'" for branch in branches if branch]
     where = f"branch {', '.join(named)}" if named else "no branch recorded"
     openers = [f"'Task: {card_id}'"] + ([f"'Task: {key}'"] if key else [])
+    titled = f"a title naming {key}" if key else "a title naming its ticket"
     return MergeEvidence(
         token="no-merge-evidence",
-        reason=(f"no pull request resolves to this card ({where}, or a body opening {', '.join(openers)}) and "
-                "no 'no-change-needed: <commit>' line in its comments"),
+        reason=(f"no pull request resolves to this card ({where}, {titled}, or a body opening "
+                f"{', '.join(openers)}) and no 'no-change-needed: <commit>' line in its comments"),
     )
 
 
@@ -704,7 +746,7 @@ def gh_pull_requests(repo: str = REPO_ROOT) -> list[PullRequest]:
     """Every PR in the repo, in one call — the gate needs all of them to find a card's branch."""
     proc = subprocess.run(
         ["gh", "pr", "list", "--state", "all", "--limit", "400",
-         "--json", "number,state,mergeCommit,headRefName,body"],
+         "--json", "number,state,mergeCommit,headRefName,body,title"],
         cwd=repo, capture_output=True, text=True, timeout=180,
     )
     if proc.returncode != 0:
@@ -722,6 +764,7 @@ def gh_pull_requests(repo: str = REPO_ROOT) -> list[PullRequest]:
             merge_commit=str(merge.get("oid") or ""),
             branch=str(item.get("headRefName") or ""),
             body=str(item.get("body") or ""),
+            title=str(item.get("title") or ""),
         ))
     return prs
 
@@ -943,10 +986,16 @@ def run(apply: bool, strict: bool, cards: Iterable[dict], detail_of: Callable[[s
     `evidence_of` resolves the Done gate for a done card. With none supplied, a done card cannot write
     Done at all: the gate fails closed, because the alternative is an unearned Done that cannot be
     undone.
+
+    The exit code counts transport and write trouble only, so a healthy ledger is never red because of
+    a card it refuses to mirror: a refusal (`pending-merge`, `no-merge-evidence`, `unverifiable`,
+    `status-not-moved-backwards`) is counted apart from `failures` and `warnings` and is not fatal
+    even under `--strict`.
     """
     actions = 0
     failures = 0
     warnings = 0
+    refusals = 0
     cards = list(cards)  # two passes: resolve every key, then write
 
     details: dict[str, dict] = {}
@@ -1004,7 +1053,12 @@ def run(apply: bool, strict: bool, cards: Iterable[dict], detail_of: Callable[[s
 
         plan = build_plan(card, detail, state, identities, key, evidence=evidence_for(card_id, card_state, card, detail, evidence_of))
         for hold in plan.holds:
-            log(f"  {card_id} {card_state:<9} {key} — {hold}")
+            # A refusal is not a failure and not a warning: nothing was written, nothing is wrong,
+            # and a ledger with a card it cannot mirror yet is a normal state, not a red cron job.
+            # It gets its own count so the run summary can say so, and its own line (keeping the
+            # token first, so `grep no-merge-evidence` still finds every refusal).
+            refusals += 1
+            log(f"  {card_id} {card_state:<9} {key} — {hold} (refusal: nothing was written, not a failure)")
         for warning in plan.warnings:
             log(f"  {card_id} {card_state:<9} {key} — WARNING {warning}")
             warnings += 1
@@ -1026,7 +1080,7 @@ def run(apply: bool, strict: bool, cards: Iterable[dict], detail_of: Callable[[s
             failures += 1
 
     verb = "applied" if apply else "would be applied"
-    log(f"\n{actions} step(s) {verb}, {failures} failure(s), {warnings} warning(s)")
+    log(f"\n{actions} step(s) {verb}, {failures} failure(s), {warnings} warning(s), {refusals} refusal(s)")
     if failures:
         return 1
     if strict and warnings:

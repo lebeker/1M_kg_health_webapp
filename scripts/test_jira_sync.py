@@ -53,9 +53,9 @@ ELSEWHERE = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
 
 
 def pull_request(number: int, state: str, merge_commit: str = "", branch: str = "",
-                 body: str = "Task: t_1"):
+                 body: str = "Task: t_1", title: str = ""):
     return jira_sync.PullRequest(number=number, state=state, merge_commit=merge_commit,
-                                branch=branch, body=body)
+                                branch=branch, body=body, title=title)
 
 
 def gate(prs, detail_row=None, on_main=(MERGED_SHA,), branch=None, key: str = ""):
@@ -409,10 +409,38 @@ class TestDoneGate(unittest.TestCase):
 
     def test_done_with_a_closed_unmerged_pr_writes_nothing(self):
         evidence = gate([pull_request(8, "CLOSED")])
-        self.assertEqual(evidence.token, "pending-merge")
+        self.assertEqual(evidence.token, "no-merge-evidence")
+        self.assertIn("CLOSED without being merged", evidence.reason)
         plan = self.done_plan(evidence)
         self.assertEqual([step.kind for step in plan.steps], ["comment"])
         self.assertIn("CLOSED without being merged", plan.steps[0].value)
+
+    def test_a_closed_pr_does_not_block_a_valid_no_change_needed(self):
+        # Live: `t_7bcec2ed` (SCRUM-68). PR #59 was closed rather than merged while the regeneration
+        # landed on main as f8f8485, and the card declared exactly that — but the closed PR was read
+        # first, so the card could never be mirrored.
+        row = detail("done", "mex", comments=[f"no-change-needed: {MERGED_SHA}"])
+        evidence = gate([pull_request(59, "CLOSED")], row)
+        self.assertEqual(evidence.kind, "no-change-needed")
+        self.assertEqual(evidence.commit, MERGED_SHA)
+
+        plan = self.done_plan(evidence, comments=[f"no-change-needed: {MERGED_SHA}"])
+        self.assertEqual([step.kind for step in plan.steps], ["transition", "comment"])
+        self.assertEqual(plan.steps[0].value, "Done")
+        self.assertEqual(plan.holds, [])
+
+    def test_a_closed_pr_and_a_declared_commit_off_main_is_unverifiable(self):
+        row = detail("done", "mex", comments=[f"no-change-needed: {ELSEWHERE}"])
+        evidence = gate([pull_request(59, "CLOSED")], row)
+        self.assertEqual(evidence.token, "unverifiable")
+        self.assertIn(ELSEWHERE[:9], evidence.reason)
+
+    def test_an_open_pr_still_holds_the_card_against_a_declaration(self):
+        # A PR that is still open is the one case where the card cannot be done: it may still merge,
+        # and the declaration is the escape hatch for work that landed *elsewhere*, not for this.
+        row = detail("done", "mex", comments=[f"no-change-needed: {MERGED_SHA}"])
+        evidence = gate([pull_request(8, "OPEN")], row)
+        self.assertEqual(evidence.token, "pending-merge")
 
     def test_a_merged_pr_whose_commit_is_not_on_main_is_not_evidence(self):
         evidence = gate([pull_request(8, "MERGED", ELSEWHERE)])
@@ -571,6 +599,7 @@ class TestFindingThePrOfARealCard(unittest.TestCase):
         self.assertIn("Task: t_1", evidence.reason)
         self.assertIn("Task: SCRUM-1", evidence.reason)
         self.assertIn("no branch recorded", evidence.reason)
+        self.assertIn("a title naming SCRUM-1", evidence.reason)
 
     def test_a_successful_verdict_does_not_log_itself_as_a_refusal(self):
         # `token` is empty on success, and the run log used to fall back to `no-merge-evidence`.
@@ -593,6 +622,87 @@ class TestFindingThePrOfARealCard(unittest.TestCase):
         self.assertEqual(client.status, "In Progress")
         self.assertEqual([call for call in client.calls if call[0] == "transition"], [])
         self.assertTrue(any("timed out" in line for line in log), log)
+
+
+class TestScratchCardsBindTheirPrByTitle(unittest.TestCase):
+    """A `scratch` card records no branch, so the PR title is the only link it has.
+
+    Three live cards needed a hand-written `no-change-needed` line because of it: SCRUM-46 (PR #31 →
+    a24f788), SCRUM-60 (PR #47 → 530c9c5) and SCRUM-65 (PR #54 → 72ffcbd). Every PR title in this
+    repo names its ticket the way every branch name and squash commit does, so binding on the title
+    is reading the convention that is already there rather than inventing a new one.
+    """
+
+    def scratch(self, body: str = "Task: SCRUM-46") -> dict:
+        return detail("done", "mex", body=body)
+
+    def test_a_merged_pr_whose_title_names_the_ticket_writes_done(self):
+        for key, number, sha, title in (
+            ("SCRUM-46", 31, MERGED_SHA, "SCRUM-46 — graph view: fit by measurement, place labels by measurement"),
+            ("SCRUM-60", 47, MERGED_SHA, "SCRUM-60 — ci-gate: a missing head/base is a usage error (#47)"),
+            ("SCRUM-65", 54, MERGED_SHA, "SCRUM-65 — profile view: the blocks v11d names (#54)"),
+        ):
+            with self.subTest(key=key):
+                evidence = jira_sync.evaluate_merge_gate(
+                    "t_1", self.scratch(f"Task: {key}"),
+                    [pull_request(number, "MERGED", sha, branch="", body="no trailer here", title=title)],
+                    lambda sha: sha == MERGED_SHA, branch=[], key=key,
+                )
+                self.assertEqual(evidence.kind, "merged-pr", evidence.log_line())
+                self.assertEqual(evidence.pr_number, number)
+
+    def test_the_card_is_written_done_through_the_plan_with_no_declaration(self):
+        row = self.scratch()
+        evidence = jira_sync.evaluate_merge_gate(
+            "t_1", row, [pull_request(31, "MERGED", MERGED_SHA, body="no trailer", title="SCRUM-46 — graph view")],
+            lambda sha: sha == MERGED_SHA, branch=[], key="SCRUM-46",
+        )
+        plan = jira_sync.build_plan(card("done", "mex"), row, jira_state("In Progress", MEX), IDENTITIES,
+                                    "SCRUM-46", evidence=evidence)
+        self.assertEqual([step.kind for step in plan.steps], ["transition", "comment"])
+        self.assertEqual(plan.steps[0].value, "Done")
+        self.assertEqual(plan.holds, [])
+
+    def test_an_open_pr_found_by_title_holds_the_card(self):
+        evidence = jira_sync.evaluate_merge_gate(
+            "t_1", self.scratch(), [pull_request(31, "OPEN", title="SCRUM-46 — graph view")],
+            lambda sha: False, branch=[], key="SCRUM-46",
+        )
+        self.assertEqual(evidence.token, "pending-merge")
+        self.assertEqual(evidence.pr_number, 31)
+
+    def test_a_title_naming_a_neighbouring_ticket_does_not_bind(self):
+        # SCRUM-4 and SCRUM-460 are different tickets; a substring match would hand one card another
+        # card's merge, which is the mistake this gate exists to refuse.
+        for title in ("SCRUM-460 — something else", "fix SCRUM-4 rendering", "no ticket in this title"):
+            with self.subTest(title=title):
+                evidence = jira_sync.evaluate_merge_gate(
+                    "t_1", self.scratch(), [pull_request(31, "MERGED", MERGED_SHA, body="no trailer", title=title)],
+                    lambda sha: sha == MERGED_SHA, branch=[], key="SCRUM-46",
+                )
+                self.assertEqual(evidence.token, "no-merge-evidence", evidence.log_line())
+
+    def test_a_ticket_named_later_in_a_title_is_context_not_a_claim(self):
+        # PR #59's own title is "fix(SCRUM-68): rebuild the published case page from SCRUM-67's
+        # template". Reading the second ticket out of that prose would bind SCRUM-67's card to a PR
+        # that is not its own, so only the first ticket named counts.
+        pr = pull_request(59, "CLOSED", title="fix(SCRUM-68): rebuild the published case page from SCRUM-67's template")
+        self.assertFalse(jira_sync.ticket_in_title(pr, "SCRUM-67"))
+        self.assertTrue(jira_sync.ticket_in_title(pr, "SCRUM-68"))
+
+    def test_a_title_only_counts_for_the_card_that_owns_the_ticket(self):
+        self.assertTrue(jira_sync.ticket_in_title(pull_request(31, "MERGED", title="SCRUM-46 — graph"), "SCRUM-46"))
+        self.assertFalse(jira_sync.ticket_in_title(pull_request(31, "MERGED", title="SCRUM-46 — graph"), "SCRUM-4"))
+        self.assertFalse(jira_sync.ticket_in_title(pull_request(31, "MERGED", title="SCRUM-46 — graph"), ""))
+
+    def test_the_key_may_sit_inside_the_conventional_prefix(self):
+        # Titles are written by agents and humans: `fix(SCRUM-60): …`, `chore: … (SCRUM-45)` and
+        # `SCRUM-46 — …` all name the same ticket. Position does not decide; the first ticket does.
+        for title in ("fix(SCRUM-60): a missing head/base is a usage error",
+                      "SCRUM-60 — ci-gate: a missing head/base is a usage error",
+                      "chore(body): QA drivers refuse a host browser (SCRUM-60)"):
+            with self.subTest(title=title):
+                self.assertTrue(jira_sync.ticket_in_title(pull_request(47, "MERGED", title=title), "SCRUM-60"))
 
 
 class TestStatusNeverMovesBackwards(unittest.TestCase):
@@ -723,6 +833,49 @@ class TestRunLoop(unittest.TestCase):
         self.assertEqual([call for call in client.calls if call[0] == "transition"], [])
         self.assertEqual(client.status, "In Progress")
         self.assertTrue(any("no-merge-evidence" in line for line in log), log)
+
+    def test_a_genuinely_unmirrorable_card_is_a_refusal_and_exits_zero(self):
+        # A card the ledger cannot mirror yet is not a broken ledger: nothing was written, and the
+        # exit code is what the cron turns into an alert. It reports transport and write trouble only,
+        # so one unmirrorable card cannot turn a healthy sync into a red 15-minute tick.
+        for strict in (False, True):
+            with self.subTest(strict=strict):
+                client = FakeClient(status="In Progress", assignee_id=MEX)
+                log = []
+                code = jira_sync.run(
+                    apply=True,
+                    strict=strict,
+                    cards=[card("done", "mex")],
+                    detail_of=lambda _: detail("done", "mex", "closed out", body="Task: SCRUM-46"),
+                    client=client,
+                    identities=IDENTITIES,
+                    log=log.append,
+                    evidence_of=lambda _card, _detail: gate([], detail("done", "mex", body="Task: SCRUM-46"),
+                                                            key="SCRUM-46"),
+                )
+                self.assertEqual(code, 0)
+                self.assertEqual([call for call in client.calls if call[0] == "transition"], [])
+                held = [line for line in log if "no-merge-evidence" in line]
+                self.assertTrue(held, log)
+                self.assertIn("refusal", held[0])
+                self.assertTrue(any("1 refusal(s)" in line for line in log), log)
+                self.assertTrue(any("0 failure(s)" in line for line in log), log)
+
+    def test_a_transport_failure_still_exits_non_zero(self):
+        # The other half of the rule: a refusal is quiet, an unreadable issue is not.
+        client = FakeClient(status="In Progress", assignee_id=MEX)
+
+        def unreadable(_key):
+            raise jira_sync.StepFailed("Timed out waiting for MCP response")
+
+        code = jira_sync.run(
+            apply=True, strict=False, cards=[card("running", "mex")],
+            detail_of=lambda _: detail("running", "mex"),
+            client=type("Broken", (), {"read": staticmethod(unreadable), "set_assignee": lambda *a: None,
+                                       "transition": lambda *a: None, "comment": lambda *a: None})(),
+            identities=IDENTITIES, log=lambda _: None,
+        )
+        self.assertEqual(code, 1)
 
 
 class TestIdentityMap(unittest.TestCase):
