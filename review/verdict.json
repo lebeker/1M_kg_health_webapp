@@ -1,11 +1,11 @@
 {
-  "reviewer": "mexviner (round 3 rows logged by lia; ruler, markers, labels and the marker click re-measured by me)",
-  "when": "2026-11-23T21:38:08.724Z",
-  "passed": true,
-  "conclusions": "Round 3, all ten docs/components/timeline.md Scenarios rows pass on the page rendered from this branch through 1M_kg_skill at 30d8971 with kg_demo.json, 297485 bytes sha256 bbd40af3, 1280 px, and I re-measured the branch surface myself in my own run. Ruler sizing: the strip is edge to edge, rect 10 to 1270 width 1260 top 46 bottom 120, above all three columns at top 120 and 122, intersecting no header control, no horizontal scroll. Per-record markers: 59 .mark against 59 .srow rows and 59 records, same-day records fanned 8 px apart rather than merged, and the markers cover analyses, diagnoses, visits, medications, procedures and the annual and today summaries. Current-record emphasis: a real pointer click on ALT 2026-10-21 leaves exactly one marker current at 9 px rgb(127,179,224) against 7 px grey for the rest, opens that analysis in the centre with its row marked and the panel heading 2026-10-21 to 2026-11-23, readout 2026-10-21. Birth-year and today labels: gold 1961 birth at x 26 to 79.7 unclipped with 1965 and 1970 moved to a second line, zero overlapping boxes among 26 labels, today a named blue 1 px line at x 744.4 with nothing printed over it, 49 month ticks with every January 2025 to 2028 labelled. The bare strip picks the day it is pointed at, the player four buttons each land on a record with the readout agreeing, collapsing both columns leaves the strip and all 59 marker positions identical, and the unrendered template says no records yet with zero labels, markers and ticks. docs/components start: one file per component, with behaviours and the text scenarios this run executed. Caveats recorded, not failed rows: outside the two year month window a year is a few pixels wide so different days of one year can sit within one marker width; the round 3 log counts 49 month ticks from 2024-11 where round 2 logged 48 from 2024-12, and the live enumeration has no gap or repeat.",
-  "surface": "7ea1d69068af3c11",
-  "tested_sha": "183f8dc68dfa66611ec3b895ab0014aa5f8766f0",
+  "reviewer": "lia",
+  "when": "2026-11-24T10:51:48.573Z",
+  "passed": false,
+  "conclusions": "Reviewed PR #61 at 0cbc869 on the page rendered by 1M_kg_skill@30d8971 (298,089 bytes, sha256 2224300c): docs/components/timeline.md scenarios 5, 6 and 7 pass - 59 markers against 59 records rows, the ALT 2026-10-21 marker opens its analysis with the row marked and the panel heading 2026-10-21 -> 2026-11-24, and every bare-strip click lands on the nearest record with no no-record-on-this-date anywhere. Failed for two reasons that the scenarios do not cover: the behaviour contradicts the document that is this repo's only e2e script - rule 5 still says the bare strip picks the day, and the PR body claims scenarios 5-7 were updated when docs/components/timeline.md is not in the diff - and the snap makes everything right of today (x=900 and x=1200 at 1280 px) open the 2026-11-24 summary, so the 2026..2065 projection band can no longer set a date and the forecast cannot be read at a future age.",
+  "surface": "11ca282679aad21c",
+  "tested_sha": "0cbc869bf4def658de25bb7d9bf531d6b18d560a",
   "artifacts": [
-    "review/artifacts/2026-11-23/timeline-scenarios-round3.log"
+    "review/artifacts/2026-11-24/timeline-scenarios-scrum70b.log"
   ]
 }
